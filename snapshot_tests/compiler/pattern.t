@@ -3549,8 +3549,16 @@
   "-3" -> "%(-(1..5))"
   ========================================
   0000    | CallFunctionConstant 0: "-3"
-  0002    | DestructurePlan 0: tmpl(negated eq 1..eq 5)
-  0004    | End
+  0002    | JumpIfFailure 2 -> 34
+  0005    | MatchWindowEnter 6
+  0007    | MatchScrutinee r0
+  0009    | MatchType r0 string -> 32
+  0014    | MatchCastNum r4 <- r0 -> 32
+  0019    | MatchInRange r4 -5..-1 -> 32
+  0029    | Jump 29 -> 33
+  0032    | MatchFail
+  0033    | MatchWindowExit
+  0034    | End
   ========================================
 
   $ possum -p '"a-3" -> "a%(-(1..5))"' -i 'a-3'
@@ -3559,8 +3567,19 @@
   "a-3" -> "a%(-(1..5))"
   ========================================
   0000    | CallFunctionConstant 0: "a-3"
-  0002    | DestructurePlan 0: tmpl(eq "a", negated eq 1..eq 5)
-  0004    | End
+  0002    | JumpIfFailure 2 -> 52
+  0005    | MatchWindowEnter 6
+  0007    | MatchScrutinee r0
+  0009    | MatchType r0 string -> 50
+  0014    | MatchStrInit r0 front=r2 end=r3
+  0018    | MatchStrLit r0 cursor=r2 opp=r3 front "a" -> 50
+  0027    | MatchStrRest r4 r0[r2..r3]
+  0032    | MatchCastNum r4 <- r4 -> 50
+  0037    | MatchInRange r4 -5..-1 -> 50
+  0047    | Jump 47 -> 51
+  0050    | MatchFail
+  0051    | MatchWindowExit
+  0052    | End
   ========================================
 
   $ possum -p '-4 -> (2 * -(1..5))' -i '-4'
@@ -3569,8 +3588,16 @@
   -4 -> (2 * -(1..5))
   ========================================
   0000    | CallFunctionConstant 0: -4
-  0002    | DestructurePlan 0: (eq 2 * negated eq 1..eq 5)
-  0004    | End
+  0002    | JumpIfFailure 2 -> 31
+  0005    | MatchWindowEnter 3
+  0007    | MatchScrutinee r0
+  0009    | PushInteger 2
+  0011    | MatchRepeatValue r0 r2 -> 29
+  0016    | MatchInRange r2 -5..-1 -> 29
+  0026    | Jump 26 -> 30
+  0029    | MatchFail
+  0030    | MatchWindowExit
+  0031    | End
   ========================================
 
   $ possum -p '"aa" -> ("a" * -(1..2))' -i 'aa'
@@ -3579,8 +3606,16 @@
   "aa" -> ("a" * -(1..2))
   ========================================
   0000    | CallFunctionConstant 0: "aa"
-  0002    | DestructurePlan 0: (eq "a" * negated eq 1..eq 2)
-  0004    | End
+  0002    | JumpIfFailure 2 -> 31
+  0005    | MatchWindowEnter 3
+  0007    | MatchScrutinee r0
+  0009    | PushString "a"
+  0011    | MatchRepeatValue r0 r2 -> 29
+  0016    | MatchInRange r2 -2..-1 -> 29
+  0026    | Jump 26 -> 30
+  0029    | MatchFail
+  0030    | MatchWindowExit
+  0031    | End
   ========================================
 
   $ possum -p 'Inc(A) = A + 1 ; "" $ [1, 2] -> [N, Inc(N)]' -i ''

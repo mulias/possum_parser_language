@@ -2379,7 +2379,11 @@ pub const Compiler = struct {
             else
                 .gate,
             .sub => |set_id| if (templateRangeLimits(ast, set_id) != null)
-                .char_range
+                // A codepoint range compares one character in place; a
+                // numeric range spans an unknown number of digits (and an
+                // optional sign), so it casts the whole substring — the
+                // solvable's byte range — to a number before the range test.
+                (if (self.templateRangeNumeric(ast, set_id)) .solvable_cast else .char_range)
             else if (self.templateMergeSolvable(ast, set_id) != null)
                 .solvable_cast
             else if (self.templateCastStepable(ast, set_id))
@@ -3697,11 +3701,37 @@ pub const Compiler = struct {
         fail_jumps: *ArrayList(Ir.Index),
         region: Region,
     ) Error!void {
-        if (self.templateMergeSolvable(ast, set_id) != null) {
+        if (templateRangeLimits(ast, set_id) != null) {
+            try self.emitTemplateRangeCast(module_id, ast, set_id, cast_src, cast_dst, fail_jumps, region);
+        } else if (self.templateMergeSolvable(ast, set_id) != null) {
             try self.emitTemplateCast(module_id, ast, set_id, cast_src, cast_dst, dead_reg, fail_jumps, region);
         } else {
             try self.emitTemplateStructuralCast(module_id, ast, set_id, cast_src, cast_dst, fail_jumps, region);
         }
+    }
+
+    // Cast a numeric-range solvable's byte range (cast_src) to a number
+    // into cast_dst, then range-test it. cast_src == cast_dst is the
+    // in-place form used after MatchStrRest; the whole-string path casts
+    // the source value directly. A non-numeric byte range fails the cast.
+    fn emitTemplateRangeCast(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        set_id: Ast.SetId,
+        cast_src: u8,
+        cast_dst: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_test = .{
+            .op = .MatchCastNum,
+            .byte1 = cast_dst,
+            .byte2 = cast_src,
+            .target = Ir.unpatched_jump,
+        } }, region));
+        const limits = templateRangeLimits(ast, set_id).?;
+        try self.emitInRangeStep(module_id, ast, cast_dst, limits.lower, limits.upper, fail_jumps, region);
     }
 
     // Parse the solvable's byte range (cast_src) as JSON into cast_dst,
@@ -3842,18 +3872,9 @@ pub const Compiler = struct {
                     .back = back_byte,
                     .target = Ir.unpatched_jump,
                 } }, region));
-                // The decoded codepoint is a string; a numeric range's
-                // bounds are numbers, so cast it in place (a non-numeric
-                // codepoint fails the cast) before the range test. A
-                // codepoint range compares the character directly.
-                if (self.templateRangeNumeric(ast, set_id)) {
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
-                        .op = .MatchCastNum,
-                        .byte1 = regs.char,
-                        .byte2 = regs.char,
-                        .target = Ir.unpatched_jump,
-                    } }, region));
-                }
+                // A codepoint range compares the decoded character directly;
+                // numeric ranges take the whole-substring cast path
+                // (emitTemplateRangeCast), not this per-codepoint one.
                 const limits = templateRangeLimits(ast, set_id).?;
                 try self.emitInRangeStep(module_id, ast, regs.char, limits.lower, limits.upper, fail_jumps, region);
             },

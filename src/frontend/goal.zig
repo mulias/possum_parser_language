@@ -1196,7 +1196,7 @@ fn foldPattern(self: *Goal, pattern: *Pattern.RNode) FoldError!*Pattern.RNode {
         },
         .negation => |inner| {
             const folded_inner = try self.foldPattern(inner);
-            if (Pattern.negate(folded_inner.*, pattern.region)) |neg| {
+            if (try Pattern.negate(self.arena.allocator(), folded_inner.*, pattern.region)) |neg| {
                 return try Pattern.create(self.alloc(), neg.node, neg.region);
             }
             if (folded_inner.node == .merge and self.mergeTypeOf(folded_inner) == .number) {
@@ -2105,7 +2105,6 @@ fn remapPlaces(constraints: []Ast.Constraint, map: []const Ast.PlaceId) void {
 }
 
 pub const FoldError = error{ OutOfMemory, InvalidCharacter };
-
 
 fn foldedMerge(self: *Goal, a: Ast.GoalNode, b: Ast.GoalNode) FoldError!?Ast.GoalNode {
     if (a == .null) return b;

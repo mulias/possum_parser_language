@@ -35,8 +35,12 @@ pub fn isValidNumberString(bytes: []const u8) bool {
     const token = scanner.scanNumber();
 
     if (!scanner.isAtEnd()) return false;
+    if (token.tokenType != .Number) return false;
 
-    return token.tokenType == .Number;
+    // scanNumber accepts a lone sign ("-") as a Number token; a real
+    // number needs at least one digit, else parseFloat later panics.
+    for (bytes) |b| if (b >= '0' and b <= '9') return true;
+    return false;
 }
 
 pub fn parseInteger(bytes: []const u8) ?i64 {

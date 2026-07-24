@@ -294,7 +294,7 @@ fn mergeRangeAndNumberNodes(
     };
 }
 
-pub fn negate(node: RNode, region: Region) ?RNode {
+pub fn negate(allocator: Allocator, node: RNode, region: Region) !?RNode {
     return switch (node.node) {
         .number_float => |f| RNode{
             .node = .{ .number_float = -f },
@@ -304,8 +304,31 @@ pub fn negate(node: RNode, region: Region) ?RNode {
             .node = .{ .number_string = ns.negate() },
             .region = region,
         },
-        .negation => |inner| negate(inner.*, region),
+        .negation => |inner| negate(allocator, inner.*, region),
+        .range => |range| {
+            var neg_lower: ?*RNode = null;
+            var neg_upper: ?*RNode = null;
+
+            if (range.lower) |lower| {
+                const neg = try negate(allocator, lower.*, lower.region) orelse return null;
+                // negating flips range, lower is now upper
+                neg_upper = try create(allocator, neg.node, neg.region);
+            }
+
+            if (range.upper) |upper| {
+                const neg = try negate(allocator, upper.*, upper.region) orelse return null;
+                // negating flips range, upper is now lower
+                neg_lower = try create(allocator, neg.node, neg.region);
+            }
+
+            return RNode{
+                .node = .{ .range = .{
+                    .lower = neg_lower,
+                    .upper = neg_upper,
+                } },
+                .region = region,
+            };
+        },
         else => null,
     };
 }
-
