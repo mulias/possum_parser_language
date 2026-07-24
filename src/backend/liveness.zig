@@ -110,12 +110,8 @@ fn instructionReads(operand: Ir.Operand, plan_slots: []const PlanSlots) SlotSet 
         .match_cmp => |m| if (m.kind == .slot) reads.set(@intCast(m.arg)),
         // MatchKeyBound reads the bound key local it matches against.
         .match_key_bound => |m| reads.set(m.slot),
-        // MatchInRange reads any bound that reads a bound local's slot;
-        // bind bounds define rather than read.
-        .match_range => |m| {
-            if (m.lower_kind == @intFromEnum(RangeLimitKind.read)) reads.set(@intCast(m.lower_arg));
-            if (m.upper_kind == @intFromEnum(RangeLimitKind.read)) reads.set(@intCast(m.upper_arg));
-        },
+        // A read-kind MatchBound reads the bound local it compares against.
+        .match_bound => |m| if (m.kind == @intFromEnum(RangeLimitKind.read)) reads.set(@intCast(m.arg)),
         // MatchRepeatRange reads any bound-local range bounds.
         .match_repeat_range => |m| {
             if (m.lower_kind == @intFromEnum(RangeLimitKind.read)) reads.set(@intCast(m.lower_arg));
@@ -136,13 +132,9 @@ fn instructionDefs(operand: Ir.Operand, plan_slots: []const PlanSlots) SlotSet {
     // are frame slots.
     switch (operand) {
         .destructure_plan => |idx| return plan_slots[idx].defs,
-        // MatchBind overwrites its bound local.
+        // MatchBind overwrites its bound local (an unbound-var range bound
+        // now lowers to its own MatchBind, so it flows through here too).
         .match_bytes => |m| if (m.op == .MatchBind) defs.set(m.byte1),
-        // An unbound-var (bind) range bound overwrites its local slot.
-        .match_range => |m| {
-            if (m.lower_kind == @intFromEnum(RangeLimitKind.bind)) defs.set(@intCast(m.lower_arg));
-            if (m.upper_kind == @intFromEnum(RangeLimitKind.bind)) defs.set(@intCast(m.upper_arg));
-        },
         else => {
             const op = Ir.operandOp(operand);
             if (Ir.localSlotDefOperand(op, operand)) |slot| defs.set(slot);
@@ -176,7 +168,7 @@ fn liveOut(insns: []const Ir.Insn, live_in: []const SlotSet, i: usize) SlotSet {
                 .match_merge_num => |m| m.target,
                 .match_search => |m| m.target,
                 .match_key_bound => |m| m.target,
-                .match_range => |m| m.target,
+                .match_bound => |m| m.target,
                 .match_repeat_range => |m| m.target,
                 .match_repeat_init => |m| m.target,
                 .match_repeat_next => |m| m.target,

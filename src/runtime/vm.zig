@@ -910,6 +910,10 @@ pub const VM = struct {
                     0 => value.isDynType(.Array),
                     1 => value.isDynType(.Object),
                     2 => value.isType(.String) or value.isType(.InputSubstring) or value.isDynType(.String),
+                    // Class 3 is the range-value gate (number or single
+                    // codepoint) that a bound-less range needs; it is not a
+                    // ValueType and does not round-trip to one.
+                    3 => value.isRangeValue(self.*),
                     else => @panic("Internal Error: unsupported MatchType operand"),
                 };
                 if (!matches) self.cur_frame.ip += offset;
@@ -1485,15 +1489,24 @@ pub const VM = struct {
                 self.setLocal(local, value);
                 previous.release();
             },
-            .MatchInRange => {
-                const slot = self.readByte();
-                const lower_kind: RangeLimitKind = @enumFromInt(self.readByte());
-                const lower_arg = self.readShort();
-                const upper_kind: RangeLimitKind = @enumFromInt(self.readByte());
-                const upper_arg = self.readShort();
+            .MatchBound => {
+                // One end of a range: compare the value register against a
+                // constant or bound-local bound. The range-value type gate
+                // is carried by this comparison (compareRangeBound rejects
+                // non-number, non-codepoint values); a bound-less range
+                // gets an explicit MatchType class-3 gate instead.
+                const reg = self.readByte();
+                const is_upper = self.readByte() != 0;
+                const kind: RangeLimitKind = @enumFromInt(self.readByte());
+                const arg = self.readShort();
                 const offset = self.readShort();
-                const value = self.getScratch(slot);
-                const matched = try self.matchInRange(value, lower_kind, lower_arg, upper_kind, upper_arg);
+                const limit = switch (kind) {
+                    .const_elem => self.getConstant(arg),
+                    .read => try self.getBoundLocal(arg),
+                    else => @panic("Internal Error: unsupported MatchBound kind"),
+                };
+                const value = self.getScratch(reg);
+                const matched = try self.compareRangeBound(limit, value, is_upper);
                 if (!matched) self.cur_frame.ip += offset;
             },
             .MatchRangeBound => {
@@ -1650,7 +1663,7 @@ pub const VM = struct {
                 // range bounds and write the codepoint count into the
                 // destination register for the count steps that follow.
                 // An invalid sequence or out-of-range codepoint takes the
-                // fail jump. Bounds are the non-evaluated MatchInRange
+                // fail jump. Bounds are the non-evaluated range-bound
                 // subset (none/const/read).
                 const src = self.readByte();
                 const dst = self.readByte();
@@ -2524,11 +2537,6 @@ pub const VM = struct {
         self.match_regs.items[self.current_window_base + slot] = elem;
     }
 
-    // Match a value against a range whose non-evaluated bounds are encoded
-    // in the MatchInRange operand. The value must be a number or a single
-    // codepoint (the range value gate); each present bound must resolve to
-    // a whole integer or a single codepoint (else a runtime error); an
-    // unbound-var bound binds the value and imposes no comparison.
     // Compare `literal` at the cursor within a string template and return
     // the advanced cursor, or null when it doesn't fit before the opposite
     // cursor or the bytes differ. Forward (back=false) chomps from `cur`
@@ -2571,58 +2579,6 @@ pub const VM = struct {
         if (cur + len > opp) return null;
         if (parsing.utf8Decode(bytes[cur .. cur + len]) == null) return null;
         return .{ .start = cur, .end = cur + len, .next_cursor = cur + len };
-    }
-
-    fn matchInRange(
-        self: *VM,
-        value: Elem,
-        lower_kind: RangeLimitKind,
-        lower_arg: u16,
-        upper_kind: RangeLimitKind,
-        upper_arg: u16,
-    ) !bool {
-        if (!value.isRangeValue(self.*)) return false;
-        if (!try self.matchRangeLimit(value, lower_kind, lower_arg, false)) return false;
-        if (!try self.matchRangeLimit(value, upper_kind, upper_arg, true)) return false;
-        return true;
-    }
-
-    fn matchRangeLimit(self: *VM, value: Elem, kind: RangeLimitKind, arg: u16, is_upper: bool) !bool {
-        switch (kind) {
-            .none => return true,
-            .bind => {
-                const previous = self.getLocal(arg);
-                value.retain();
-                self.setLocal(arg, value);
-                previous.release();
-                return true;
-            },
-            .read => return self.compareRangeBound(try self.getBoundLocal(arg), value, is_upper),
-            .const_elem => return self.compareRangeBound(self.getConstant(arg), value, is_upper),
-            .global => {
-                // A zero-arity function bound evaluates per match and its
-                // result is compared, like an eq_global function comparand.
-                var limit = self.getConstant(arg);
-                var rooted = false;
-                if (limit.isDynType(.Function)) {
-                    const function = limit.asDyn().asFunction();
-                    if (function.arity != 0) {
-                        return self.runtimeError("Pattern function '{s}' expects arguments.", .{self.strings.get(function.name)});
-                    }
-                    try self.push(limit);
-                    try self.callFunction(limit, 0, false);
-                    try self.runFunction();
-                    limit = self.pop();
-                    if (limit.isType(.Dyn)) {
-                        try self.pushTempDyn(limit.asDyn());
-                        rooted = true;
-                    }
-                }
-                const matched = try self.compareRangeBound(limit, value, is_upper);
-                if (rooted) self.dropTempDyn();
-                return matched;
-            },
-        }
     }
 
     // A repeat range bound resolved to its codepoint: none is open, and

@@ -4,10 +4,12 @@ const Chunk = @import("chunk.zig").Chunk;
 const VM = @import("vm.zig").VM;
 const Module = @import("module.zig").Module;
 
-// How each end of a MatchInRange step resolves its bound. `const_elem`
-// and `global` carry a constant index; `read` and `bind` carry a local
-// slot. Evaluated bounds are handled by a separate MatchRangeBound step,
-// not encoded in MatchInRange, so they have no kind here.
+// How a range bound resolves. `const_elem` and `global` carry a constant
+// index; `read` and `bind` carry a local slot. A MatchBound step only
+// ever carries `const_elem`/`read` (bind and global bounds are split at
+// compile time into a MatchBind / a constant or call); MatchRepeatRange
+// carries `none`/`const_elem`/`read`. Evaluated bounds are handled by a
+// separate MatchRangeBound step and have no kind here.
 pub const RangeLimitKind = enum(u8) {
     none,
     const_elem,
@@ -83,10 +85,10 @@ pub const OpCode = enum(u8) {
     MatchCast,
     MatchCmp,
     MatchCount,
+    MatchBound,
     MatchElem,
     MatchEval,
     MatchFail,
-    MatchInRange,
     MatchKey,
     MatchKeyBound,
     MatchMergeBool,
@@ -290,10 +292,10 @@ pub const OpCode = enum(u8) {
             .MatchFail => .{ .fixed = .{ .pops = 1, .pushes = 1 } },
 
             // Semidet steps: no stack traffic on either path.
+            .MatchBound,
             .MatchCast,
             .MatchCmp,
             .MatchCount,
-            .MatchInRange,
             .MatchKey,
             .MatchKeyBound,
             .MatchMergeBool,
@@ -557,11 +559,11 @@ pub const OpCode = enum(u8) {
             // fresh array's creator handle into its register the same
             // way.
             .MatchBind,
+            .MatchBound,
             .MatchCast,
             .MatchCmp,
             .MatchCount,
             .MatchElem,
-            .MatchInRange,
             .MatchKey,
             .MatchKeyBound,
             .MatchMergeBool,
@@ -744,7 +746,7 @@ pub const OpCode = enum(u8) {
             .MatchRepeatValue,
             => self.matchRepeatInstruction(chunk, writer, offset),
             .MatchRepeatRange => self.matchRepeatRangeInstruction(chunk, vm, module, writer, offset),
-            .MatchInRange => self.matchInRangeInstruction(chunk, vm, module, writer, offset),
+            .MatchBound => self.matchBoundInstruction(chunk, vm, module, writer, offset),
             .MatchRangeBound => self.matchRangeBoundInstruction(chunk, writer, offset),
             .MatchStrEnd => self.matchStrEndInstruction(chunk, vm, module, writer, offset),
             .MatchKey => self.matchKeyInstruction(chunk, vm, module, writer, offset),
@@ -1106,6 +1108,7 @@ pub const OpCode = enum(u8) {
             0 => "array",
             1 => "object",
             2 => "string",
+            3 => "num_or_codepoint",
             else => "unknown",
         };
         const jump = (@as(u16, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
@@ -1190,20 +1193,17 @@ pub const OpCode = enum(u8) {
         return offset + 11;
     }
 
-    fn matchInRangeInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
-        const slot = chunk.read(offset + 1);
-        const lower_kind = chunk.read(offset + 2);
-        const lower_arg = (@as(u16, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
-        const upper_kind = chunk.read(offset + 5);
-        const upper_arg = (@as(u16, @intCast(chunk.read(offset + 6))) << 8) | chunk.read(offset + 7);
-        const jump = (@as(u16, @intCast(chunk.read(offset + 8))) << 8) | chunk.read(offset + 9);
-        const target = offset + 10 + jump;
-        try writer.print("{s} r{} ", .{ @tagName(self), slot });
-        try printRangeLimit(vm, module, writer, lower_kind, lower_arg);
-        try writer.writeAll("..");
-        try printRangeLimit(vm, module, writer, upper_kind, upper_arg);
+    fn matchBoundInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
+        const reg = chunk.read(offset + 1);
+        const is_upper = chunk.read(offset + 2) != 0;
+        const kind = chunk.read(offset + 3);
+        const arg = (@as(u16, @intCast(chunk.read(offset + 4))) << 8) | chunk.read(offset + 5);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 6))) << 8) | chunk.read(offset + 7);
+        const target = offset + 8 + jump;
+        try writer.print("{s} r{} {s} ", .{ @tagName(self), reg, if (is_upper) "hi" else "lo" });
+        try printRangeLimit(vm, module, writer, kind, arg);
         try writer.print(" -> {}\n", .{target});
-        return offset + 10;
+        return offset + 8;
     }
 
     fn printRangeLimit(vm: VM, module: Module, writer: *Writer, kind: u8, arg: u16) !void {

@@ -97,16 +97,17 @@ pub const Ir = struct {
         // when the member is absent or already claimed; on success the
         // key is claimed into key_dst like a search pair's.
         match_key_bound: struct { op: OpCode, key_dst: u8, val_dst: u8, src: u8, slot: u8, claim_count: u8, constant: u16, target: Index },
-        // MatchInRange (slot, lower kind+arg, upper kind+arg): semidet
-        // range test. Each bound's kind is none=0, const=1, global=2,
-        // read=3, bind=4; arg is a constant index (const/global) or a
-        // local slot (read/bind), unused for none. Evaluated bounds are
-        // emitted as separate MatchRangeBound steps, not encoded here.
-        match_range: struct { op: OpCode, slot: u8, lower_kind: u8, lower_arg: u16, upper_kind: u8, upper_arg: u16, target: Index },
+        // MatchBound (reg, is_upper, kind, arg): semidet one-ended range
+        // test. is_upper selects value<=bound (1) vs bound<=value (0);
+        // kind is const=1 (arg a constant index) or read=3 (arg a bound
+        // local slot). The range-value gate is carried by the comparison;
+        // bind/global/eval bounds are split at compile time into MatchBind
+        // / a constant / a call + MatchRangeBound, so none reach here.
+        match_bound: struct { op: OpCode, reg: u8, is_upper: u8, kind: u8, arg: u16, target: Index },
         // MatchRepeatRange (src, count dst, lower kind+arg, upper
         // kind+arg): semidet codepoint scan of src's string against the
         // range bounds, writing the codepoint count into dst. Bound kinds
-        // are the non-evaluated MatchInRange subset (none/const/read).
+        // are the non-evaluated range-bound subset (none/const/read).
         match_repeat_range: struct { op: OpCode, src: u8, dst: u8, lower_kind: u8, lower_arg: u16, upper_kind: u8, upper_arg: u16, target: Index },
         // MatchRepeatInit (src, chunk element length, count dst, base):
         // semidet array-repeat loop entry — array check and divisibility,
@@ -224,7 +225,7 @@ pub const Ir = struct {
             .match_merge_num => |*m| &m.target,
             .match_search => |*m| &m.target,
             .match_key_bound => |*m| &m.target,
-            .match_range => |*m| &m.target,
+            .match_bound => |*m| &m.target,
             .match_repeat_range => |*m| &m.target,
             .match_repeat_init => |*m| &m.target,
             .match_repeat_next => |*m| &m.target,
@@ -404,15 +405,14 @@ pub const Ir = struct {
                     const distance = offsets[m.target] - (offsets[i] + insn_len);
                     try self.writeShortDistance(chunk, allocator, distance, region);
                 },
-                .match_range => |m| {
+                .match_bound => |m| {
                     std.debug.assert(m.target != unpatched_jump);
                     std.debug.assert(m.target > i);
                     try chunk.writeOp(allocator, m.op, region);
-                    try chunk.write(allocator, m.slot, region);
-                    try chunk.write(allocator, m.lower_kind, region);
-                    try chunk.writeShort(allocator, m.lower_arg, region);
-                    try chunk.write(allocator, m.upper_kind, region);
-                    try chunk.writeShort(allocator, m.upper_arg, region);
+                    try chunk.write(allocator, m.reg, region);
+                    try chunk.write(allocator, m.is_upper, region);
+                    try chunk.write(allocator, m.kind, region);
+                    try chunk.writeShort(allocator, m.arg, region);
                     const insn_len = byteLength(insn.operand);
                     const distance = offsets[m.target] - (offsets[i] + insn_len);
                     try self.writeShortDistance(chunk, allocator, distance, region);
@@ -584,7 +584,7 @@ pub const Ir = struct {
             .match_rest => 7,
             .match_search => 10,
             .match_key_bound => 10,
-            .match_range => 10,
+            .match_bound => 8,
             .match_repeat_range => 11,
             .match_repeat_init => 7,
             .match_repeat_next => 7,
@@ -686,7 +686,7 @@ pub const Ir = struct {
                         .match_merge_num => |m| m.target,
                         .match_search => |m| m.target,
                         .match_key_bound => |m| m.target,
-                        .match_range => |m| m.target,
+                        .match_bound => |m| m.target,
                         .match_repeat_range => |m| m.target,
                         .match_repeat_init => |m| m.target,
                         .match_repeat_next => |m| m.target,
@@ -764,7 +764,7 @@ pub const Ir = struct {
             .match_rest => |m| m.op,
             .match_search => |m| m.op,
             .match_key_bound => |m| m.op,
-            .match_range => |m| m.op,
+            .match_bound => |m| m.op,
             .match_repeat_range => |m| m.op,
             .match_repeat_init => |m| m.op,
             .match_repeat_next => |m| m.op,

@@ -20,48 +20,49 @@
   0004    | SetInputMark
   0005    | GetConstant 0: const
   0007    | GetLocal l0
-  0009    | JumpIfFailure 9 -> 31
+  0009    | JumpIfFailure 9 -> 34
   0012    | MatchWindowEnter 2
   0014    | MatchScrutinee r0
-  0016    | MatchInRange r0 ..1 -> 29
-  0026    | Jump 26 -> 30
-  0029    | MatchFail
-  0030    | MatchWindowExit
-  0031    | CallFunction 1
-  0033    | ConditionalThen 33 -> 45
-  0036    | GetConstant 0: const
-  0038    | GetLocalMove l0
-  0040    | CallTailFunction 1
-  0042    | Jump 42 -> 105
-  0045    | GetConstant 2: fib
-  0047    | GetLocal l0
-  0049    | JumpIfFailure 49 -> 55
-  0052    | PushNegInteger -1
-  0054    | Merge
-  0055    | CallFunction 1
-  0057    | JumpIfFailure 57 -> 68
-  0060    | MatchWindowEnter 2
-  0062    | MatchScrutinee r0
-  0064    | MatchBind l1 r0
-  0067    | MatchWindowExit
-  0068    | TakeRight 68 -> 105
-  0071    | GetConstant 2: fib
-  0073    | GetLocalMove l0
-  0075    | JumpIfFailure 75 -> 81
-  0078    | PushNegInteger -2
-  0080    | Merge
-  0081    | CallFunction 1
-  0083    | JumpIfFailure 83 -> 94
-  0086    | MatchWindowEnter 2
-  0088    | MatchScrutinee r0
-  0090    | MatchBind l2 r0
-  0093    | MatchWindowExit
-  0094    | TakeRight 94 -> 105
-  0097    | GetLocalMove l1
-  0099    | JumpIfFailure 99 -> 105
-  0102    | GetLocalMove l2
-  0104    | Merge
-  0105    | End
+  0016    | MatchType r0 num_or_codepoint -> 32
+  0021    | MatchBound r0 hi 1 -> 32
+  0029    | Jump 29 -> 33
+  0032    | MatchFail
+  0033    | MatchWindowExit
+  0034    | CallFunction 1
+  0036    | ConditionalThen 36 -> 48
+  0039    | GetConstant 0: const
+  0041    | GetLocalMove l0
+  0043    | CallTailFunction 1
+  0045    | Jump 45 -> 108
+  0048    | GetConstant 2: fib
+  0050    | GetLocal l0
+  0052    | JumpIfFailure 52 -> 58
+  0055    | PushNegInteger -1
+  0057    | Merge
+  0058    | CallFunction 1
+  0060    | JumpIfFailure 60 -> 71
+  0063    | MatchWindowEnter 2
+  0065    | MatchScrutinee r0
+  0067    | MatchBind l1 r0
+  0070    | MatchWindowExit
+  0071    | TakeRight 71 -> 108
+  0074    | GetConstant 2: fib
+  0076    | GetLocalMove l0
+  0078    | JumpIfFailure 78 -> 84
+  0081    | PushNegInteger -2
+  0083    | Merge
+  0084    | CallFunction 1
+  0086    | JumpIfFailure 86 -> 97
+  0089    | MatchWindowEnter 2
+  0091    | MatchScrutinee r0
+  0093    | MatchBind l2 r0
+  0096    | MatchWindowExit
+  0097    | TakeRight 97 -> 108
+  0100    | GetLocalMove l1
+  0102    | JumpIfFailure 102 -> 108
+  0105    | GetLocalMove l2
+  0107    | Merge
+  0108    | End
   ========================================
   
   =================2:Fib==================
@@ -69,29 +70,30 @@
   ========================================
   0000    | SetInputMark
   0001    | GetLocal l0
-  0003    | JumpIfFailure 3 -> 25
+  0003    | JumpIfFailure 3 -> 28
   0006    | MatchWindowEnter 2
   0008    | MatchScrutinee r0
-  0010    | MatchInRange r0 ..1 -> 23
-  0020    | Jump 20 -> 24
-  0023    | MatchFail
-  0024    | MatchWindowExit
-  0025    | Or 25 -> 56
-  0028    | GetConstant 3: Fib
-  0030    | GetLocal l0
-  0032    | JumpIfFailure 32 -> 38
-  0035    | PushNegInteger -1
-  0037    | Merge
-  0038    | CallFunction 1
-  0040    | JumpIfFailure 40 -> 56
-  0043    | GetConstant 3: Fib
-  0045    | GetLocalMove l0
-  0047    | JumpIfFailure 47 -> 53
-  0050    | PushNegInteger -2
-  0052    | Merge
-  0053    | CallFunction 1
+  0010    | MatchType r0 num_or_codepoint -> 26
+  0015    | MatchBound r0 hi 1 -> 26
+  0023    | Jump 23 -> 27
+  0026    | MatchFail
+  0027    | MatchWindowExit
+  0028    | Or 28 -> 59
+  0031    | GetConstant 3: Fib
+  0033    | GetLocal l0
+  0035    | JumpIfFailure 35 -> 41
+  0038    | PushNegInteger -1
+  0040    | Merge
+  0041    | CallFunction 1
+  0043    | JumpIfFailure 43 -> 59
+  0046    | GetConstant 3: Fib
+  0048    | GetLocalMove l0
+  0050    | JumpIfFailure 50 -> 56
+  0053    | PushNegInteger -2
   0055    | Merge
-  0056    | End
+  0056    | CallFunction 1
+  0058    | Merge
+  0059    | End
   ========================================
   
   ================2:@main=================

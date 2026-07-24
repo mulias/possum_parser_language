@@ -657,14 +657,16 @@
   2 -> 0..5
   ========================================
   0000    | ParseNumberStringChar 2
-  0002    | JumpIfFailure 2 -> 24
+  0002    | JumpIfFailure 2 -> 35
   0005    | MatchWindowEnter 2
   0007    | MatchScrutinee r0
-  0009    | MatchInRange r0 0..5 -> 22
-  0019    | Jump 19 -> 23
-  0022    | MatchFail
-  0023    | MatchWindowExit
-  0024    | End
+  0009    | MatchType r0 num_or_codepoint -> 33
+  0014    | MatchBound r0 lo 0 -> 33
+  0022    | MatchBound r0 hi 5 -> 33
+  0030    | Jump 30 -> 34
+  0033    | MatchFail
+  0034    | MatchWindowExit
+  0035    | End
   ========================================
 
   $ possum -p 'char -> "a".."z"' -i 'q'
@@ -680,14 +682,16 @@
   char -> "a".."z"
   ========================================
   0000    | CallFunctionConstant 0: char
-  0002    | JumpIfFailure 2 -> 24
+  0002    | JumpIfFailure 2 -> 35
   0005    | MatchWindowEnter 2
   0007    | MatchScrutinee r0
-  0009    | MatchInRange r0 "a".."z" -> 22
-  0019    | Jump 19 -> 23
-  0022    | MatchFail
-  0023    | MatchWindowExit
-  0024    | End
+  0009    | MatchType r0 num_or_codepoint -> 33
+  0014    | MatchBound r0 lo "a" -> 33
+  0022    | MatchBound r0 hi "z" -> 33
+  0030    | Jump 30 -> 34
+  0033    | MatchFail
+  0034    | MatchWindowExit
+  0035    | End
   ========================================
 
   $ possum -p 'char -> .."z"' -i '!'
@@ -703,14 +707,15 @@
   char -> .."z"
   ========================================
   0000    | CallFunctionConstant 0: char
-  0002    | JumpIfFailure 2 -> 24
+  0002    | JumpIfFailure 2 -> 27
   0005    | MatchWindowEnter 2
   0007    | MatchScrutinee r0
-  0009    | MatchInRange r0 .."z" -> 22
-  0019    | Jump 19 -> 23
-  0022    | MatchFail
-  0023    | MatchWindowExit
-  0024    | End
+  0009    | MatchType r0 num_or_codepoint -> 25
+  0014    | MatchBound r0 hi "z" -> 25
+  0022    | Jump 22 -> 26
+  0025    | MatchFail
+  0026    | MatchWindowExit
+  0027    | End
   ========================================
 
   $ possum -p 'const(Is.Array([1])) ; Is.Array(V) = V -> [..._]' -i '1'
@@ -1347,17 +1352,19 @@
   0000    | GetConstant 0: many
   0002    | GetConstant 1: char
   0004    | CallFunction 1
-  0006    | JumpIfFailure 6 -> 45
+  0006    | JumpIfFailure 6 -> 56
   0009    | MatchWindowEnter 6
   0011    | MatchScrutinee r0
-  0013    | MatchType r0 string -> 43
+  0013    | MatchType r0 string -> 54
   0018    | MatchStrInit r0 front=r2 end=r3
-  0022    | MatchStrChar r5 r0 cursor=r2 opp=r3 front -> 43
-  0030    | MatchInRange r5 "a".."z" -> 43
-  0040    | Jump 40 -> 44
-  0043    | MatchFail
-  0044    | MatchWindowExit
-  0045    | End
+  0022    | MatchStrChar r5 r0 cursor=r2 opp=r3 front -> 54
+  0030    | MatchType r5 num_or_codepoint -> 54
+  0035    | MatchBound r5 lo "a" -> 54
+  0043    | MatchBound r5 hi "z" -> 54
+  0051    | Jump 51 -> 55
+  0054    | MatchFail
+  0055    | MatchWindowExit
+  0056    | End
   ========================================
 
   $ possum -p 'numerals -> ("3" * 10)' -i '3333333333'
@@ -1698,14 +1705,16 @@
   5 -> 2..7
   ========================================
   0000    | ParseNumberStringChar 5
-  0002    | JumpIfFailure 2 -> 24
+  0002    | JumpIfFailure 2 -> 35
   0005    | MatchWindowEnter 2
   0007    | MatchScrutinee r0
-  0009    | MatchInRange r0 2..7 -> 22
-  0019    | Jump 19 -> 23
-  0022    | MatchFail
-  0023    | MatchWindowExit
-  0024    | End
+  0009    | MatchType r0 num_or_codepoint -> 33
+  0014    | MatchBound r0 lo 2 -> 33
+  0022    | MatchBound r0 hi 7 -> 33
+  0030    | Jump 30 -> 34
+  0033    | MatchFail
+  0034    | MatchWindowExit
+  0035    | End
   ========================================
 
   $ possum -p '8 -> (0 + N)' -i '8'
@@ -3561,16 +3570,18 @@
   "-3" -> "%(-(1..5))"
   ========================================
   0000    | CallFunctionConstant 0: "-3"
-  0002    | JumpIfFailure 2 -> 35
+  0002    | JumpIfFailure 2 -> 46
   0005    | MatchWindowEnter 6
   0007    | MatchScrutinee r0
-  0009    | MatchType r0 string -> 33
-  0014    | MatchCast r4 <- num r0 -> 33
-  0020    | MatchInRange r4 -5..-1 -> 33
-  0030    | Jump 30 -> 34
-  0033    | MatchFail
-  0034    | MatchWindowExit
-  0035    | End
+  0009    | MatchType r0 string -> 44
+  0014    | MatchCast r4 <- num r0 -> 44
+  0020    | MatchType r4 num_or_codepoint -> 44
+  0025    | MatchBound r4 lo -5 -> 44
+  0033    | MatchBound r4 hi -1 -> 44
+  0041    | Jump 41 -> 45
+  0044    | MatchFail
+  0045    | MatchWindowExit
+  0046    | End
   ========================================
 
   $ possum -p '"a-3" -> "a%(-(1..5))"' -i 'a-3'
@@ -3579,19 +3590,21 @@
   "a-3" -> "a%(-(1..5))"
   ========================================
   0000    | CallFunctionConstant 0: "a-3"
-  0002    | JumpIfFailure 2 -> 53
+  0002    | JumpIfFailure 2 -> 64
   0005    | MatchWindowEnter 6
   0007    | MatchScrutinee r0
-  0009    | MatchType r0 string -> 51
+  0009    | MatchType r0 string -> 62
   0014    | MatchStrInit r0 front=r2 end=r3
-  0018    | MatchStrLit r0 cursor=r2 opp=r3 front "a" -> 51
+  0018    | MatchStrLit r0 cursor=r2 opp=r3 front "a" -> 62
   0027    | MatchStrRest r4 r0[r2..r3]
-  0032    | MatchCast r4 <- num r4 -> 51
-  0038    | MatchInRange r4 -5..-1 -> 51
-  0048    | Jump 48 -> 52
-  0051    | MatchFail
-  0052    | MatchWindowExit
-  0053    | End
+  0032    | MatchCast r4 <- num r4 -> 62
+  0038    | MatchType r4 num_or_codepoint -> 62
+  0043    | MatchBound r4 lo -5 -> 62
+  0051    | MatchBound r4 hi -1 -> 62
+  0059    | Jump 59 -> 63
+  0062    | MatchFail
+  0063    | MatchWindowExit
+  0064    | End
   ========================================
 
   $ possum -p '-4 -> (2 * -(1..5))' -i '-4'
@@ -3600,16 +3613,18 @@
   -4 -> (2 * -(1..5))
   ========================================
   0000    | CallFunctionConstant 0: -4
-  0002    | JumpIfFailure 2 -> 31
+  0002    | JumpIfFailure 2 -> 42
   0005    | MatchWindowEnter 3
   0007    | MatchScrutinee r0
   0009    | PushInteger 2
-  0011    | MatchRepeatValue r0 r2 -> 29
-  0016    | MatchInRange r2 -5..-1 -> 29
-  0026    | Jump 26 -> 30
-  0029    | MatchFail
-  0030    | MatchWindowExit
-  0031    | End
+  0011    | MatchRepeatValue r0 r2 -> 40
+  0016    | MatchType r2 num_or_codepoint -> 40
+  0021    | MatchBound r2 lo -5 -> 40
+  0029    | MatchBound r2 hi -1 -> 40
+  0037    | Jump 37 -> 41
+  0040    | MatchFail
+  0041    | MatchWindowExit
+  0042    | End
   ========================================
 
   $ possum -p '"aa" -> ("a" * -(1..2))' -i 'aa'
@@ -3618,16 +3633,18 @@
   "aa" -> ("a" * -(1..2))
   ========================================
   0000    | CallFunctionConstant 0: "aa"
-  0002    | JumpIfFailure 2 -> 31
+  0002    | JumpIfFailure 2 -> 42
   0005    | MatchWindowEnter 3
   0007    | MatchScrutinee r0
   0009    | PushString "a"
-  0011    | MatchRepeatValue r0 r2 -> 29
-  0016    | MatchInRange r2 -2..-1 -> 29
-  0026    | Jump 26 -> 30
-  0029    | MatchFail
-  0030    | MatchWindowExit
-  0031    | End
+  0011    | MatchRepeatValue r0 r2 -> 40
+  0016    | MatchType r2 num_or_codepoint -> 40
+  0021    | MatchBound r2 lo -2 -> 40
+  0029    | MatchBound r2 hi -1 -> 40
+  0037    | Jump 37 -> 41
+  0040    | MatchFail
+  0041    | MatchWindowExit
+  0042    | End
   ========================================
 
   $ possum -p 'Inc(A) = A + 1 ; "" $ [1, 2] -> [N, Inc(N)]' -i ''

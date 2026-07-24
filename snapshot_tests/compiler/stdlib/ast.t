@@ -555,14 +555,15 @@
   0021    | MatchWindowExit
   0022    | ConditionalThen 22 -> 30
   0025    | CallTailFunctionConstant 0: @Fail
-  0027    | Jump 27 -> 54
+  0027    | Jump 27 -> 57
   0030    | GetLocalMove l0
-  0032    | JumpIfFailure 32 -> 54
+  0032    | JumpIfFailure 32 -> 57
   0035    | MatchWindowEnter 2
   0037    | MatchScrutinee r0
-  0039    | MatchInRange r0 ..s1 -> 52
-  0049    | Jump 49 -> 53
-  0052    | MatchFail
-  0053    | MatchWindowExit
-  0054    | End
+  0039    | MatchType r0 num_or_codepoint -> 55
+  0044    | MatchBound r0 hi s1 -> 55
+  0052    | Jump 52 -> 56
+  0055    | MatchFail
+  0056    | MatchWindowExit
+  0057    | End
   ========================================

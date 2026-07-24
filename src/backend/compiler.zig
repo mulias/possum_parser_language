@@ -2505,10 +2505,10 @@ pub const Compiler = struct {
 
     const RangeDescriptor = struct { kind: u8, arg: u16 };
 
-    // Encode one range bound for the MatchInRange operand. A constant bound
-    // is validated as a range bound at compile time; an evaluable bound is
-    // reported through `eval_out` (its descriptor stays `.none`) so the
-    // caller emits a MatchRangeBound step for it.
+    // Encode one range bound for the MatchRepeatRange operand. A constant
+    // bound is validated as a range bound at compile time; an evaluable
+    // bound is reported through `eval_out` (its descriptor stays `.none`),
+    // though repeat ranges assert no evaluable bounds occur.
     fn rangeDescriptor(
         self: *Compiler,
         module_id: Module.Id,
@@ -3931,9 +3931,12 @@ pub const Compiler = struct {
         }
     }
 
-    // A range test rooted at a register: constant/slot bounds ride in
-    // the MatchInRange operand, evaluated bounds follow as
-    // MatchRangeBound steps that pop their evaluated value.
+    // A range test rooted at a register, decomposed into per-bound steps.
+    // First the range-value type gate (MatchType class 3: number or single
+    // codepoint) that MatchInRange applied up front — emitted every time,
+    // since a comparison bound can't carry it (compareRangeBound
+    // short-circuits to true on a ValueVar value, which the gate rejects).
+    // Then each bound as its own step, in source order.
     fn emitInRangeStep(
         self: *Compiler,
         module_id: Module.Id,
@@ -3945,39 +3948,106 @@ pub const Compiler = struct {
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
-        var lower_eval: ?Ast.NodeId = null;
-        var upper_eval: ?Ast.NodeId = null;
-        const lower_desc = try self.rangeDescriptor(module_id, ast, lower, region, &lower_eval);
-        const upper_desc = try self.rangeDescriptor(module_id, ast, upper, region, &upper_eval);
-
-        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_range = .{
-            .op = .MatchInRange,
-            .slot = reg,
-            .lower_kind = lower_desc.kind,
-            .lower_arg = lower_desc.arg,
-            .upper_kind = upper_desc.kind,
-            .upper_arg = upper_desc.arg,
+        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+            .op = .MatchType,
+            .byte1 = reg,
+            .byte2 = 3,
             .target = Ir.unpatched_jump,
         } }, region));
+        try self.emitRangeBound(module_id, ast, lower, reg, false, fail_jumps, region);
+        try self.emitRangeBound(module_id, ast, upper, reg, true, fail_jumps, region);
+    }
 
-        if (lower_eval) |id| {
-            try self.writeGoal(module_id, ast, id);
-            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
-                .op = .MatchRangeBound,
-                .byte1 = reg,
-                .byte2 = 0,
-                .target = Ir.unpatched_jump,
-            } }, region));
+    // Emit one end of a range as its own step(s), mirroring matchRangeLimit.
+    // An open (none) bound emits nothing; a bind bound binds the value; a
+    // const/read bound emits MatchBound; an evaluable bound (expr, or a
+    // zero-arity function global) evaluates then MatchRangeBound. A
+    // non-function global becomes a constant MatchBound.
+    fn emitRangeBound(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        limit: Ast.Limit,
+        reg: u8,
+        is_upper: bool,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        switch (limit) {
+            .none => {},
+            .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                .op = .MatchBind,
+                .byte1 = ls.slot,
+                .byte2 = reg,
+            } }, region),
+            .read => |ls| try self.emitMatchBound(reg, is_upper, RangeLimitKind.read, ls.slot, fail_jumps, region),
+            .global => |name| {
+                const global = self.resolveGlobal(module_id, name) orelse {
+                    try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.pathString(name)});
+                    return Error.UndefinedVariable;
+                };
+                if (global.isDynType(.Function)) {
+                    if (global.asDyn().asFunction().arity != 0) return error.UnsupportedPattern;
+                    try self.writeCallFunctionConstant(module_id, global, region);
+                    try self.emitRangeBoundEval(reg, is_upper, fail_jumps, region);
+                } else {
+                    const constant = try self.makeConstantU16(module_id, global, region);
+                    try self.emitMatchBound(reg, is_upper, RangeLimitKind.const_elem, constant, fail_jumps, region);
+                }
+            },
+            .local => return error.UnsupportedPattern,
+            .expr => |id| {
+                if (self.constPatternNode(ast, id)) {
+                    const elem = try self.goalPatternConstElem(ast, id);
+                    if (!elem.isRangeBound(self.vm.*)) {
+                        try self.printError(module_id, region, "Range bound must be an integer or codepoint", .{});
+                        return Error.InvalidAst;
+                    }
+                    const constant = try self.makeConstantU16(module_id, elem, region);
+                    try self.emitMatchBound(reg, is_upper, RangeLimitKind.const_elem, constant, fail_jumps, region);
+                } else {
+                    try self.writeGoal(module_id, ast, id);
+                    try self.emitRangeBoundEval(reg, is_upper, fail_jumps, region);
+                }
+            },
         }
-        if (upper_eval) |id| {
-            try self.writeGoal(module_id, ast, id);
-            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
-                .op = .MatchRangeBound,
-                .byte1 = reg,
-                .byte2 = 1,
-                .target = Ir.unpatched_jump,
-            } }, region));
-        }
+    }
+
+    fn emitMatchBound(
+        self: *Compiler,
+        reg: u8,
+        is_upper: bool,
+        kind: RangeLimitKind,
+        arg: u16,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_bound = .{
+            .op = .MatchBound,
+            .reg = reg,
+            .is_upper = @intFromBool(is_upper),
+            .kind = @intFromEnum(kind),
+            .arg = arg,
+            .target = Ir.unpatched_jump,
+        } }, region));
+    }
+
+    fn emitRangeBoundEval(
+        self: *Compiler,
+        reg: u8,
+        is_upper: bool,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+            .op = .MatchRangeBound,
+            .byte1 = reg,
+            .byte2 = @intFromBool(is_upper),
+            .target = Ir.unpatched_jump,
+        } }, region));
     }
 
     // A bare negation composes with any stepable inner. An evaluable

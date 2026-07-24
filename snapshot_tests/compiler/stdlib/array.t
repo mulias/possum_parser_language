@@ -1185,16 +1185,17 @@
   ========================================
   0000    | SetInputMark
   0001    | GetLocal l0
-  0003    | JumpIfFailure 3 -> 25
+  0003    | JumpIfFailure 3 -> 28
   0006    | MatchWindowEnter 2
   0008    | MatchScrutinee r0
-  0010    | MatchInRange r0 s1.. -> 23
-  0020    | Jump 20 -> 24
-  0023    | MatchFail
-  0024    | MatchWindowExit
-  0025    | ConditionalThen 25 -> 33
-  0028    | GetLocalMove l0
-  0030    | Jump 30 -> 35
-  0033    | GetLocalMove l1
-  0035    | End
+  0010    | MatchType r0 num_or_codepoint -> 26
+  0015    | MatchBound r0 lo s1 -> 26
+  0023    | Jump 23 -> 27
+  0026    | MatchFail
+  0027    | MatchWindowExit
+  0028    | ConditionalThen 28 -> 36
+  0031    | GetLocalMove l0
+  0033    | Jump 33 -> 38
+  0036    | GetLocalMove l1
+  0038    | End
   ========================================
