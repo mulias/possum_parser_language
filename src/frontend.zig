@@ -253,6 +253,7 @@ pub fn finalize(self: *Frontend) !void {
     // Value folding runs after resolution: it can drop an identifier
     // operand the resolver must have already recorded.
     try self.foldGoals();
+    try self.lowerGoals();
     try self.analyzeGoalBindings();
     // Print the bound goal (when requested) ahead of any binding error, so
     // a rejected pattern's bound goal is visible above the diagnostic.
@@ -261,18 +262,23 @@ pub fn finalize(self: *Frontend) !void {
     try self.checkFunctionCalls();
 }
 
-// Fold every module's goal ast, and print the target module's folded goal
-// if that stage was requested.
 fn foldGoals(self: *Frontend) !void {
     var iter = self.goals.iterator();
     while (iter.next()) |entry| {
         try entry.value_ptr.*.fold();
     }
+}
+
+fn lowerGoals(self: *Frontend) !void {
+    var iter = self.goals.iterator();
+    while (iter.next()) |entry| {
+        try entry.value_ptr.*.lowerGoals();
+    }
 
     if (self.print_goal_stage) |stage| {
         if (stage == .folded) {
             if (self.target_module_id) |target| {
-                if (self.goals.get(target)) |goal| try goal.print(self.writers.debug);
+                if (self.goals.get(target)) |goal| try goal.print(self.writers.debug, .folded);
             }
         }
     }
@@ -370,7 +376,7 @@ fn printBoundGoal(self: *Frontend) !void {
     if (stage != .bound) return;
     const target = self.target_module_id orelse return;
     const goal = self.goals.get(target) orelse return;
-    try goal.print(self.writers.debug);
+    try goal.print(self.writers.debug, .bound);
 }
 
 fn reportResolverDiagnostics(self: *Frontend) !void {
@@ -459,7 +465,7 @@ fn parse(self: *Frontend, module: Module, opts: AddModuleOpts) !*const Ast {
 
         try goal.build(parser.ast);
         if (opts.printGoalAst) |stage| {
-            if (stage == .created) try goal.print(self.writers.debug);
+            if (stage == .created) try goal.print(self.writers.debug, .created);
         }
     }
 

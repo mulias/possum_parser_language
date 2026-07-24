@@ -28,6 +28,11 @@ current_parent_function_name: ?PathTable.Id = null,
 // Declaration and alias names already bound in this module, for the
 // duplicate-declaration check.
 declared_names: std.AutoHashMapUnmanaged(PathTable.Id, void) = .{},
+// The pipeline stage a print was requested at. At the created stage
+// (before lowering) matches and repeats print their pattern; at the
+// folded and bound stages they print the lowered constraints. Set at the
+// start of print.
+print_stage: Ast.Stage = .bound,
 
 pub const Goal = @This();
 pub const NodeId = Ast.NodeId;
@@ -388,11 +393,11 @@ fn convertParser(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
                 const body = try self.convertParser(infix.left);
                 const count_pattern = try self.convertPattern(infix.right);
                 try self.validateRepeatCountPattern(count_pattern);
-                const count = try self.foldPattern(count_pattern);
                 break :blk self.addGoal(.{ .repeat = .{
                     .body = body,
-                    .cap = try self.repeatCap(count),
-                    .count_test = try self.patternSet(count),
+                    .count_pattern = count_pattern,
+                    .cap = .none,
+                    .count_test = null,
                 } }, region);
             },
             .Return => self.seqPair(
@@ -923,7 +928,7 @@ fn convertPattern(self: *Goal, rnode: *ParsedAst.RNode) Error!*Pattern.RNode {
             for (parts.items) |part| converted.appendAssumeCapacity(try self.convertPattern(part));
             break :blk .{ .string_template = converted };
         },
-        .Function => |func| .{ .function_call = func },
+        .Function => |func| .{ .function_call = try self.convertValueCall(func, region) },
         .False => .false,
         .True => .true,
         .Null => .null,
@@ -1086,41 +1091,51 @@ fn allValueArgs(count: usize) u32 {
 
 // Pattern decomposition: places + constraints.
 
+// Build stores the pattern; the fold folds it in place and the lowering
+// sweep decomposes it into places and arms.
 fn convertDestructure(
     self: *Goal,
     scrutinee: NodeId,
     pattern: *Pattern.RNode,
     region: Region,
 ) Error!NodeId {
-    const folded = try self.foldPattern(pattern);
-    var match = Ast.Match{
+    return self.addGoal(.{ .match = .{
         .scrutinee = scrutinee,
+        .pattern = pattern,
         .places = .{},
         .arms = .{},
-    };
+    } }, region);
+}
+
+// Decompose a match's folded pattern into places and a single arm.
+fn lowerMatch(self: *Goal, match: *Ast.Match) Error!void {
     try match.places.append(self.alloc(), .scrutinee);
     var constraints = ArrayList(Ast.Constraint){};
-    try self.lowerPattern(folded, 0, &match.places, &constraints);
+    try self.lowerPattern(match.pattern, 0, &match.places, &constraints);
     try match.arms.append(self.alloc(), .{
         .constraints = constraints,
         .guard = null,
         .body = null,
-        .region = pattern.region,
+        .region = match.pattern.region,
     });
-    return self.addGoal(.{ .match = match }, region);
+}
+
+// Derive a repeat's cap and count test from its folded count pattern.
+fn lowerRepeat(self: *Goal, rep: *Ast.Repeat) Error!void {
+    rep.cap = try self.repeatCap(rep.count_pattern);
+    rep.count_test = try self.patternSet(rep.count_pattern);
 }
 
 // A ConstraintSet rooted at a synthetic scrutinee: repeat counts and
 // composite sub-patterns.
 fn patternSet(self: *Goal, pattern: *Pattern.RNode) Error!SetId {
-    const folded = try self.foldPattern(pattern);
     var set = Ast.ConstraintSet{
         .places = .{},
         .constraints = .{},
         .region = pattern.region,
     };
     try set.places.append(self.alloc(), .scrutinee);
-    try self.lowerPattern(folded, 0, &set.places, &set.constraints);
+    try self.lowerPattern(pattern, 0, &set.places, &set.constraints);
     return self.addSet(set);
 }
 
@@ -1354,8 +1369,7 @@ fn lowerPattern(
                 .name = ident.name,
             } }, region);
         },
-        .function_call => |fc| {
-            const expr = try self.patternCallGoal(fc, region);
+        .function_call => |expr| {
             try self.pushConstraint(constraints, .{ .eval_eq = .{
                 .place = place,
                 .expr = expr,
@@ -1607,7 +1621,7 @@ fn lowerArrayMerge(
                     } }, part.region);
                 }
             },
-            .function_call => |fc| {
+            .function_call => |expr| {
                 const slice_place = try self.internPlace(places, .{ .slice = .{
                     .src = place,
                     .front = try self.boundedByte(front_len, region, "array pattern length"),
@@ -1615,7 +1629,7 @@ fn lowerArrayMerge(
                 } });
                 try self.pushConstraint(constraints, .{ .eval_eq = .{
                     .place = slice_place,
-                    .expr = try self.patternCallGoal(fc, part.region),
+                    .expr = expr,
                 } }, part.region);
             },
             else => unreachable,
@@ -1722,9 +1736,9 @@ fn lowerStringMerge(
                 .name = ident.name,
             } }, slack_pattern.region);
         },
-        .function_call => |fc| try self.pushConstraint(constraints, .{ .eval_eq = .{
+        .function_call => |expr| try self.pushConstraint(constraints, .{ .eval_eq = .{
             .place = slice_place,
-            .expr = try self.patternCallGoal(fc, slack_pattern.region),
+            .expr = expr,
         } }, slack_pattern.region),
         else => unreachable,
     }
@@ -1826,13 +1840,13 @@ fn lowerObjectMerge(
                     } }, part.region);
                 }
             },
-            .function_call => |fc| {
+            .function_call => |expr| {
                 const rest_place = try self.internPlace(places, .{ .members_rest = .{
                     .src = place,
                 } });
                 try self.pushConstraint(constraints, .{ .eval_eq = .{
                     .place = rest_place,
-                    .expr = try self.patternCallGoal(fc, part.region),
+                    .expr = expr,
                 } }, part.region);
             },
             else => unreachable,
@@ -1868,9 +1882,7 @@ fn patternPart(self: *Goal, pattern: *Pattern.RNode) Error!Ast.Part {
         .true, .false, .null, .number_float, .number_string, .string => .{
             .expr = try self.patternLiteralGoal(pattern),
         },
-        .function_call => |fc| .{
-            .expr = try self.patternCallGoal(fc, pattern.region),
-        },
+        .function_call => |expr| .{ .expr = expr },
         // Structural: array, object, merge, repeat, range, template,
         // negation. The set is rooted at the part's portion of the value.
         else => .{ .sub = try self.patternSet(pattern) },
@@ -1929,14 +1941,6 @@ fn patternLiteralGoal(self: *Goal, pattern: *Pattern.RNode) Error!NodeId {
     };
 }
 
-fn patternCallGoal(
-    self: *Goal,
-    func: ParsedAst.FunctionNode,
-    region: Region,
-) Error!NodeId {
-    return self.convertValueCall(func, region);
-}
-
 // Evaluable pattern expressions: range limits and other positions where
 // every read must be bound at match time.
 fn patternExprGoal(self: *Goal, pattern: *Pattern.RNode) Error!NodeId {
@@ -1944,7 +1948,7 @@ fn patternExprGoal(self: *Goal, pattern: *Pattern.RNode) Error!NodeId {
     return switch (pattern.node) {
         .true, .false, .null, .number_float, .number_string, .string => self.patternLiteralGoal(pattern),
         .identifier => |ident| self.identGoal(ident, region),
-        .function_call => |fc| self.patternCallGoal(fc, region),
+        .function_call => |expr| expr,
         .merge => |op| self.addGoal(.{ .merge = .{
             .left = try self.patternExprGoal(op.left),
             .right = try self.patternExprGoal(op.right),
@@ -1954,15 +1958,16 @@ fn patternExprGoal(self: *Goal, pattern: *Pattern.RNode) Error!NodeId {
     };
 }
 
-// Goal→goal constant folding of expression nodes: constant merges,
-// multiplications, and negations fold bottom-up on the goals array.
-// Pattern folding happens earlier, on the pattern tree before lowering
-// (foldPattern), so no constraint-level folding is needed here.
-// simplifyPatterns then prunes unreferenced places and collapses
-// identity match/repeat shells. Nodes rewrite in place; ids stay stable.
+// Goal→goal constant folding: constant merges, multiplications, and
+// negations fold bottom-up on the goals array, and each match/repeat's
+// pattern folds in place. Lowering (lowerGoals) runs afterward, so no
+// constraint-level folding is needed. Nodes rewrite in place; ids stay
+// stable.
 pub fn fold(self: *Goal) FoldError!void {
     // Children are appended before parents, so one forward pass folds
-    // bottom-up.
+    // bottom-up. Patterns fold in place on their match/repeat nodes;
+    // foldPattern allocates only pattern nodes, never goals, so the held
+    // rnode pointer stays valid.
     for (self.ast.goals.items) |*rnode| {
         switch (rnode.node) {
             .merge => |op| {
@@ -1979,6 +1984,47 @@ pub fn fold(self: *Goal) FoldError!void {
                 if (foldedNeg(self.goalNode(inner))) |folded| {
                     rnode.node = folded;
                 }
+            },
+            // Fold the pattern but keep its original region: diagnostics
+            // point at the whole written pattern, not the narrower span a
+            // folded merge would carry.
+            .match => |*match| match.pattern = try self.foldPatternKeepingRegion(match.pattern),
+            .repeat => |*rep| rep.count_pattern = try self.foldPatternKeepingRegion(rep.count_pattern),
+            else => {},
+        }
+    }
+}
+
+// Fold a top-level pattern, preserving the source region it was written
+// with. A folded merge otherwise reports the span of its operands, which
+// drops surrounding parentheses from failure diagnostics.
+fn foldPatternKeepingRegion(self: *Goal, pattern: *Pattern.RNode) FoldError!*Pattern.RNode {
+    const region = pattern.region;
+    const folded = try self.foldPattern(pattern);
+    folded.region = region;
+    return folded;
+}
+
+// Decompose every match and repeat's folded pattern into places, arms,
+// caps, and count tests, then simplify. Runs after fold so patterns are
+// fully reduced. Lowering appends literal and expression goals, so only
+// the goals present before the sweep are visited, and each node is
+// lowered by value then written back by index — addGoal may reallocate
+// the goals list and invalidate a held pointer.
+pub fn lowerGoals(self: *Goal) Error!void {
+    const original_len = self.ast.goals.items.len;
+    var i: usize = 0;
+    while (i < original_len) : (i += 1) {
+        switch (self.ast.goals.items[i].node) {
+            .match => |m| {
+                var match = m;
+                try self.lowerMatch(&match);
+                self.ast.goals.items[i].node = .{ .match = match };
+            },
+            .repeat => |r| {
+                var rep = r;
+                try self.lowerRepeat(&rep);
+                self.ast.goals.items[i].node = .{ .repeat = rep };
             },
             else => {},
         }
@@ -2194,7 +2240,8 @@ fn numberValue(node: Ast.GoalNode) error{InvalidCharacter}!f64 {
     };
 }
 
-pub fn print(self: *Goal, writer: *Writer) Writer.Error!void {
+pub fn print(self: *Goal, writer: *Writer, stage: Ast.Stage) Writer.Error!void {
+    self.print_stage = stage;
     for (self.ast.declarations.items) |decl| {
         try writer.print("{s}", .{self.pathName(decl.name)});
         if (decl.params.items.len > 0) {
@@ -2346,23 +2393,38 @@ fn printGoal(self: *Goal, writer: *Writer, id: NodeId, indent: u32) Writer.Error
         .repeat => |rep| {
             try writer.writeAll("(repeat\n");
             try self.printField(writer, "body", rep.body, indent + 1);
-            if (rep.cap != .none) {
-                try writer.writeAll("\n");
-                try printIndent(writer, indent + 1);
-                try writer.writeAll("cap: ");
-                try self.printLimit(writer, rep.cap, indent + 1);
-            }
-            if (rep.count_test) |set_id| {
+            if (self.print_stage != .created) {
+                if (rep.cap != .none) {
+                    try writer.writeAll("\n");
+                    try printIndent(writer, indent + 1);
+                    try writer.writeAll("cap: ");
+                    try self.printLimit(writer, rep.cap, indent + 1);
+                }
+                if (rep.count_test) |set_id| {
+                    try writer.writeAll("\n");
+                    try printIndent(writer, indent + 1);
+                    try writer.writeAll("count: ");
+                    try self.printSet(writer, set_id, indent + 1);
+                }
+            } else {
                 try writer.writeAll("\n");
                 try printIndent(writer, indent + 1);
                 try writer.writeAll("count: ");
-                try self.printSet(writer, set_id, indent + 1);
+                try self.printPattern(writer, rep.count_pattern, indent + 1);
             }
             try writer.writeAll(")");
         },
         .match => |match| {
             try writer.writeAll("(match\n");
             try self.printField(writer, "scrutinee", match.scrutinee, indent + 1);
+            if (self.print_stage == .created) {
+                try writer.writeAll("\n");
+                try printIndent(writer, indent + 1);
+                try writer.writeAll("pattern: ");
+                try self.printPattern(writer, match.pattern, indent + 1);
+                try writer.writeAll(")");
+                return;
+            }
             try self.printPlaces(writer, match.places.items, indent + 1);
             for (match.arms.items) |arm| {
                 try writer.writeAll("\n");
@@ -2378,6 +2440,86 @@ fn printGoal(self: *Goal, writer: *Writer, id: NodeId, indent: u32) Writer.Error
                     try self.printField(writer, "body", body, indent + 2);
                 }
                 try writer.writeAll(")");
+            }
+            try writer.writeAll(")");
+        },
+    }
+}
+
+// Print an unlowered pattern tree (created and folded stages). A
+// function-call leaf is already a goal node, printed through printGoal.
+fn printPattern(self: *Goal, writer: *Writer, pattern: *Pattern.RNode, indent: u32) Writer.Error!void {
+    switch (pattern.node) {
+        .true => try writer.writeAll("true"),
+        .false => try writer.writeAll("false"),
+        .null => try writer.writeAll("null"),
+        .string => |s| try writer.print("\"{s}\"", .{s}),
+        .number_string => |ns| try writer.print("{s}{s}", .{
+            if (ns.negated) "-" else "",
+            ns.number,
+        }),
+        .number_float => |f| try writer.print("{d}", .{f}),
+        .identifier => |ident| try writer.print("{s}", .{self.pathName(ident.name)}),
+        .function_call => |expr| try self.printGoal(writer, expr, indent),
+        .merge => |op| {
+            try writer.writeAll("(merge ");
+            try self.printPattern(writer, op.left, indent);
+            try writer.writeAll(" ");
+            try self.printPattern(writer, op.right, indent);
+            try writer.writeAll(")");
+        },
+        .repeat => |op| {
+            try writer.writeAll("(repeat ");
+            try self.printPattern(writer, op.left, indent);
+            try writer.writeAll(" ");
+            try self.printPattern(writer, op.right, indent);
+            try writer.writeAll(")");
+        },
+        .negation => |inner| {
+            try writer.writeAll("(neg ");
+            try self.printPattern(writer, inner, indent);
+            try writer.writeAll(")");
+        },
+        .range => |r| {
+            try writer.writeAll("(range ");
+            if (r.lower) |lower| try self.printPattern(writer, lower, indent) else try writer.writeAll("_");
+            try writer.writeAll(" ");
+            if (r.upper) |upper| try self.printPattern(writer, upper, indent) else try writer.writeAll("_");
+            try writer.writeAll(")");
+        },
+        .array => |elems| {
+            try writer.writeAll("(array [");
+            for (elems.items) |elem| {
+                try writer.writeAll("\n");
+                try printIndent(writer, indent + 1);
+                try self.printPattern(writer, elem, indent + 1);
+            }
+            if (elems.items.len > 0) {
+                try writer.writeAll("\n");
+                try printIndent(writer, indent);
+            }
+            try writer.writeAll("])");
+        },
+        .object => |pairs| {
+            try writer.writeAll("(object {");
+            for (pairs.items) |pair| {
+                try writer.writeAll("\n");
+                try printIndent(writer, indent + 1);
+                try self.printPattern(writer, pair.key, indent + 1);
+                try writer.writeAll(": ");
+                try self.printPattern(writer, pair.value, indent + 1);
+            }
+            if (pairs.items.len > 0) {
+                try writer.writeAll("\n");
+                try printIndent(writer, indent);
+            }
+            try writer.writeAll("})");
+        },
+        .string_template => |parts| {
+            try writer.writeAll("(template");
+            for (parts.items) |part| {
+                try writer.writeAll(" ");
+                try self.printPattern(writer, part, indent);
             }
             try writer.writeAll(")");
         },

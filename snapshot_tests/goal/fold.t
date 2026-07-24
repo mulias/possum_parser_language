@@ -60,9 +60,7 @@ A solve_merge whose parts are all constants collapses to eq_const.
   main =
     (match
       scrutinee: (call int)
-      %0 = scrutinee
-      (arm
-        (eq_const %0 "ab")))
+      pattern: (merge "a" "b"))
 
   $ PRINT_GOAL_AST=folded possum -p 'int -> ("a" + "b")' -i ''
   main =
@@ -116,6 +114,12 @@ compile time; non-constant parts stay runtime negations.
   main =
     (match
       scrutinee: (call int)
+      pattern: (neg (neg 5)))
+
+  $ PRINT_GOAL_AST=folded possum -p 'int -> --5' -i ''
+  main =
+    (match
+      scrutinee: (call int)
       %0 = scrutinee
       (arm
         (eq_const %0 5)))
@@ -135,11 +139,7 @@ collapses back to an expression part of its parent.
   main =
     (match
       scrutinee: (call int)
-      %0 = scrutinee
-      (arm
-        (solve_merge %0 ty=number
-          (local N)
-          -1)))
+      pattern: (merge N (neg 1)))
 
   $ PRINT_GOAL_AST=folded possum -p 'int -> (N + -1)' -i ''
   main =
@@ -180,8 +180,7 @@ no body, is the identity on its scrutinee and folds to it.
   main =
     (match
       scrutinee: (call int)
-      %0 = scrutinee
-      (arm))
+      pattern: _)
 
   $ PRINT_GOAL_AST=folded possum -p 'int -> _' -i ''
   main =
@@ -194,13 +193,10 @@ constraints; simplification prunes places no constraint reaches.
   main =
     (match
       scrutinee: (call json)
-      %0 = scrutinee
-      %1 = elem %0 0
-      %2 = elem %0 1
-      (arm
-        (is_type %0 array)
-        (len_eq %0 2)
-        (eq_const %1 1)))
+      pattern: (array [
+        1
+        _
+      ]))
 
   $ PRINT_GOAL_AST=folded possum -p 'json -> [1, _]' -i '[1, 2]'
   main =
@@ -259,8 +255,7 @@ A repeat count test that folds to an empty set drops.
   main =
     (repeat
       body: (call int)
-      count: (set
-        %0 = scrutinee))
+      count: _)
 
   $ PRINT_GOAL_AST=folded possum -p 'int * _' -i ''
   main =
@@ -274,10 +269,7 @@ array, the count pattern's solve_merge collapses to eq_const.
   main =
     (repeat
       body: (call int)
-      cap: 3
-      count: (set
-        %0 = scrutinee
-        (eq_const %0 3)))
+      count: (merge 1 2))
 
   $ PRINT_GOAL_AST=folded possum -p 'int * (1 + 2)' -i ''
   main =

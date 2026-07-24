@@ -5,6 +5,7 @@ const HashMap = std.AutoHashMapUnmanaged;
 const StringTable = @import("string_table.zig").FrontendStringTable;
 const PathTable = @import("path_table.zig").PathTable;
 const Ast = @import("goal_ast.zig");
+const Pattern = @import("pattern_tree.zig");
 const Module = @import("../runtime.zig").Module;
 const DependencyGraph = @import("dependency_graph.zig");
 const Region = @import("../region.zig").Region;
@@ -349,8 +350,7 @@ fn walkGoal(
         },
         .repeat => |rep| {
             try self.walkGoal(key, node, ast, rep.body);
-            try self.walkLimit(key, node, ast, rep.cap, rnode.region);
-            if (rep.count_test) |set_id| try self.walkSet(key, node, ast, set_id);
+            try self.walkPattern(key, node, ast, rep.count_pattern);
         },
         .range => |range| {
             if (range.lower) |lower| try self.walkGoal(key, node, ast, lower);
@@ -358,13 +358,7 @@ fn walkGoal(
         },
         .match => |match| {
             try self.walkGoal(key, node, ast, match.scrutinee);
-            for (match.arms.items) |arm| {
-                for (arm.constraints.items) |constraint| {
-                    try self.walkConstraint(key, node, ast, constraint);
-                }
-                if (arm.guard) |guard| try self.walkGoal(key, node, ast, guard);
-                if (arm.body) |body| try self.walkGoal(key, node, ast, body);
-            }
+            try self.walkPattern(key, node, ast, match.pattern);
         },
         .lambda => |lambda| {
             try self.addDependency(node, .{
@@ -376,100 +370,55 @@ fn walkGoal(
     }
 }
 
-fn walkSet(
+// Discover a pattern's dependency edges and bound locals before it is
+// lowered: bare identifiers resolve as value identifiers (an unresolved
+// one binds a local), function-call leaves are already goal nodes, and
+// structure recurses. A placeholder binds nothing.
+fn walkPattern(
     self: *Resolver,
     key: DependencyGraph.NodeKey,
     node: *DependencyGraph.Node,
     ast: *const Ast,
-    set_id: Ast.SetId,
+    pattern: *const Pattern.RNode,
 ) error{OutOfMemory}!void {
-    const set = ast.constraint_sets.items[set_id];
-    for (set.constraints.items) |constraint| {
-        try self.walkConstraint(key, node, ast, constraint);
+    switch (pattern.node) {
+        .identifier => |ident| {
+            if (self.isPlaceholder(ident.name)) return;
+            try self.resolveValueIdentifier(key, node, ident.name, pattern.region);
+        },
+        .function_call => |expr| try self.walkGoal(key, node, ast, expr),
+        .merge => |op| {
+            try self.walkPattern(key, node, ast, op.left);
+            try self.walkPattern(key, node, ast, op.right);
+        },
+        .repeat => |op| {
+            try self.walkPattern(key, node, ast, op.left);
+            try self.walkPattern(key, node, ast, op.right);
+        },
+        .negation => |inner| try self.walkPattern(key, node, ast, inner),
+        .array => |elems| {
+            for (elems.items) |elem| try self.walkPattern(key, node, ast, elem);
+        },
+        .object => |pairs| {
+            for (pairs.items) |pair| {
+                try self.walkPattern(key, node, ast, pair.key);
+                try self.walkPattern(key, node, ast, pair.value);
+            }
+        },
+        .range => |range| {
+            if (range.lower) |lower| try self.walkPattern(key, node, ast, lower);
+            if (range.upper) |upper| try self.walkPattern(key, node, ast, upper);
+        },
+        .string_template => |parts| {
+            for (parts.items) |part| try self.walkPattern(key, node, ast, part);
+        },
+        .number_float, .number_string, .string, .true, .false, .null => {},
     }
 }
 
-fn walkConstraint(
-    self: *Resolver,
-    key: DependencyGraph.NodeKey,
-    node: *DependencyGraph.Node,
-    ast: *const Ast,
-    constraint: Ast.Constraint,
-) error{OutOfMemory}!void {
-    switch (constraint.kind) {
-        .is_type,
-        .len_eq,
-        .len_min,
-        .str_prefix,
-        .str_suffix,
-        .keys_exact,
-        .keys_min,
-        .has_key,
-        .eq_places,
-        => {},
-        .eq_const => |c| try self.walkGoal(key, node, ast, c.value),
-        .in_range => |c| {
-            try self.walkLimit(key, node, ast, c.lower, constraint.region);
-            try self.walkLimit(key, node, ast, c.upper, constraint.region);
-        },
-        // A bare pattern variable resolves as a value identifier: an
-        // unresolved one becomes a local this function binds.
-        .local => |c| try self.resolveValueIdentifier(key, node, c.name, constraint.region),
-        .eval_eq => |c| try self.walkGoal(key, node, ast, c.expr),
-        .negated => |c| try self.walkPart(key, node, ast, c.part, constraint.region),
-        .solve_merge => |c| {
-            for (c.parts.items) |part| try self.walkPart(key, node, ast, part, constraint.region);
-        },
-        .match_template => |c| {
-            for (c.segments.items) |segment| switch (segment) {
-                .literal => {},
-                .part => |part| try self.walkPart(key, node, ast, part, constraint.region),
-            };
-        },
-        .solve_repeat => |c| {
-            try self.walkPart(key, node, ast, c.pattern, constraint.region);
-            try self.walkPart(key, node, ast, c.count, constraint.region);
-        },
-        .search_key => |c| {
-            try self.walkSet(key, node, ast, c.key);
-            try self.walkSet(key, node, ast, c.value);
-        },
-        // Binding-analysis classifications never appear before resolution.
-        .bind, .eq_slot, .eq_global => unreachable,
-    }
-}
-
-fn walkPart(
-    self: *Resolver,
-    key: DependencyGraph.NodeKey,
-    node: *DependencyGraph.Node,
-    ast: *const Ast,
-    part: Ast.Part,
-    region: Region,
-) error{OutOfMemory}!void {
-    switch (part) {
-        .placeholder => {},
-        .local => |name| try self.resolveValueIdentifier(key, node, name, region),
-        .expr => |expr| try self.walkGoal(key, node, ast, expr),
-        .sub => |set_id| try self.walkSet(key, node, ast, set_id),
-        .bind, .read, .global => unreachable,
-    }
-}
-
-fn walkLimit(
-    self: *Resolver,
-    key: DependencyGraph.NodeKey,
-    node: *DependencyGraph.Node,
-    ast: *const Ast,
-    limit: Ast.Limit,
-    region: Region,
-) error{OutOfMemory}!void {
-    switch (limit) {
-        .none => {},
-        .local => |name| try self.resolveValueIdentifier(key, node, name, region),
-        .expr => |expr| try self.walkGoal(key, node, ast, expr),
-        .bind, .read, .global => unreachable,
-    }
+fn isPlaceholder(self: *Resolver, name: PathTable.Id) bool {
+    const segment = self.paths.single(name) orelse return false;
+    return std.mem.eql(u8, self.strings.get(segment), "_");
 }
 
 fn addCapture(self: *Resolver, anon: *DependencyGraph.AnonymousFunctionNode, capture: DependencyGraph.ClosureCapture) !void {

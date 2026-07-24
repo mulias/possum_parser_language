@@ -3,6 +3,7 @@ const ArrayList = std.ArrayListUnmanaged;
 const StringTable = @import("string_table.zig").FrontendStringTable;
 const PathTable = @import("path_table.zig").PathTable;
 const Region = @import("../region.zig").Region;
+const Pattern = @import("pattern_tree.zig");
 
 goals: ArrayList(RNode) = .{},
 // Nested constraint scopes referenced by SetId: composite constraint
@@ -198,6 +199,10 @@ pub const LocalSlot = struct {
 
 pub const Match = struct {
     scrutinee: NodeId,
+    // The destructure pattern, carried from build through the fold. The
+    // lowering sweep decomposes it into places and arms; before that pass
+    // places and arms are empty.
+    pattern: *Pattern.RNode,
     // Interned per match and shared by all arms, so cross-arm factoring is
     // place-id comparison.
     places: ArrayList(PlaceDef),
@@ -391,6 +396,10 @@ pub const Lambda = struct {
 // keeps a cap whose reads are all bound and clears it otherwise.
 pub const Repeat = struct {
     body: NodeId,
+    // The count pattern, carried from build through the fold. The lowering
+    // sweep derives cap and count_test from it; before that pass cap is
+    // .none and count_test is null.
+    count_pattern: *Pattern.RNode,
     cap: Limit,
     count_test: ?SetId,
 };

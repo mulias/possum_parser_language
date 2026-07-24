@@ -3,14 +3,15 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 const Region = @import("../region.zig").Region;
 const PathTable = @import("path_table.zig").PathTable;
-const ParsedAst = @import("parsed_ast.zig").Ast;
+// A goal ast NodeId, kept opaque here to avoid a goal_ast import cycle.
+const GoalNodeId = u32;
 
 // The pattern tree goal builds from the parsed ast and folds before
 // lowering to places and constraints. Structurally the surface pattern
 // language: merges, repeats, ranges, negations, arrays, objects,
-// templates, identifiers, calls, and literals. Function-call parts keep
-// the parsed function node so lowering can value-convert their operands
-// with goal's own value converter.
+// templates, identifiers, calls, and literals. A function-call leaf is
+// value-converted at build to a goal node the resolver can walk; every
+// other leaf stays structural until lowering.
 
 pub const Pattern = @This();
 
@@ -40,7 +41,7 @@ pub const NodeType = enum {
 pub const Node = union(NodeType) {
     array: ArrayList(*RNode),
     false,
-    function_call: ParsedAst.FunctionNode,
+    function_call: GoalNodeId,
     identifier: Identifier,
     merge: struct { left: *RNode, right: *RNode },
     negation: *RNode,
