@@ -1176,7 +1176,7 @@ test "audit: pattern shapes not yet stepable compile to a match plan" {
         \\Id(Z) = "" $ Z ; ("" $ {"5": 5}) -> {A: Id(A)} $ A
         ,
         // search_key: a deep (non-leaf) key pattern
-        \\("" $ {"a": 1}) -> {[K]: 1} $ K
+        \\"" $ {"a": 1, "123": 1} -> {"%(0 + N)": 1, ..._} $ N
         ,
     };
     for (cases) |src| {
