@@ -318,22 +318,22 @@
     }
   ========================================
   0000    | CallFunctionConstant 6: passport
-  0002    | JumpIfFailure 2 -> 73
+  0002    | JumpIfFailure 2 -> 74
   0005    | MatchWindowEnter 2
   0007    | MatchScrutinee r0
-  0009    | MatchType r0 object -> 71
-  0014    | MatchKeysMin r0 7 -> 71
-  0019    | MatchKey r1 r0["byr"] -> 71
-  0026    | MatchKey r1 r0["iyr"] -> 71
-  0033    | MatchKey r1 r0["eyr"] -> 71
-  0040    | MatchKey r1 r0["hgt"] -> 71
-  0047    | MatchKey r1 r0["hcl"] -> 71
-  0054    | MatchKey r1 r0["ecl"] -> 71
-  0061    | MatchKey r1 r0["pid"] -> 71
-  0068    | Jump 68 -> 72
-  0071    | MatchFail
-  0072    | MatchWindowExit
-  0073    | End
+  0009    | MatchType r0 object -> 72
+  0014    | MatchCount r0 >=7 -> 72
+  0020    | MatchKey r1 r0["byr"] -> 72
+  0027    | MatchKey r1 r0["iyr"] -> 72
+  0034    | MatchKey r1 r0["eyr"] -> 72
+  0041    | MatchKey r1 r0["hgt"] -> 72
+  0048    | MatchKey r1 r0["hcl"] -> 72
+  0055    | MatchKey r1 r0["ecl"] -> 72
+  0062    | MatchKey r1 r0["pid"] -> 72
+  0069    | Jump 69 -> 73
+  0072    | MatchFail
+  0073    | MatchWindowExit
+  0074    | End
   ========================================
   
   =========2:count_valid_passport=========

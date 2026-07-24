@@ -2716,19 +2716,19 @@ pub const Compiler = struct {
                 },
                 .len_eq => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
-                        .op = .MatchLen,
-                        .byte1 = scratch_base + @as(u8, @intCast(c.place)),
-                        .byte2 = @intCast(c.len),
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
+                        .reg = scratch_base + @as(u8, @intCast(c.place)),
+                        .n = @intCast(c.len),
+                        .mode = 0,
                         .target = Ir.unpatched_jump,
                     } }, step_region));
                 },
                 .len_min => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
-                        .op = .MatchLenMin,
-                        .byte1 = scratch_base + @as(u8, @intCast(c.place)),
-                        .byte2 = @intCast(c.len),
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
+                        .reg = scratch_base + @as(u8, @intCast(c.place)),
+                        .n = @intCast(c.len),
+                        .mode = 1,
                         .target = Ir.unpatched_jump,
                     } }, step_region));
                 },
@@ -2756,19 +2756,19 @@ pub const Compiler = struct {
                 },
                 .keys_exact => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
-                        .op = .MatchKeys,
-                        .byte1 = scratch_base + @as(u8, @intCast(c.place)),
-                        .byte2 = @intCast(c.count),
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
+                        .reg = scratch_base + @as(u8, @intCast(c.place)),
+                        .n = @intCast(c.count),
+                        .mode = 0,
                         .target = Ir.unpatched_jump,
                     } }, step_region));
                 },
                 .keys_min => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
-                        .op = .MatchKeysMin,
-                        .byte1 = scratch_base + @as(u8, @intCast(c.place)),
-                        .byte2 = @intCast(c.count),
+                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
+                        .reg = scratch_base + @as(u8, @intCast(c.place)),
+                        .n = @intCast(c.count),
+                        .mode = 1,
                         .target = Ir.unpatched_jump,
                     } }, step_region));
                 },
@@ -3544,10 +3544,10 @@ pub const Compiler = struct {
             .byte2 = 2,
             .target = Ir.unpatched_jump,
         } }, region));
-        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
-            .op = .MatchLenMin,
-            .byte1 = reg,
-            .byte2 = @intCast(prefix.items.len + suffix.items.len),
+        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
+            .reg = reg,
+            .n = @intCast(prefix.items.len + suffix.items.len),
+            .mode = 1,
             .target = Ir.unpatched_jump,
         } }, region));
         if (prefix.items.len > 0) {

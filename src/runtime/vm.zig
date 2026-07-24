@@ -912,53 +912,30 @@ pub const VM = struct {
                 };
                 if (!matches) self.cur_frame.ip += offset;
             },
-            .MatchLen => {
+            .MatchCount => {
+                // Count by runtime type — array elements, object members,
+                // or string bytes — and compare against the immediate
+                // (mode 0: equal; mode 1: at least). Any other type, or a
+                // failed comparison, takes the fail jump. The emitted
+                // is_type test usually pins the type first.
                 const slot = self.readByte();
-                const len = self.readByte();
+                const n = self.readByte();
+                const mode = self.readByte();
                 const offset = self.readShort();
                 const value = self.getScratch(slot);
-                if (!value.isDynType(.Array) or
-                    value.asDyn().asArray().elems.items.len != len)
-                {
-                    self.cur_frame.ip += offset;
-                }
-            },
-            .MatchLenMin => {
-                // Arrays measure elements, strings bytes; the emitted
-                // is_type test precedes, so nothing else reaches here.
-                const slot = self.readByte();
-                const min = self.readByte();
-                const offset = self.readShort();
-                const value = self.getScratch(slot);
-                const len = if (value.isDynType(.Array))
+                const count: ?usize = if (value.isDynType(.Array))
                     value.asDyn().asArray().elems.items.len
+                else if (value.isDynType(.Object))
+                    value.asDyn().asObject().members.count()
                 else if (try value.stringBytes(self)) |bytes|
                     bytes.len
                 else
-                    0;
-                if (len < min) self.cur_frame.ip += offset;
-            },
-            .MatchKeys => {
-                const slot = self.readByte();
-                const count = self.readByte();
-                const offset = self.readShort();
-                const value = self.getScratch(slot);
-                if (!value.isDynType(.Object) or
-                    value.asDyn().asObject().members.count() != count)
-                {
-                    self.cur_frame.ip += offset;
-                }
-            },
-            .MatchKeysMin => {
-                const slot = self.readByte();
-                const min = self.readByte();
-                const offset = self.readShort();
-                const value = self.getScratch(slot);
-                if (!value.isDynType(.Object) or
-                    value.asDyn().asObject().members.count() < min)
-                {
-                    self.cur_frame.ip += offset;
-                }
+                    null;
+                const ok = if (count) |c|
+                    (if (mode != 0) c >= n else c == n)
+                else
+                    false;
+                if (!ok) self.cur_frame.ip += offset;
             },
             .MatchElem => {
                 const dst = self.readByte();

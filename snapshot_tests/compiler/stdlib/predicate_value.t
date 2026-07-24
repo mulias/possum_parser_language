@@ -11,15 +11,15 @@
   Is.String(V) = V -> ("" + _)
   ========================================
   0000    | GetLocalMove l0
-  0002    | JumpIfFailure 2 -> 24
+  0002    | JumpIfFailure 2 -> 25
   0005    | MatchWindowEnter 2
   0007    | MatchScrutinee r0
-  0009    | MatchType r0 string -> 22
-  0014    | MatchLenMin r0 0 -> 22
-  0019    | Jump 19 -> 23
-  0022    | MatchFail
-  0023    | MatchWindowExit
-  0024    | End
+  0009    | MatchType r0 string -> 23
+  0014    | MatchCount r0 >=0 -> 23
+  0020    | Jump 20 -> 24
+  0023    | MatchFail
+  0024    | MatchWindowExit
+  0025    | End
   ========================================
   
   ==============1:Is.Number===============
@@ -68,15 +68,15 @@
   Is.Array(V) = V -> [..._]
   ========================================
   0000    | GetLocalMove l0
-  0002    | JumpIfFailure 2 -> 24
+  0002    | JumpIfFailure 2 -> 25
   0005    | MatchWindowEnter 2
   0007    | MatchScrutinee r0
-  0009    | MatchType r0 array -> 22
-  0014    | MatchLenMin r0 0 -> 22
-  0019    | Jump 19 -> 23
-  0022    | MatchFail
-  0023    | MatchWindowExit
-  0024    | End
+  0009    | MatchType r0 array -> 23
+  0014    | MatchCount r0 >=0 -> 23
+  0020    | Jump 20 -> 24
+  0023    | MatchFail
+  0024    | MatchWindowExit
+  0025    | End
   ========================================
   
   ==============1:Is.Object===============

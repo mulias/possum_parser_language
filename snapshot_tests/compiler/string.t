@@ -418,17 +418,17 @@
   ========================================
   0000    | PushVar Str
   0002    | PushEmptyString
-  0003    | JumpIfFailure 3 -> 33
+  0003    | JumpIfFailure 3 -> 34
   0006    | MatchWindowEnter 2
   0008    | MatchScrutinee r0
-  0010    | MatchType r0 string -> 31
-  0015    | MatchLenMin r0 0 -> 31
-  0020    | MatchSlice r1 r0[0..^0]
-  0025    | MatchBind l0 r1
-  0028    | Jump 28 -> 32
-  0031    | MatchFail
-  0032    | MatchWindowExit
-  0033    | End
+  0010    | MatchType r0 string -> 32
+  0015    | MatchCount r0 >=0 -> 32
+  0021    | MatchSlice r1 r0[0..^0]
+  0026    | MatchBind l0 r1
+  0029    | Jump 29 -> 33
+  0032    | MatchFail
+  0033    | MatchWindowExit
+  0034    | End
   ========================================
 
   $ possum -p '"Hello %(int + word)"' -i ''

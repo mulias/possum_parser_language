@@ -67,6 +67,7 @@ pub const OpCode = enum(u8) {
     MatchCastJson,
     MatchCastNum,
     MatchConst,
+    MatchCount,
     MatchElem,
     MatchEval,
     MatchFail,
@@ -74,10 +75,6 @@ pub const OpCode = enum(u8) {
     MatchInRange,
     MatchKey,
     MatchKeyBound,
-    MatchKeys,
-    MatchKeysMin,
-    MatchLen,
-    MatchLenMin,
     MatchMergeBool,
     MatchMergeNum,
     MatchMergeNumNeg,
@@ -289,14 +286,11 @@ pub const OpCode = enum(u8) {
             .MatchCastJson,
             .MatchCastNum,
             .MatchConst,
+            .MatchCount,
             .MatchGlobal,
             .MatchInRange,
             .MatchKey,
             .MatchKeyBound,
-            .MatchKeys,
-            .MatchKeysMin,
-            .MatchLen,
-            .MatchLenMin,
             .MatchMergeBool,
             .MatchMergeNum,
             .MatchMergeNumNeg,
@@ -566,15 +560,12 @@ pub const OpCode = enum(u8) {
             .MatchCastJson,
             .MatchCastNum,
             .MatchConst,
+            .MatchCount,
             .MatchElem,
             .MatchGlobal,
             .MatchInRange,
             .MatchKey,
             .MatchKeyBound,
-            .MatchKeys,
-            .MatchKeysMin,
-            .MatchLen,
-            .MatchLenMin,
             .MatchMergeBool,
             .MatchMergeNum,
             .MatchMergeNumNeg,
@@ -757,11 +748,7 @@ pub const OpCode = enum(u8) {
             .MatchCastJson,
             => self.matchCastInstruction(chunk, writer, offset),
             .MatchType => self.matchTypeInstruction(chunk, writer, offset),
-            .MatchLen,
-            .MatchLenMin,
-            .MatchKeys,
-            .MatchKeysMin,
-            => self.matchCountJumpInstruction(chunk, writer, offset),
+            .MatchCount => self.matchCountInstruction(chunk, writer, offset),
             .MatchSlot => self.matchSlotInstruction(chunk, writer, offset),
             .MatchEval => self.matchEvalInstruction(chunk, writer, offset),
             .MatchSubtractEval => self.matchSubtractEvalInstruction(chunk, writer, offset),
@@ -1136,13 +1123,15 @@ pub const OpCode = enum(u8) {
         return offset + 5;
     }
 
-    fn matchCountJumpInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+    fn matchCountInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
         const register = chunk.read(offset + 1);
         const count = chunk.read(offset + 2);
-        const jump = (@as(u16, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
-        const target = offset + 5 + jump;
-        try writer.print("{s} r{} {} -> {}\n", .{ @tagName(self), register, count, target });
-        return offset + 5;
+        const mode = chunk.read(offset + 3);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 4))) << 8) | chunk.read(offset + 5);
+        const target = offset + 6 + jump;
+        const cmp: []const u8 = if (mode != 0) ">=" else "==";
+        try writer.print("{s} r{} {s}{} -> {}\n", .{ @tagName(self), register, cmp, count, target });
+        return offset + 6;
     }
 
     fn matchSlotInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {

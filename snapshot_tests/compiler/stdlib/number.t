@@ -690,48 +690,48 @@
   0003    | PushVar2 Rest
   0006    | SetInputMark
   0007    | GetLocalMove l0
-  0009    | JumpIfFailure 9 -> 47
+  0009    | JumpIfFailure 9 -> 48
   0012    | MatchWindowEnter 4
   0014    | MatchScrutinee r0
-  0016    | MatchType r0 array -> 45
-  0021    | MatchLenMin r0 1 -> 45
-  0026    | MatchElem r1 r0[0]
-  0031    | MatchBind l3 r1
-  0034    | MatchSlice r2 r0[1..^0]
-  0039    | MatchBind l4 r2
-  0042    | Jump 42 -> 46
-  0045    | MatchFail
-  0046    | MatchWindowExit
-  0047    | ConditionalThen 47 -> 114
-  0050    | GetLocal l3
-  0052    | JumpIfFailure 52 -> 74
-  0055    | MatchWindowEnter 2
-  0057    | MatchScrutinee r0
-  0059    | MatchInRange r0 0..1 -> 72
-  0069    | Jump 69 -> 73
-  0072    | MatchFail
-  0073    | MatchWindowExit
-  0074    | TakeRight 74 -> 111
-  0077    | GetConstant 1: _Num.FromBinaryDigits
-  0079    | GetLocalMove l4
-  0081    | GetLocal l1
-  0083    | JumpIfFailure 83 -> 89
-  0086    | PushNegInteger -1
-  0088    | Merge
-  0089    | GetLocalMove l2
-  0091    | JumpIfFailure 91 -> 109
-  0094    | GetConstant 4: @Multiply
-  0096    | GetLocalMove l3
-  0098    | GetConstant 5: @Power
-  0100    | PushInteger 2
-  0102    | GetLocalMove l1
-  0104    | CallFunction 2
-  0106    | CallFunction 2
-  0108    | Merge
-  0109    | CallTailFunction 3
-  0111    | Jump 111 -> 116
-  0114    | GetLocalMove l2
-  0116    | End
+  0016    | MatchType r0 array -> 46
+  0021    | MatchCount r0 >=1 -> 46
+  0027    | MatchElem r1 r0[0]
+  0032    | MatchBind l3 r1
+  0035    | MatchSlice r2 r0[1..^0]
+  0040    | MatchBind l4 r2
+  0043    | Jump 43 -> 47
+  0046    | MatchFail
+  0047    | MatchWindowExit
+  0048    | ConditionalThen 48 -> 115
+  0051    | GetLocal l3
+  0053    | JumpIfFailure 53 -> 75
+  0056    | MatchWindowEnter 2
+  0058    | MatchScrutinee r0
+  0060    | MatchInRange r0 0..1 -> 73
+  0070    | Jump 70 -> 74
+  0073    | MatchFail
+  0074    | MatchWindowExit
+  0075    | TakeRight 75 -> 112
+  0078    | GetConstant 1: _Num.FromBinaryDigits
+  0080    | GetLocalMove l4
+  0082    | GetLocal l1
+  0084    | JumpIfFailure 84 -> 90
+  0087    | PushNegInteger -1
+  0089    | Merge
+  0090    | GetLocalMove l2
+  0092    | JumpIfFailure 92 -> 110
+  0095    | GetConstant 4: @Multiply
+  0097    | GetLocalMove l3
+  0099    | GetConstant 5: @Power
+  0101    | PushInteger 2
+  0103    | GetLocalMove l1
+  0105    | CallFunction 2
+  0107    | CallFunction 2
+  0109    | Merge
+  0110    | CallTailFunction 3
+  0112    | Jump 112 -> 117
+  0115    | GetLocalMove l2
+  0117    | End
   ========================================
   
   =========9:Num.FromOctalDigits==========
@@ -776,48 +776,48 @@
   0003    | PushVar2 Rest
   0006    | SetInputMark
   0007    | GetLocalMove l0
-  0009    | JumpIfFailure 9 -> 47
+  0009    | JumpIfFailure 9 -> 48
   0012    | MatchWindowEnter 4
   0014    | MatchScrutinee r0
-  0016    | MatchType r0 array -> 45
-  0021    | MatchLenMin r0 1 -> 45
-  0026    | MatchElem r1 r0[0]
-  0031    | MatchBind l3 r1
-  0034    | MatchSlice r2 r0[1..^0]
-  0039    | MatchBind l4 r2
-  0042    | Jump 42 -> 46
-  0045    | MatchFail
-  0046    | MatchWindowExit
-  0047    | ConditionalThen 47 -> 114
-  0050    | GetLocal l3
-  0052    | JumpIfFailure 52 -> 74
-  0055    | MatchWindowEnter 2
-  0057    | MatchScrutinee r0
-  0059    | MatchInRange r0 0..7 -> 72
-  0069    | Jump 69 -> 73
-  0072    | MatchFail
-  0073    | MatchWindowExit
-  0074    | TakeRight 74 -> 111
-  0077    | GetConstant 6: _Num.FromOctalDigits
-  0079    | GetLocalMove l4
-  0081    | GetLocal l1
-  0083    | JumpIfFailure 83 -> 89
-  0086    | PushNegInteger -1
-  0088    | Merge
-  0089    | GetLocalMove l2
-  0091    | JumpIfFailure 91 -> 109
-  0094    | GetConstant 4: @Multiply
-  0096    | GetLocalMove l3
-  0098    | GetConstant 5: @Power
-  0100    | PushInteger 8
-  0102    | GetLocalMove l1
-  0104    | CallFunction 2
-  0106    | CallFunction 2
-  0108    | Merge
-  0109    | CallTailFunction 3
-  0111    | Jump 111 -> 116
-  0114    | GetLocalMove l2
-  0116    | End
+  0016    | MatchType r0 array -> 46
+  0021    | MatchCount r0 >=1 -> 46
+  0027    | MatchElem r1 r0[0]
+  0032    | MatchBind l3 r1
+  0035    | MatchSlice r2 r0[1..^0]
+  0040    | MatchBind l4 r2
+  0043    | Jump 43 -> 47
+  0046    | MatchFail
+  0047    | MatchWindowExit
+  0048    | ConditionalThen 48 -> 115
+  0051    | GetLocal l3
+  0053    | JumpIfFailure 53 -> 75
+  0056    | MatchWindowEnter 2
+  0058    | MatchScrutinee r0
+  0060    | MatchInRange r0 0..7 -> 73
+  0070    | Jump 70 -> 74
+  0073    | MatchFail
+  0074    | MatchWindowExit
+  0075    | TakeRight 75 -> 112
+  0078    | GetConstant 6: _Num.FromOctalDigits
+  0080    | GetLocalMove l4
+  0082    | GetLocal l1
+  0084    | JumpIfFailure 84 -> 90
+  0087    | PushNegInteger -1
+  0089    | Merge
+  0090    | GetLocalMove l2
+  0092    | JumpIfFailure 92 -> 110
+  0095    | GetConstant 4: @Multiply
+  0097    | GetLocalMove l3
+  0099    | GetConstant 5: @Power
+  0101    | PushInteger 8
+  0103    | GetLocalMove l1
+  0105    | CallFunction 2
+  0107    | CallFunction 2
+  0109    | Merge
+  0110    | CallTailFunction 3
+  0112    | Jump 112 -> 117
+  0115    | GetLocalMove l2
+  0117    | End
   ========================================
   
   ==========9:Num.FromHexDigits===========
@@ -862,46 +862,46 @@
   0003    | PushVar2 Rest
   0006    | SetInputMark
   0007    | GetLocalMove l0
-  0009    | JumpIfFailure 9 -> 47
+  0009    | JumpIfFailure 9 -> 48
   0012    | MatchWindowEnter 4
   0014    | MatchScrutinee r0
-  0016    | MatchType r0 array -> 45
-  0021    | MatchLenMin r0 1 -> 45
-  0026    | MatchElem r1 r0[0]
-  0031    | MatchBind l3 r1
-  0034    | MatchSlice r2 r0[1..^0]
-  0039    | MatchBind l4 r2
-  0042    | Jump 42 -> 46
-  0045    | MatchFail
-  0046    | MatchWindowExit
-  0047    | ConditionalThen 47 -> 114
-  0050    | GetLocal l3
-  0052    | JumpIfFailure 52 -> 74
-  0055    | MatchWindowEnter 2
-  0057    | MatchScrutinee r0
-  0059    | MatchInRange r0 0..15 -> 72
-  0069    | Jump 69 -> 73
-  0072    | MatchFail
-  0073    | MatchWindowExit
-  0074    | TakeRight 74 -> 111
-  0077    | GetConstant 8: _Num.FromHexDigits
-  0079    | GetLocalMove l4
-  0081    | GetLocal l1
-  0083    | JumpIfFailure 83 -> 89
-  0086    | PushNegInteger -1
-  0088    | Merge
-  0089    | GetLocalMove l2
-  0091    | JumpIfFailure 91 -> 109
-  0094    | GetConstant 4: @Multiply
-  0096    | GetLocalMove l3
-  0098    | GetConstant 5: @Power
-  0100    | PushInteger 16
-  0102    | GetLocalMove l1
-  0104    | CallFunction 2
-  0106    | CallFunction 2
-  0108    | Merge
-  0109    | CallTailFunction 3
-  0111    | Jump 111 -> 116
-  0114    | GetLocalMove l2
-  0116    | End
+  0016    | MatchType r0 array -> 46
+  0021    | MatchCount r0 >=1 -> 46
+  0027    | MatchElem r1 r0[0]
+  0032    | MatchBind l3 r1
+  0035    | MatchSlice r2 r0[1..^0]
+  0040    | MatchBind l4 r2
+  0043    | Jump 43 -> 47
+  0046    | MatchFail
+  0047    | MatchWindowExit
+  0048    | ConditionalThen 48 -> 115
+  0051    | GetLocal l3
+  0053    | JumpIfFailure 53 -> 75
+  0056    | MatchWindowEnter 2
+  0058    | MatchScrutinee r0
+  0060    | MatchInRange r0 0..15 -> 73
+  0070    | Jump 70 -> 74
+  0073    | MatchFail
+  0074    | MatchWindowExit
+  0075    | TakeRight 75 -> 112
+  0078    | GetConstant 8: _Num.FromHexDigits
+  0080    | GetLocalMove l4
+  0082    | GetLocal l1
+  0084    | JumpIfFailure 84 -> 90
+  0087    | PushNegInteger -1
+  0089    | Merge
+  0090    | GetLocalMove l2
+  0092    | JumpIfFailure 92 -> 110
+  0095    | GetConstant 4: @Multiply
+  0097    | GetLocalMove l3
+  0099    | GetConstant 5: @Power
+  0101    | PushInteger 16
+  0103    | GetLocalMove l1
+  0105    | CallFunction 2
+  0107    | CallFunction 2
+  0109    | Merge
+  0110    | CallTailFunction 3
+  0112    | Jump 112 -> 117
+  0115    | GetLocalMove l2
+  0117    | End
   ========================================
