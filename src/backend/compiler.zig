@@ -1840,6 +1840,9 @@ pub const Compiler = struct {
             .eq_const => {},
             .eval_eq => {},
             .in_range => {},
+            .negated => |c| {
+                if (!self.negatedStepable(ast, c.part)) return false;
+            },
             // A template lowers either to the static prefix/suffix/slice
             // layout (path A) or to the cursor-chomp path (path B).
             // Structural-cast solvables, globals, and repeat segments keep
@@ -2819,6 +2822,11 @@ pub const Compiler = struct {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
                     const reg = scratch_base + @as(u8, @intCast(c.place));
                     try self.emitInRangeStep(module_id, ast, reg, c.lower, c.upper, &fail_jumps, step_region);
+                },
+                .negated => |c| {
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    const reg = scratch_base + @as(u8, @intCast(c.place));
+                    try self.emitNegatedStep(module_id, ast, c.count, c.part, reg, dead_reg, &fail_jumps, step_region);
                 },
                 .match_template => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
@@ -3850,6 +3858,107 @@ pub const Compiler = struct {
                 .byte2 = 1,
                 .target = Ir.unpatched_jump,
             } }, region));
+        }
+    }
+
+    // A bare negation composes with any stepable inner. An evaluable
+    // inner (read, global, expr) negates its own evaluated result; a
+    // structural inner (bind, placeholder, sub) negates the scrutinee and
+    // matches against it, so a sub-pattern steps when its own set does.
+    fn negatedStepable(self: *Compiler, ast: *const Ast, part: Ast.Part) bool {
+        return switch (part) {
+            .bind, .placeholder, .read, .global, .expr => true,
+            .sub => |set_id| self.constraintsStepable(ast, ast.constraint_sets.items[set_id].constraints.items),
+            .local => false,
+        };
+    }
+
+    // Match a negated inner against its place. An evaluable inner mirrors
+    // the plan's negated-eval path: evaluate the pattern, negate the
+    // result (NegateNumber errors on a non-number, like the interpreter),
+    // then compare against the scrutinee. A structural inner negates the
+    // scrutinee in place — an odd count flips the sign (MatchMergeNumNeg),
+    // an even count is the identity but still number-gates via a zero
+    // constant — then binds or matches the inner against the negated value.
+    fn emitNegatedStep(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        count: u32,
+        part: Ast.Part,
+        reg: u8,
+        dead_reg: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        switch (part) {
+            .read, .global, .expr => {
+                try self.emitNegatedEvalValue(module_id, ast, part, region);
+                var i: u32 = 0;
+                while (i < count) : (i += 1) try self.emitOp(.NegateNumber, region);
+                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                    .op = .MatchEval,
+                    .byte1 = reg,
+                    .byte2 = 0,
+                    .target = Ir.unpatched_jump,
+                } }, region));
+            },
+            .bind, .placeholder, .sub => {
+                const constant = try self.makeConstantU16(module_id, Elem.numberFloat(0), region);
+                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
+                    .op = if (count % 2 == 1) OpCode.MatchMergeNumNeg else OpCode.MatchMergeNum,
+                    .byte1 = dead_reg,
+                    .byte2 = reg,
+                    .constant = constant,
+                    .target = Ir.unpatched_jump,
+                } }, region));
+                switch (part) {
+                    .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                        .op = .MatchBind,
+                        .byte1 = ls.slot,
+                        .byte2 = dead_reg,
+                    } }, region),
+                    .placeholder => {},
+                    .sub => |set_id| {
+                        const set = &ast.constraint_sets.items[set_id];
+                        try self.writeMatchSteps(module_id, ast, set.places.items, set.constraints.items, .{ .sub = .{ .src_reg = dead_reg, .on_fail = .{ .arm = fail_jumps } } }, region);
+                    },
+                    else => unreachable,
+                }
+            },
+            .local => unreachable,
+        }
+    }
+
+    // Push an evaluable negated inner's value: a bound local, a global
+    // (invoking a zero-arity function like the plan's const_fn), or an
+    // expression goal (a constant or a call).
+    fn emitNegatedEvalValue(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        part: Ast.Part,
+        region: Region,
+    ) Error!void {
+        switch (part) {
+            .read => |ls| try self.emitUnaryOp(.GetLocal, ls.slot, region),
+            .global => |name| {
+                const global = self.resolveGlobal(module_id, name) orelse {
+                    try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.pathString(name)});
+                    return Error.UndefinedVariable;
+                };
+                // Only zero-arity functions evaluate per match; the plan
+                // path rejects the rest at compile time too.
+                if (global.isDynType(.Function)) {
+                    if (global.asDyn().asFunction().arity != 0) return error.UnsupportedPattern;
+                    try self.writeCallFunctionConstant(module_id, global, region);
+                } else {
+                    try self.writeConstant(module_id, global, region);
+                }
+            },
+            .expr => |id| try self.writeGoal(module_id, ast, id),
+            else => unreachable,
         }
     }
 

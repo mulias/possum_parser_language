@@ -3814,3 +3814,76 @@
   0103    | InsertAtIndex 2
   0105    | End
   ========================================
+
+  $ possum -p 'Inc(N) = "" $ N + 1 ; ("" $ [1, -2, 3]) -> [1, -Inc(1), 3]' -i ''
+  
+  =================2:Inc==================
+  Inc(N) = "" $ N + 1
+  ========================================
+  0000    | PushEmptyString
+  0001    | TakeRight 1 -> 6
+  0004    | GetLocalMove l0
+  0006    | JumpIfFailure 6 -> 12
+  0009    | PushInteger 1
+  0011    | Merge
+  0012    | End
+  ========================================
+  
+  ================2:@main=================
+  ("" $ [1, -2, 3]) -> [1, -Inc(1), 3]
+  ========================================
+  0000    | GetConstant 0: [1, -2, 3]
+  0002    | JumpIfFailure 2 -> 60
+  0005    | MatchWindowEnter 5
+  0007    | MatchScrutinee r0
+  0009    | MatchType r0 array -> 58
+  0014    | MatchLen r0 3 -> 58
+  0019    | MatchElem r1 r0[0]
+  0023    | MatchConst r1 1 -> 58
+  0029    | MatchElem r2 r0[1]
+  0033    | GetConstant 2: Inc
+  0035    | PushInteger 1
+  0037    | CallFunction 1
+  0039    | NegateNumber
+  0040    | MatchEval r2 -> 58
+  0045    | MatchElem r3 r0[2]
+  0049    | MatchConst r3 3 -> 58
+  0055    | Jump 55 -> 59
+  0058    | MatchFail
+  0059    | MatchWindowExit
+  0060    | End
+  ========================================
+
+  $ possum -p 'Check(Y) = [1, -2, 3] -> [1, -Y, 3] ; "" $ Check(2)' -i ''
+  
+  ================2:Check=================
+  Check(Y) = [1, -2, 3] -> [1, -Y, 3]
+  ========================================
+  0000    | GetConstant 0: [1, -2, 3]
+  0002    | JumpIfFailure 2 -> 56
+  0005    | MatchWindowEnter 5
+  0007    | MatchScrutinee r0
+  0009    | MatchType r0 array -> 54
+  0014    | MatchLen r0 3 -> 54
+  0019    | MatchElem r1 r0[0]
+  0023    | MatchConst r1 1 -> 54
+  0029    | MatchElem r2 r0[1]
+  0033    | GetLocalMove l0
+  0035    | NegateNumber
+  0036    | MatchEval r2 -> 54
+  0041    | MatchElem r3 r0[2]
+  0045    | MatchConst r3 3 -> 54
+  0051    | Jump 51 -> 55
+  0054    | MatchFail
+  0055    | MatchWindowExit
+  0056    | End
+  ========================================
+  
+  ================2:@main=================
+  "" $ Check(2)
+  ========================================
+  0000    | GetConstant 3: Check
+  0002    | PushInteger 2
+  0004    | CallTailFunction 1
+  0006    | End
+  ========================================

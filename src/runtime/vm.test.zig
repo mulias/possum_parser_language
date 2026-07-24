@@ -3420,25 +3420,6 @@ test "('' $ 4) -> (-2 * N) folds the negated repeat pattern" {
     );
 }
 
-test "a negated global compiles to a match plan" {
-    // A runtime-valued global does not fold, so the negation stays a
-    // match-plan constraint. A scalar global would inline and fold away.
-    const parser =
-        \\Two = "" $ 2 ; ("" $ -2) -> -Two $ "ok"
-    ;
-    var vm = VM.create();
-    try vm.init(allocator, writers, config);
-    defer vm.deinit();
-    try testing.expectSuccess(
-        try vm.interpret("test", parser, ""),
-        (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
-        vm,
-    );
-    var plan_count: usize = 0;
-    for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
-    try std.testing.expectEqual(1, plan_count);
-}
-
 test "('' $ -6) -> -Inc(5) compares the negated call result" {
     {
         const parser =
@@ -3514,6 +3495,68 @@ test "a negated function global negates its per-match result" {
         try vm.interpret("test", parser, ""),
         (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
         vm,
+    );
+}
+
+test "a negated call composes inside a larger arm" {
+    // Negation composes with an evaluable inner as one step among the
+    // array's other element steps — the arm inlines, no match plan.
+    const parser =
+        \\Inc(N) = "" $ N + 1 ; ("" $ [1, -2, 3]) -> [1, -Inc(1), 3] $ "ok"
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
+        vm,
+    );
+    var plan_count: usize = 0;
+    for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+    try std.testing.expectEqual(0, plan_count);
+}
+
+test "a negated bound local composes inside a larger arm" {
+    const parser =
+        \\Check(Y) = [1, -2, 3] -> [1, -Y, 3] $ "ok" ; ("" $ Check(2))
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
+            vm,
+        );
+    }
+    {
+        // A read whose negation differs from the element fails the arm.
+        const mismatch =
+            \\Check(Y) = [1, -2, 3] -> [1, -Y, 3] $ "ok" ; ("" $ Check(5))
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret("test", mismatch, ""),
+        );
+    }
+}
+
+test "a negated structural pattern matches against the negated scrutinee" {
+    // -[1,2] negates the scrutinee (number-gated) then matches [1,2]
+    // against it in a nested window; a number can never be an array, so
+    // it fails cleanly rather than erroring.
+    const parser =
+        \\("" $ [1, 2, 3]) -> [1, -[1,2], 3] $ "ok"
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectFailure(
+        try vm.interpret("test", parser, ""),
     );
 }
 
