@@ -51,25 +51,37 @@ pub fn actualize(self: *Goal, can: Can) Error!void {
             .parser => |p| {
                 var params = ArrayList(PathTable.Id){};
                 try params.ensureTotalCapacity(self.alloc(), p.node.params.items.len);
-                for (p.node.params.items) |param| params.appendAssumeCapacity(param.name());
+                var param_types: u32 = 0;
+                for (p.node.params.items, 0..) |param, i| {
+                    params.appendAssumeCapacity(param.name());
+                    if (param == .value and i < 32) param_types |= @as(u32, 1) << @intCast(i);
+                }
                 try self.ast.declarations.append(self.alloc(), .{
                     .name = p.node.ident.node.name,
                     .underscored = p.node.ident.node.underscored,
                     .params = params,
+                    .param_types = param_types,
                     .body = try self.convertParser(p.node.body),
                     .region = p.region,
+                    .ident_region = p.node.ident.region,
                 });
             },
             .value => |v| {
                 var params = ArrayList(PathTable.Id){};
                 try params.ensureTotalCapacity(self.alloc(), v.node.params.items.len);
-                for (v.node.params.items) |param| params.appendAssumeCapacity(param.node.name);
+                var param_types: u32 = 0;
+                for (v.node.params.items, 0..) |param, i| {
+                    params.appendAssumeCapacity(param.node.name);
+                    if (i < 32) param_types |= @as(u32, 1) << @intCast(i);
+                }
                 try self.ast.declarations.append(self.alloc(), .{
                     .name = v.node.ident.node.name,
                     .underscored = v.node.ident.node.underscored,
                     .params = params,
+                    .param_types = param_types,
                     .body = try self.convertValue(v.node.body),
                     .region = v.region,
+                    .ident_region = v.node.ident.region,
                 });
             },
         }

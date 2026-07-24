@@ -4,10 +4,9 @@ const runtime = @import("../runtime.zig");
 const ChunkError = runtime.ChunkError;
 const Elem = runtime.Elem;
 const Frontend = @import("../frontend.zig");
-const CanAst = @import("../frontend/can_ast.zig");
+const Ast = Frontend.Ast;
 const GlobalKey = Frontend.GlobalKey;
 const DependencyGraphNode = Frontend.DependencyGraphNode;
-const GoalAst = @import("../frontend/goal_ast.zig");
 const goal_pattern = @import("goal_pattern.zig");
 const Ir = @import("ir.zig").Ir;
 const liveness = @import("liveness.zig");
@@ -50,7 +49,7 @@ pub const Compiler = struct {
     arm_search_groups: []SearchGroup = &.{},
 
     const SearchGroup = struct {
-        src: GoalAst.PlaceId,
+        src: Ast.PlaceId,
         base: u8,
         count: u8,
         emitted: u8 = 0,
@@ -252,12 +251,13 @@ pub const Compiler = struct {
         // Only compile if this is actually a declaration
         switch (node.*) {
             .precompiled => try self.createBuiltin(decl_key),
-            .declaration => |*n| {
-                const decl = n.ast;
-                const kind = try self.classifyDecl(decl);
+            .declaration => {
+                const ast = self.goalAst(decl_key.module_id);
+                const goal_decl = goalDeclaration(ast, decl_key.name);
+                const kind = try self.classifyDecl(ast, goal_decl);
 
                 if (self.findGlobal(decl_key.module_id, decl_key.name) == null) {
-                    try self.declareFromKind(decl_key, decl, kind);
+                    try self.declareFromKind(decl_key, goal_decl, kind);
                 }
 
                 // Aliases share their target's function elem, whose bytecode is
@@ -267,7 +267,7 @@ pub const Compiler = struct {
                     .function => {
                         if (self.findGlobal(decl_key.module_id, decl_key.name)) |elem| {
                             if (elem.isDynType(.Function) and elem.asDyn().asFunction().hasEmptyBytecode()) {
-                                try self.compileFunction(node, decl_key.module_id, decl);
+                                try self.compileFunction(node, decl_key);
                             }
                         }
                     },
@@ -300,8 +300,10 @@ pub const Compiler = struct {
 
         switch (self.frontend.getNode(dep_key).*) {
             .precompiled => try self.createBuiltin(dep_key),
-            .declaration => |*n| {
-                try self.declareFromKind(dep_key, n.ast, try self.classifyDecl(n.ast));
+            .declaration => {
+                const ast = self.goalAst(dep_key.module_id);
+                const goal_decl = goalDeclaration(ast, dep_key.name);
+                try self.declareFromKind(dep_key, goal_decl, try self.classifyDecl(ast, goal_decl));
             },
             .anonymous_function => {
                 _ = try self.declareAnonFunction(dep_key);
@@ -342,72 +344,56 @@ pub const Compiler = struct {
 
     // A parameterless alias body inlines to a value elem; a bare-identifier
     // body is an alias to another declaration; everything else is a function.
-    fn classifyDecl(self: *Compiler, decl: CanAst.ParserOrValue.Declaration) !DeclKind {
-        if (try self.getAliasBody(decl)) |elem| {
+    fn classifyDecl(self: *Compiler, ast: *const Ast, decl: *const Ast.Declaration) !DeclKind {
+        if (try self.getAliasBody(ast, decl)) |elem| {
             return .{ .alias_value = elem };
         }
-        if (self.getAliasChainName(decl)) |name| {
+        if (getAliasChainName(ast, decl)) |name| {
             return .{ .alias_ident = name };
         }
         return .function;
     }
 
-    fn declareFromKind(self: *Compiler, key: GlobalKey, decl: CanAst.ParserOrValue.Declaration, kind: DeclKind) !void {
+    fn declareFromKind(self: *Compiler, key: GlobalKey, decl: *const Ast.Declaration, kind: DeclKind) !void {
         switch (kind) {
             .alias_value => |alias_elem| try self.addGlobal(key.module_id, key.name, alias_elem),
-            .alias_ident => try self.denormalizeAlias(key, decl),
+            .alias_ident => try self.denormalizeAlias(key),
             .function => try self.declareFunction(key.module_id, decl),
         }
     }
 
-    fn declareFunction(self: *Compiler, module_id: Module.Id, decl: CanAst.ParserOrValue.Declaration) !void {
+    fn declareFunction(self: *Compiler, module_id: Module.Id, decl: *const Ast.Declaration) !void {
         // Create a new function and add the params to the function struct.
         // Leave the function's bytecode chunk empty for now.
         // Add the function to the globals namespace.
 
-        const function_name = decl.identName();
+        const function_name = decl.name;
 
         var function = try Elem.DynElem.Function.create(self.vm, .{
             .module_id = module_id,
             .name = try self.internPathForRuntime(function_name),
             .arity = 0,
-            .region = decl.region(),
+            .region = decl.region,
             .is_anonymous = false,
         });
 
         try self.addGlobal(module_id, function_name, function.dyn.elem());
 
-        if (decl.param_count() > std.math.maxInt(u5)) {
+        if (decl.params.items.len > std.math.maxInt(u5)) {
             try self.printError(
                 module_id,
-                decl.identRegion(),
+                decl.ident_region,
                 "Can't have more than {} parameters.",
                 .{std.math.maxInt(u5)},
             );
             return Error.MaxFunctionLocals;
         }
 
-        switch (decl) {
-            .parser => |p_decl| {
-                for (p_decl.node.params.items, 0..) |param_ident, i| {
-                    function.param_types.set(
-                        @intCast(i),
-                        if (param_ident == .parser) .Parser else .Value,
-                    );
-                }
-                function.arity = @intCast(p_decl.node.params.items.len);
-            },
-            .value => |v_decl| {
-                for (v_decl.node.params.items, 0..) |param_ident, i| {
-                    _ = param_ident;
-                    function.param_types.set(@intCast(i), .Value);
-                }
-                function.arity = @intCast(v_decl.node.params.items.len);
-            },
-        }
+        function.arity = @intCast(decl.params.items.len);
+        function.param_types.bitset = decl.param_types;
     }
 
-    fn denormalizeAlias(self: *Compiler, decl_key: GlobalKey, decl: CanAst.ParserOrValue.Declaration) !void {
+    fn denormalizeAlias(self: *Compiler, decl_key: GlobalKey) !void {
         var path = AutoHashMap(GlobalKey, void){};
         defer path.deinit(self.vm.allocator);
 
@@ -421,7 +407,9 @@ pub const Compiler = struct {
             }
 
             if (path.contains(target_key)) {
-                try self.printError(decl_key.module_id, decl.region(), "Circular alias dependency detected for '{s}'", .{self.frontend.pathString(decl_key.name)});
+                const ast = self.goalAst(decl_key.module_id);
+                const decl = goalDeclaration(ast, decl_key.name);
+                try self.printError(decl_key.module_id, decl.region, "Circular alias dependency detected for '{s}'", .{self.frontend.pathString(decl_key.name)});
                 return Error.AliasCycle;
             }
             try path.put(self.vm.allocator, target_key, undefined);
@@ -434,14 +422,15 @@ pub const Compiler = struct {
                 break;
             }
 
-            const target_decl = target_node.declaration.ast;
+            const target_ast = self.goalAst(target_key.module_id);
+            const target_decl = goalDeclaration(target_ast, target_key.name);
 
-            if (try self.getAliasDependency(target_key, target_decl)) |next_key| {
+            if (self.getAliasDependency(target_key, target_ast, target_decl)) |next_key| {
                 target_key = next_key;
                 continue;
             }
 
-            if (try self.getAliasBody(target_decl)) |elem| {
+            if (try self.getAliasBody(target_ast, target_decl)) |elem| {
                 target_elem = elem;
                 break;
             }
@@ -449,8 +438,8 @@ pub const Compiler = struct {
             // The target is itself an alias to a bare identifier, but the
             // resolver recorded no dependency edge for it, so that identifier
             // names nothing.
-            if (self.getAliasChainName(target_decl)) |unresolved_name| {
-                try self.printError(target_key.module_id, target_decl.region(), "undefined variable '{s}'", .{self.frontend.pathString(unresolved_name)});
+            if (getAliasChainName(target_ast, target_decl)) |unresolved_name| {
+                try self.printError(target_key.module_id, target_decl.region, "undefined variable '{s}'", .{self.frontend.pathString(unresolved_name)});
                 return Error.UndefinedVariable;
             }
 
@@ -473,21 +462,17 @@ pub const Compiler = struct {
         }
     }
 
-    fn getAliasDependency(self: *Compiler, decl_key: GlobalKey, decl: CanAst.ParserOrValue.Declaration) !?GlobalKey {
-        if (!self.declHasNoParams(decl)) {
-            return null;
-        }
+    fn getAliasDependency(self: *Compiler, decl_key: GlobalKey, ast: *const Ast, decl: *const Ast.Declaration) ?GlobalKey {
+        const ident_name = getAliasChainName(ast, decl) orelse return null;
 
-        const ident_name = self.getAliasChainName(decl) orelse return null;
-
-        const node = self.frontend.findNode(decl_key.module_id, decl.identName()) orelse return null;
+        const node = self.frontend.findNode(decl_key.module_id, decl_key.name) orelse return null;
 
         return node.dependencyNamed(ident_name);
     }
 
-    fn compileFunction(self: *Compiler, node: *DependencyGraphNode, module_id: Module.Id, decl: CanAst.ParserOrValue.Declaration) !void {
-        const global_sid = decl.identName();
-        const globalVal = self.getGlobal(.{ .module_id = module_id, .name = global_sid });
+    fn compileFunction(self: *Compiler, node: *DependencyGraphNode, decl_key: GlobalKey) !void {
+        const module_id = decl_key.module_id;
+        const globalVal = self.getGlobal(decl_key);
 
         const function = globalVal.asDyn().asFunction();
 
@@ -495,12 +480,12 @@ pub const Compiler = struct {
         try self.pushScope(node);
         try self.irs.append(self.vm.allocator, Ir{});
 
-        try self.pushLocalPlaceholders(module_id, function.arity, decl.region());
-
         const ast = self.goalAst(module_id);
-        const goal_body = goalFunctionBody(ast, decl.identName()) orelse
-            @panic("Internal Error: no goal body for declaration");
-        try self.writeGoal(module_id, ast, goal_body);
+        const goal_decl = goalDeclaration(ast, decl_key.name);
+
+        try self.pushLocalPlaceholders(module_id, function.arity, goal_decl.region);
+
+        try self.writeGoal(module_id, ast, goal_decl.body);
 
         try self.finishFunctionIr(module_id);
 
@@ -524,30 +509,6 @@ pub const Compiler = struct {
             const underscored = bytes.len > 0 and bytes[0] == '_';
             try self.writeConstant(module_id, Elem.valueVar(try self.internForRuntime(sid), underscored), region);
         }
-    }
-
-    fn parserNodeToElem(self: *Compiler, node: CanAst.Parser.Node) !?Elem {
-        const result = switch (node) {
-            .number_string => |ns| try self.numberStringNodeToElem(ns.number, ns.negated),
-            .string => |s| Elem.string(try self.vm.strings.insert(s)),
-            else => null,
-        };
-
-        return result;
-    }
-
-    fn valueNodeToElem(self: *Compiler, node: CanAst.Value.Node) !?Elem {
-        const result = switch (node) {
-            .false => Elem.boolean(false),
-            .null => Elem.nullConst,
-            .number_float => |f| Elem.numberFloat(f),
-            .number_string => |ns| try self.numberStringNodeToElem(ns.number, ns.negated),
-            .string => |s| Elem.string(try self.vm.strings.insert(s)),
-            .true => Elem.boolean(true),
-            else => null,
-        };
-
-        return result;
     }
 
     fn writeConstant(self: *Compiler, module_id: Module.Id, elem: Elem, region: Region) !void {
@@ -631,40 +592,47 @@ pub const Compiler = struct {
         }
     }
 
-    fn declHasNoParams(self: *Compiler, decl: CanAst.ParserOrValue.Declaration) bool {
-        _ = self;
-        return switch (decl) {
-            .parser => |p_decl| p_decl.node.params.items.len == 0,
-            .value => |v_decl| v_decl.node.params.items.len == 0,
+    // A parameterless declaration whose body is a constant literal inlines to
+    // that value elem. Parser-position literals are wrapped in an invoking
+    // call in the goal ast; value-position literals stand bare.
+    fn getAliasBody(self: *Compiler, ast: *const Ast, decl: *const Ast.Declaration) !?Elem {
+        if (decl.params.items.len != 0) return null;
+        return self.goalLiteralElem(ast, decl.body);
+    }
+
+    fn goalLiteralElem(self: *Compiler, ast: *const Ast, id: Ast.NodeId) !?Elem {
+        return switch (ast.goals.items[id].node) {
+            .true => Elem.boolean(true),
+            .false => Elem.boolean(false),
+            .null => Elem.nullConst,
+            .number_float => |f| Elem.numberFloat(f),
+            .number_string => |ns| try self.numberStringNodeToElem(ns.number, ns.negated),
+            .string => |s| Elem.string(try self.vm.strings.insert(s)),
+            .call => |call| if (call.args.len == 0)
+                try self.goalLiteralElem(ast, call.callee)
+            else
+                null,
+            else => null,
         };
     }
 
-    fn getAliasBody(self: *Compiler, decl: CanAst.ParserOrValue.Declaration) !?Elem {
-        if (self.declHasNoParams(decl)) {
-            return switch (decl) {
-                .parser => |p_decl| self.parserNodeToElem(p_decl.node.body.node),
-                .value => |v_decl| self.valueNodeToElem(v_decl.node.body.node),
-            };
-        } else {
-            return null;
-        }
+    // A parameterless declaration whose body is a bare identifier is an alias
+    // to another declaration. Parser-position idents are wrapped in an
+    // invoking call in the goal ast; value-position idents stand bare.
+    fn getAliasChainName(ast: *const Ast, decl: *const Ast.Declaration) ?Frontend.PathTable.Id {
+        if (decl.params.items.len != 0) return null;
+        return goalAliasTarget(ast, decl.body);
     }
 
-    fn getAliasChainName(self: *Compiler, decl: CanAst.ParserOrValue.Declaration) ?Frontend.PathTable.Id {
-        if (self.declHasNoParams(decl)) {
-            return switch (decl) {
-                .parser => |p_decl| if (p_decl.node.body.node == .identifier)
-                    p_decl.node.body.node.identifier.name
-                else
-                    null,
-                .value => |v_decl| if (v_decl.node.body.node == .identifier)
-                    v_decl.node.body.node.identifier.name
-                else
-                    null,
-            };
-        } else {
-            return null;
-        }
+    fn goalAliasTarget(ast: *const Ast, id: Ast.NodeId) ?Frontend.PathTable.Id {
+        return switch (ast.goals.items[id].node) {
+            .ident => |i| i.name,
+            .call => |call| if (call.args.len == 0)
+                goalAliasTarget(ast, call.callee)
+            else
+                null,
+            else => null,
+        };
     }
 
     fn placeholderVar(self: *Compiler) !Elem {
@@ -883,13 +851,23 @@ pub const Compiler = struct {
     // consulted only for global resolution and frame local layouts.
     // ===================================================================
 
-    fn goalAst(self: *Compiler, module_id: Module.Id) *const GoalAst {
+    fn goalAst(self: *Compiler, module_id: Module.Id) *const Ast {
         const goal = self.frontend.goals.get(module_id) orelse
             @panic("Internal Error: no goal ast for module");
         return &goal.ast;
     }
 
-    fn goalFunctionBody(ast: *const GoalAst, name: Frontend.PathTable.Id) ?GoalAst.NodeId {
+    // The goal declaration matching a dependency graph declaration node.
+    // Callers reach this from a can declaration's key, swapping the can ast
+    // for the goal ast that shares its module and name.
+    fn goalDeclaration(ast: *const Ast, name: Frontend.PathTable.Id) *const Ast.Declaration {
+        for (ast.declarations.items) |*decl| {
+            if (decl.name == name) return decl;
+        }
+        @panic("Internal Error: no goal declaration for name");
+    }
+
+    fn goalFunctionBody(ast: *const Ast, name: Frontend.PathTable.Id) ?Ast.NodeId {
         if (ast.main_name == name) return ast.main;
         for (ast.declarations.items) |decl| {
             if (decl.name == name) return decl.body;
@@ -903,7 +881,7 @@ pub const Compiler = struct {
         return null;
     }
 
-    fn goalLambdaCaptures(ast: *const GoalAst, name: Frontend.PathTable.Id) usize {
+    fn goalLambdaCaptures(ast: *const Ast, name: Frontend.PathTable.Id) usize {
         for (ast.goals.items) |rnode| {
             switch (rnode.node) {
                 .lambda => |lambda| if (lambda.name == name) return lambda.captures.items.len,
@@ -918,8 +896,8 @@ pub const Compiler = struct {
         module_id: Module.Id,
         node: *DependencyGraphNode,
         function: *Elem.DynElem.Function,
-        ast: *const GoalAst,
-        body: GoalAst.NodeId,
+        ast: *const Ast,
+        body: Ast.NodeId,
         captures_count: usize,
         region: Region,
     ) !void {
@@ -955,7 +933,7 @@ pub const Compiler = struct {
     // the cursor-template block (front, end, rest dst, char). A pure-place
     // arm — no search/repeat/cursor-template pool — is exactly
     // places.len + 1.
-    fn armStepScratchWidth(self: *Compiler, ast: *const GoalAst, places: []const GoalAst.PlaceDef, constraints: []const GoalAst.Constraint) u32 {
+    fn armStepScratchWidth(self: *Compiler, ast: *const Ast, places: []const Ast.PlaceDef, constraints: []const Ast.Constraint) u32 {
         var searches: u32 = 0;
         var repeats: u32 = 0;
         var templates: u32 = 0;
@@ -974,7 +952,7 @@ pub const Compiler = struct {
         return @as(u32, @intCast(places.len + 1)) + extra + repeats + templates;
     }
 
-    fn writeGoal(self: *Compiler, module_id: Module.Id, ast: *const GoalAst, id: GoalAst.NodeId) Error!void {
+    fn writeGoal(self: *Compiler, module_id: Module.Id, ast: *const Ast, id: Ast.NodeId) Error!void {
         const rnode = ast.goals.items[id];
         const region = rnode.region;
         switch (rnode.node) {
@@ -1040,7 +1018,7 @@ pub const Compiler = struct {
     // compiler's writeValue: a zero-arity value function global is
     // invoked. Argument positions for parser params (and unknown callees)
     // pass the function elem itself.
-    fn writeGoalIdentValue(self: *Compiler, module_id: Module.Id, ident: GoalAst.Ident, invoke_functions: bool, region: Region) Error!void {
+    fn writeGoalIdentValue(self: *Compiler, module_id: Module.Id, ident: Ast.Ident, invoke_functions: bool, region: Region) Error!void {
         switch (ident.resolution) {
             .local => |slot| try self.emitUnaryOp(.GetLocal, slot, region),
             .placeholder => try self.emitOp(.PushUnderscoreVar, region),
@@ -1059,7 +1037,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeGoalCall(self: *Compiler, module_id: Module.Id, ast: *const GoalAst, call: GoalAst.Call, region: Region) Error!void {
+    fn writeGoalCall(self: *Compiler, module_id: Module.Id, ast: *const Ast, call: Ast.Call, region: Region) Error!void {
         const callee = ast.goals.items[call.callee];
         switch (callee.node) {
             .ident => |ident| try self.writeGoalFunctionCall(module_id, ast, ident, call, region, callee.region),
@@ -1096,7 +1074,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeGoalNegatedParser(self: *Compiler, module_id: Module.Id, ast: *const GoalAst, inner: GoalAst.NodeId, region: Region) Error!void {
+    fn writeGoalNegatedParser(self: *Compiler, module_id: Module.Id, ast: *const Ast, inner: Ast.NodeId, region: Region) Error!void {
         const rnode = ast.goals.items[inner];
         switch (rnode.node) {
             .number_string => |ns| {
@@ -1117,9 +1095,9 @@ pub const Compiler = struct {
     fn writeGoalFunctionCall(
         self: *Compiler,
         module_id: Module.Id,
-        ast: *const GoalAst,
-        ident: GoalAst.Ident,
-        call: GoalAst.Call,
+        ast: *const Ast,
+        ident: Ast.Ident,
+        call: Ast.Call,
         call_region: Region,
         callee_region: Region,
     ) Error!void {
@@ -1196,7 +1174,7 @@ pub const Compiler = struct {
     // the plan interpreter's evalCall returns a graceful RuntimeError.
     // Keep any expression that calls such a callee, or that has a shape the
     // step path does not lower, on the plan path.
-    fn evalExprStepable(self: *Compiler, ast: *const GoalAst, id: GoalAst.NodeId) bool {
+    fn evalExprStepable(self: *Compiler, ast: *const Ast, id: Ast.NodeId) bool {
         return switch (ast.goals.items[id].node) {
             .true, .false, .null, .string, .number_string, .number_float, .ident => true,
             .neg => |inner| self.evalExprStepable(ast, inner),
@@ -1235,7 +1213,7 @@ pub const Compiler = struct {
     // A parser-named ident argument passes its function elem; a
     // value-named argument evaluates like any value position (invoking a
     // zero-arity value function), mirroring the can arg-kind split.
-    fn writeGoalArg(self: *Compiler, module_id: Module.Id, ast: *const GoalAst, id: GoalAst.NodeId) Error!void {
+    fn writeGoalArg(self: *Compiler, module_id: Module.Id, ast: *const Ast, id: Ast.NodeId) Error!void {
         const rnode = ast.goals.items[id];
         switch (rnode.node) {
             .ident => |ident| {
@@ -1246,7 +1224,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeGoalLambda(self: *Compiler, module_id: Module.Id, lambda: *const GoalAst.Lambda, region: Region) Error!void {
+    fn writeGoalLambda(self: *Compiler, module_id: Module.Id, lambda: *const Ast.Lambda, region: Region) Error!void {
         const key = GlobalKey{ .module_id = module_id, .name = lambda.name };
         const function = try self.declareAnonFunction(key);
 
@@ -1271,7 +1249,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeGoalSeq(self: *Compiler, module_id: Module.Id, ast: *const GoalAst, seq: GoalAst.Seq, region: Region) Error!void {
+    fn writeGoalSeq(self: *Compiler, module_id: Module.Id, ast: *const Ast, seq: Ast.Seq, region: Region) Error!void {
         const goals = seq.goals.items;
         var end_jumps = ArrayList(Ir.Index){};
         defer end_jumps.deinit(self.vm.allocator);
@@ -1298,7 +1276,7 @@ pub const Compiler = struct {
         for (end_jumps.items) |jumpIndex| self.patchJump(jumpIndex);
     }
 
-    fn writeGoalAlt(self: *Compiler, module_id: Module.Id, ast: *const GoalAst, arms: []const GoalAst.AltArm, region: Region) Error!void {
+    fn writeGoalAlt(self: *Compiler, module_id: Module.Id, ast: *const Ast, arms: []const Ast.AltArm, region: Region) Error!void {
         var end_jumps = ArrayList(Ir.Index){};
         defer end_jumps.deinit(self.vm.allocator);
 
@@ -1336,7 +1314,7 @@ pub const Compiler = struct {
         for (end_jumps.items) |jumpIndex| self.patchJump(jumpIndex);
     }
 
-    fn goalValueToElem(self: *Compiler, ast: *const GoalAst, id: GoalAst.NodeId) !?Elem {
+    fn goalValueToElem(self: *Compiler, ast: *const Ast, id: Ast.NodeId) !?Elem {
         return switch (ast.goals.items[id].node) {
             .false => Elem.boolean(false),
             .true => Elem.boolean(true),
@@ -1356,7 +1334,7 @@ pub const Compiler = struct {
         };
     }
 
-    fn writeGoalArray(self: *Compiler, module_id: Module.Id, ast: *const GoalAst, elems: []const GoalAst.NodeId, region: Region) Error!void {
+    fn writeGoalArray(self: *Compiler, module_id: Module.Id, ast: *const Ast, elems: []const Ast.NodeId, region: Region) Error!void {
         if (elems.len == 0) {
             return try self.emitOp(.PushEmptyArray, region);
         }
@@ -1389,7 +1367,7 @@ pub const Compiler = struct {
         if (mutated) self.ir().patchConstantMutable(constant_index);
     }
 
-    fn writeGoalObject(self: *Compiler, module_id: Module.Id, ast: *const GoalAst, pairs: []const GoalAst.ObjectPair, region: Region) Error!void {
+    fn writeGoalObject(self: *Compiler, module_id: Module.Id, ast: *const Ast, pairs: []const Ast.ObjectPair, region: Region) Error!void {
         if (pairs.len == 0) {
             return try self.emitOp(.PushEmptyObject, region);
         }
@@ -1422,7 +1400,7 @@ pub const Compiler = struct {
         if (mutated) self.ir().patchConstantMutable(constant_index);
     }
 
-    fn writeGoalRangeParser(self: *Compiler, module_id: Module.Id, ast: *const GoalAst, range: GoalAst.Range, region: Region) Error!void {
+    fn writeGoalRangeParser(self: *Compiler, module_id: Module.Id, ast: *const Ast, range: Ast.Range, region: Region) Error!void {
         if (range.lower != null and range.upper != null) {
             try self.writeGoalBoundedRange(module_id, ast, range.lower.?, range.upper.?, region);
         } else if (range.lower) |lower| {
@@ -1432,7 +1410,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeGoalBoundedRange(self: *Compiler, module_id: Module.Id, ast: *const GoalAst, low: GoalAst.NodeId, high: GoalAst.NodeId, region: Region) Error!void {
+    fn writeGoalBoundedRange(self: *Compiler, module_id: Module.Id, ast: *const Ast, low: Ast.NodeId, high: Ast.NodeId, region: Region) Error!void {
         const low_node = ast.goals.items[low].node;
         const high_node = ast.goals.items[high].node;
 
@@ -1503,7 +1481,7 @@ pub const Compiler = struct {
         try self.emitOp(.ParseRange, region);
     }
 
-    fn writeGoalRangeBound(self: *Compiler, module_id: Module.Id, ast: *const GoalAst, id: GoalAst.NodeId, region: Region) Error!void {
+    fn writeGoalRangeBound(self: *Compiler, module_id: Module.Id, ast: *const Ast, id: Ast.NodeId, region: Region) Error!void {
         const rnode = ast.goals.items[id];
         switch (rnode.node) {
             .string => |s| {
@@ -1531,7 +1509,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeGoalHalfRange(self: *Compiler, module_id: Module.Id, ast: *const GoalAst, bound: GoalAst.NodeId, op: OpCode, full_low: u21, full_high: u21, region: Region) Error!void {
+    fn writeGoalHalfRange(self: *Compiler, module_id: Module.Id, ast: *const Ast, bound: Ast.NodeId, op: OpCode, full_low: u21, full_high: u21, region: Region) Error!void {
         const rnode = ast.goals.items[bound];
         switch (rnode.node) {
             .string => |s| {
@@ -1579,11 +1557,11 @@ pub const Compiler = struct {
     const CountShape = union(enum) {
         none,
         exact,
-        range: GoalAst.Constraint.Kind,
+        range: Ast.Constraint.Kind,
         destructure,
     };
 
-    fn goalCountShape(ast: *const GoalAst, count_test: ?GoalAst.SetId) CountShape {
+    fn goalCountShape(ast: *const Ast, count_test: ?Ast.SetId) CountShape {
         const set_id = count_test orelse return .none;
         const constraints = ast.constraint_sets.items[set_id].constraints.items;
         if (constraints.len != 1) return .destructure;
@@ -1594,7 +1572,7 @@ pub const Compiler = struct {
         };
     }
 
-    fn writeGoalLimitValue(self: *Compiler, module_id: Module.Id, ast: *const GoalAst, limit: GoalAst.Limit, region: Region) Error!void {
+    fn writeGoalLimitValue(self: *Compiler, module_id: Module.Id, ast: *const Ast, limit: Ast.Limit, region: Region) Error!void {
         switch (limit) {
             .read => |local| try self.emitUnaryOp(.GetLocal, local.slot, region),
             .global => |name| {
@@ -1609,7 +1587,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn writeGoalRepeat(self: *Compiler, module_id: Module.Id, ast: *const GoalAst, repeat: *const GoalAst.Repeat, region: Region) Error!void {
+    fn writeGoalRepeat(self: *Compiler, module_id: Module.Id, ast: *const Ast, repeat: *const Ast.Repeat, region: Region) Error!void {
         switch (goalCountShape(ast, repeat.count_test)) {
             .exact => {
                 std.debug.assert(repeat.cap != .none);
@@ -1650,7 +1628,7 @@ pub const Compiler = struct {
 
     // Exactly-n repetitions: every iteration is required, failure aborts
     // the repeat with the failure. Port of writeParserRepeatCount.
-    fn writeGoalRepeatCounted(self: *Compiler, module_id: Module.Id, ast: *const GoalAst, repeat: *const GoalAst.Repeat, region: Region) Error!void {
+    fn writeGoalRepeatCounted(self: *Compiler, module_id: Module.Id, ast: *const Ast, repeat: *const Ast.Repeat, region: Region) Error!void {
         const count_region: Region = if (repeat.count_test) |set_id|
             ast.constraint_sets.items[set_id].region
         else
@@ -1682,7 +1660,7 @@ pub const Compiler = struct {
     // Up-to-cap optional repetitions, optionally destructuring the
     // achieved count against the count test. Port of
     // writeParserRepeatRangeUpperBounded.
-    fn writeGoalRepeatOptional(self: *Compiler, module_id: Module.Id, ast: *const GoalAst, repeat: *const GoalAst.Repeat, count_set: ?GoalAst.SetId, region: Region) Error!void {
+    fn writeGoalRepeatOptional(self: *Compiler, module_id: Module.Id, ast: *const Ast, repeat: *const Ast.Repeat, count_set: ?Ast.SetId, region: Region) Error!void {
         try self.writeConstant(module_id, Elem.nullConst, region);
 
         try self.writeGoalLimitValue(module_id, ast, repeat.cap, region);
@@ -1723,7 +1701,7 @@ pub const Compiler = struct {
     // A required lower bound, then greedy optional iterations; the count
     // test destructures against the total when the range has an upper
     // binder. Port of writeParserRepeatRangeLowerBounded.
-    fn writeGoalRepeatRequired(self: *Compiler, module_id: Module.Id, ast: *const GoalAst, repeat: *const GoalAst.Repeat, lower: GoalAst.Limit, region: Region) Error!void {
+    fn writeGoalRepeatRequired(self: *Compiler, module_id: Module.Id, ast: *const Ast, repeat: *const Ast.Repeat, lower: Ast.Limit, region: Region) Error!void {
         const count_set = repeat.count_test.?;
         const upper_binds = blk: {
             const constraints = ast.constraint_sets.items[count_set].constraints.items;
@@ -1785,7 +1763,7 @@ pub const Compiler = struct {
 
     // A required lower bound then up to cap-minus-lower optional
     // iterations. Port of writeParserRepeatRangeBounded.
-    fn writeGoalRepeatRangeBounded(self: *Compiler, module_id: Module.Id, ast: *const GoalAst, repeat: *const GoalAst.Repeat, lower: GoalAst.Limit, region: Region) Error!void {
+    fn writeGoalRepeatRangeBounded(self: *Compiler, module_id: Module.Id, ast: *const Ast, repeat: *const Ast.Repeat, lower: Ast.Limit, region: Region) Error!void {
         try self.writeConstant(module_id, Elem.nullConst, region);
 
         try self.writeGoalLimitValue(module_id, ast, lower, region);
@@ -1839,7 +1817,7 @@ pub const Compiler = struct {
 
     // Unbounded optional iterations with a counted total destructured
     // against the count test. Port of writeParserRepeatUnknownCount.
-    fn writeGoalRepeatUnknown(self: *Compiler, module_id: Module.Id, ast: *const GoalAst, repeat: *const GoalAst.Repeat, region: Region) Error!void {
+    fn writeGoalRepeatUnknown(self: *Compiler, module_id: Module.Id, ast: *const Ast, repeat: *const Ast.Repeat, region: Region) Error!void {
         try self.writeConstant(module_id, Elem.numberFloat(0), region);
         try self.writeConstant(module_id, Elem.nullConst, region);
 
@@ -1863,7 +1841,7 @@ pub const Compiler = struct {
     }
 
     // Iterate until the body fails; no count constraints at all.
-    fn writeGoalRepeatGreedy(self: *Compiler, module_id: Module.Id, ast: *const GoalAst, body: GoalAst.NodeId, region: Region) Error!void {
+    fn writeGoalRepeatGreedy(self: *Compiler, module_id: Module.Id, ast: *const Ast, body: Ast.NodeId, region: Region) Error!void {
         try self.writeConstant(module_id, Elem.nullConst, region);
 
         const loopStart = self.ir().nextIndex();
@@ -1879,7 +1857,7 @@ pub const Compiler = struct {
         try self.emitOp(.Drop, region);
     }
 
-    fn writeGoalCountDestructure(self: *Compiler, module_id: Module.Id, ast: *const GoalAst, set_id: GoalAst.SetId, region: Region) Error!void {
+    fn writeGoalCountDestructure(self: *Compiler, module_id: Module.Id, ast: *const Ast, set_id: Ast.SetId, region: Region) Error!void {
         var lowerer = pattern.Lowerer{
             .vm = self.vm,
             .frontend = self.frontend,
@@ -1892,7 +1870,7 @@ pub const Compiler = struct {
 
     // ===== Match lowering =====
 
-    fn writeGoalMatch(self: *Compiler, module_id: Module.Id, ast: *const GoalAst, match: *const GoalAst.Match, match_region: Region) Error!void {
+    fn writeGoalMatch(self: *Compiler, module_id: Module.Id, ast: *const Ast, match: *const Ast.Match, match_region: Region) Error!void {
         _ = match_region;
         try self.writeGoal(module_id, ast, match.scrutinee);
 
@@ -1924,7 +1902,7 @@ pub const Compiler = struct {
     // Whether every constraint and place lowers to an inline step op: the
     // fast path for fixed arrays and constant-key objects of binds and
     // constant tests. Everything else goes through a match plan.
-    fn armStepable(self: *Compiler, ast: *const GoalAst, arm: *const GoalAst.MatchArm) bool {
+    fn armStepable(self: *Compiler, ast: *const Ast, arm: *const Ast.MatchArm) bool {
         return self.constraintsStepable(ast, arm.constraints.items);
     }
 
@@ -1932,7 +1910,7 @@ pub const Compiler = struct {
     // a root arm and a nested sub-pattern's ConstraintSet (both have the
     // same scrutinee-rooted shape), so it recurses through searchable
     // structural values.
-    fn constraintsStepable(self: *Compiler, ast: *const GoalAst, constraints: []const GoalAst.Constraint) bool {
+    fn constraintsStepable(self: *Compiler, ast: *const Ast, constraints: []const Ast.Constraint) bool {
         for (constraints) |constraint| switch (constraint.kind) {
             .is_type => {},
             .len_eq, .len_min, .keys_exact, .keys_min => {},
@@ -1974,7 +1952,7 @@ pub const Compiler = struct {
     // A search key is bound when it compares against an existing local
     // (eq_slot) — a direct member probe rather than an unclaimed-member
     // scan.
-    fn searchKeyBound(self: *Compiler, ast: *const GoalAst, set_id: GoalAst.SetId) bool {
+    fn searchKeyBound(self: *Compiler, ast: *const Ast, set_id: Ast.SetId) bool {
         _ = self;
         const kc = singleSetConstraint(ast, set_id) orelse return false;
         return kc.kind == .eq_slot;
@@ -1987,7 +1965,7 @@ pub const Compiler = struct {
     // eval in the value may read this pair's key, which the window path
     // binds only after the value matches (the plan path binds the key
     // first, so `{A: Id(A)}` stays there).
-    fn searchValueStructuralStepable(self: *Compiler, ast: *const GoalAst, set_id: GoalAst.SetId) bool {
+    fn searchValueStructuralStepable(self: *Compiler, ast: *const Ast, set_id: Ast.SetId) bool {
         const set = &ast.constraint_sets.items[set_id];
         if (set.places.items.len < 2) return false;
         for (set.constraints.items) |constraint| {
@@ -2010,7 +1988,7 @@ pub const Compiler = struct {
     // be zero-arity functions), fallible evaluations (merges, calls,
     // nested repeats), and both-unresolved shapes (a runtime error the
     // plan preserves).
-    fn repeatShape(self: *Compiler, ast: *const GoalAst, pattern_part: GoalAst.Part, count: GoalAst.Part) ?RepeatShape {
+    fn repeatShape(self: *Compiler, ast: *const Ast, pattern_part: Ast.Part, count: Ast.Part) ?RepeatShape {
         switch (pattern_part) {
             .expr => |id| if (self.constPatternNode(ast, id) and self.repeatCountStepable(ast, count)) {
                 return .value;
@@ -2033,7 +2011,7 @@ pub const Compiler = struct {
     // leaf tests and binds, matched per chunk in a nested window. Rests
     // (variable length), ranges, searches, nested repeats, merges, and
     // templates inside a chunk keep the plan path.
-    fn repeatArrayLen(ast: *const GoalAst, set_id: GoalAst.SetId) ?u32 {
+    fn repeatArrayLen(ast: *const Ast, set_id: Ast.SetId) ?u32 {
         const set = &ast.constraint_sets.items[set_id];
         if (set.places.items.len == 0) return null;
 
@@ -2070,7 +2048,7 @@ pub const Compiler = struct {
     // Whether a repeat chunk constrains anything beyond the root array's
     // type and length — i.e. needs the per-chunk matching loop. A chunk of
     // bare placeholders (Array.length's `[_] * L`) does not.
-    fn repeatChunkNeedsLoop(ast: *const GoalAst, set_id: GoalAst.SetId) bool {
+    fn repeatChunkNeedsLoop(ast: *const Ast, set_id: Ast.SetId) bool {
         const set = &ast.constraint_sets.items[set_id];
         for (set.constraints.items) |constraint| {
             if (constraintPrimaryPlace(constraint.kind)) |place| {
@@ -2083,7 +2061,7 @@ pub const Compiler = struct {
     // The place a constraint primarily tests or binds, across the kinds a
     // repeat chunk admits (repeatArrayLen); null for kinds it never
     // contains.
-    fn constraintPrimaryPlace(kind: GoalAst.Constraint.Kind) ?GoalAst.PlaceId {
+    fn constraintPrimaryPlace(kind: Ast.Constraint.Kind) ?Ast.PlaceId {
         return switch (kind) {
             .is_type => |c| c.place,
             .len_eq => |c| c.place,
@@ -2104,7 +2082,7 @@ pub const Compiler = struct {
     // null: exactly one place constrained by one in_range whose bounds
     // are open, bound reads, or constants — the kinds the scan op
     // encodes. Bind and evaluated bounds keep the plan path.
-    fn repeatRangeConstraint(self: *Compiler, ast: *const GoalAst, set_id: GoalAst.SetId) ?*const GoalAst.Constraint {
+    fn repeatRangeConstraint(self: *Compiler, ast: *const Ast, set_id: Ast.SetId) ?*const Ast.Constraint {
         const set = &ast.constraint_sets.items[set_id];
         if (set.places.items.len != 1) return null;
         if (set.constraints.items.len != 1) return null;
@@ -2119,7 +2097,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn repeatRangeLimitStepable(self: *Compiler, ast: *const GoalAst, limit: GoalAst.Limit) bool {
+    fn repeatRangeLimitStepable(self: *Compiler, ast: *const Ast, limit: Ast.Limit) bool {
         return switch (limit) {
             .none, .read => true,
             .expr => |id| self.constPatternNode(ast, id),
@@ -2129,7 +2107,7 @@ pub const Compiler = struct {
 
     // Whether a count operand lowers to inline tests against the derived
     // count register.
-    fn repeatCountStepable(self: *Compiler, ast: *const GoalAst, count: GoalAst.Part) bool {
+    fn repeatCountStepable(self: *Compiler, ast: *const Ast, count: Ast.Part) bool {
         return switch (count) {
             .placeholder, .bind, .read => true,
             .expr => |id| self.constPatternNode(ast, id),
@@ -2142,7 +2120,7 @@ pub const Compiler = struct {
     // leaf tests: constant equality, ranges with stepable bounds, binds,
     // and bound reads. Merges, negations, and nested composites keep the
     // plan path.
-    fn repeatCountSetStepable(ast: *const GoalAst, set_id: GoalAst.SetId) bool {
+    fn repeatCountSetStepable(ast: *const Ast, set_id: Ast.SetId) bool {
         const set = &ast.constraint_sets.items[set_id];
         if (set.places.items.len != 1) return false;
         for (set.constraints.items) |constraint| switch (constraint.kind) {
@@ -2155,7 +2133,7 @@ pub const Compiler = struct {
 
     // Whether a count operand is a known value usable as a chunk-solve
     // input: a constant or a bound read.
-    fn repeatKnownCount(self: *Compiler, ast: *const GoalAst, count: GoalAst.Part) bool {
+    fn repeatKnownCount(self: *Compiler, ast: *const Ast, count: Ast.Part) bool {
         return switch (count) {
             .read => true,
             .expr => |id| self.constPatternNode(ast, id),
@@ -2169,7 +2147,7 @@ pub const Compiler = struct {
     // bound local (a direct member probe); const and global keys keep the
     // plan path until a constant-comparand probe exists. A value may also
     // compare against constants and globals.
-    fn searchSetStepable(self: *Compiler, ast: *const GoalAst, set_id: GoalAst.SetId, is_key: bool) bool {
+    fn searchSetStepable(self: *Compiler, ast: *const Ast, set_id: Ast.SetId, is_key: bool) bool {
         _ = self;
         const set = &ast.constraint_sets.items[set_id];
         if (set.places.items.len != 1) return false;
@@ -2196,9 +2174,9 @@ pub const Compiler = struct {
     // several unknown parts — keeps the plan path.
     fn classifyNumMergeStep(
         self: *Compiler,
-        ast: *const GoalAst,
-        ty: ?GoalAst.ValueType,
-        parts: []const GoalAst.Part,
+        ast: *const Ast,
+        ty: ?Ast.ValueType,
+        parts: []const Ast.Part,
     ) ?NumMergeStep {
         _ = self;
         if ((ty orelse return null) != .number) return null;
@@ -2234,7 +2212,7 @@ pub const Compiler = struct {
         return found;
     }
 
-    fn constNumberNode(ast: *const GoalAst, id: GoalAst.NodeId) bool {
+    fn constNumberNode(ast: *const Ast, id: Ast.NodeId) bool {
         return switch (ast.goals.items[id].node) {
             .number_float, .number_string => true,
             .neg => |inner| constNumberNode(ast, inner),
@@ -2258,9 +2236,9 @@ pub const Compiler = struct {
     // their runtime values into the claimed truth the same way.
     fn classifyBoolMergeStep(
         self: *Compiler,
-        ast: *const GoalAst,
-        ty: ?GoalAst.ValueType,
-        parts: []const GoalAst.Part,
+        ast: *const Ast,
+        ty: ?Ast.ValueType,
+        parts: []const Ast.Part,
     ) ?BoolMergeStep {
         _ = self;
         if ((ty orelse return null) != .boolean) return null;
@@ -2294,7 +2272,7 @@ pub const Compiler = struct {
         return null;
     }
 
-    fn constBoolNode(ast: *const GoalAst, id: GoalAst.NodeId) ?bool {
+    fn constBoolNode(ast: *const Ast, id: Ast.NodeId) ?bool {
         return switch (ast.goals.items[id].node) {
             .true => true,
             .false => false,
@@ -2304,7 +2282,7 @@ pub const Compiler = struct {
 
     // Whether any constraint is statically false: a negated part under a
     // non-number merge. Such an arm lowers to the bare fail tail.
-    fn armAlwaysFails(self: *Compiler, ast: *const GoalAst, constraints: []const GoalAst.Constraint) bool {
+    fn armAlwaysFails(self: *Compiler, ast: *const Ast, constraints: []const Ast.Constraint) bool {
         for (constraints) |constraint| switch (constraint.kind) {
             .solve_merge => |c| {
                 if (self.mergeNegatedNonNumber(ast, c.ty, c.parts.items)) return true;
@@ -2317,7 +2295,7 @@ pub const Compiler = struct {
     // A negated part under a merge whose static type isn't number can
     // never match — negation only produces numbers — so the arm lowers
     // to an unconditional fail step.
-    fn mergeNegatedNonNumber(self: *Compiler, ast: *const GoalAst, ty: ?GoalAst.ValueType, parts: []const GoalAst.Part) bool {
+    fn mergeNegatedNonNumber(self: *Compiler, ast: *const Ast, ty: ?Ast.ValueType, parts: []const Ast.Part) bool {
         _ = self;
         const merge_ty = ty orelse return false;
         if (merge_ty == .number) return false;
@@ -2333,7 +2311,7 @@ pub const Compiler = struct {
 
     // A pattern constant folded for step comparison: numbers fold to
     // floats the way the can plan lowering folds them.
-    fn goalPatternConstElem(self: *Compiler, ast: *const GoalAst, id: GoalAst.NodeId) Error!Elem {
+    fn goalPatternConstElem(self: *Compiler, ast: *const Ast, id: Ast.NodeId) Error!Elem {
         return switch (ast.goals.items[id].node) {
             .string => |s| Elem.string(try self.vm.strings.insert(s)),
             .number_float => |f| Elem.numberFloat(f),
@@ -2353,7 +2331,7 @@ pub const Compiler = struct {
     }
 
     // A goal node that `goalPatternConstElem` folds to a constant elem.
-    fn constPatternNode(self: *Compiler, ast: *const GoalAst, id: GoalAst.NodeId) bool {
+    fn constPatternNode(self: *Compiler, ast: *const Ast, id: Ast.NodeId) bool {
         return switch (ast.goals.items[id].node) {
             .string, .number_float, .number_string, .true, .false, .null => true,
             .neg => |inner| self.constPatternNode(ast, inner),
@@ -2390,7 +2368,7 @@ pub const Compiler = struct {
         gate,
     };
 
-    fn templatePartKind(self: *Compiler, ast: *const GoalAst, part: GoalAst.Part) TemplatePartKind {
+    fn templatePartKind(self: *Compiler, ast: *const Ast, part: Ast.Part) TemplatePartKind {
         return switch (part) {
             .placeholder, .bind => .solvable_raw,
             .read => .value,
@@ -2417,7 +2395,7 @@ pub const Compiler = struct {
     // Whether a template solvable sub-pattern is a number or boolean merge
     // castable to inline steps — a single solve_merge on place 0 accepted
     // by the merge-step classifier. Structural and untyped merges are null.
-    fn templateMergeSolvable(self: *Compiler, ast: *const GoalAst, set_id: GoalAst.SetId) ?enum { number, boolean } {
+    fn templateMergeSolvable(self: *Compiler, ast: *const Ast, set_id: Ast.SetId) ?enum { number, boolean } {
         const set = &ast.constraint_sets.items[set_id];
         if (set.places.items.len != 1) return null;
         if (set.constraints.items.len != 1) return null;
@@ -2437,7 +2415,7 @@ pub const Compiler = struct {
     // whole ConstraintSet steps. The parsed container feeds a child window
     // as its scrutinee, so the recursion is exactly a root arm's. Merges
     // (no root is_type), repeats, and non-stepable interiors stay null.
-    fn templateCastStepable(self: *Compiler, ast: *const GoalAst, set_id: GoalAst.SetId) bool {
+    fn templateCastStepable(self: *Compiler, ast: *const Ast, set_id: Ast.SetId) bool {
         const set = &ast.constraint_sets.items[set_id];
         var root_container = false;
         for (set.constraints.items) |constraint| switch (constraint.kind) {
@@ -2453,7 +2431,7 @@ pub const Compiler = struct {
     // The lower/upper bounds of a template character-range sub-pattern —
     // exactly one place constrained by one in_range with step-encodable
     // bounds — or null when the sub-pattern isn't a plain range.
-    fn templateRangeLimits(ast: *const GoalAst, set_id: GoalAst.SetId) ?struct { lower: GoalAst.Limit, upper: GoalAst.Limit } {
+    fn templateRangeLimits(ast: *const Ast, set_id: Ast.SetId) ?struct { lower: Ast.Limit, upper: Ast.Limit } {
         const set = &ast.constraint_sets.items[set_id];
         if (set.places.items.len != 1) return null;
         if (set.constraints.items.len != 1) return null;
@@ -2472,12 +2450,12 @@ pub const Compiler = struct {
     // codepoint to a number before the range test; a codepoint range
     // compares the character directly. Detected from a numeric literal
     // bound; a range with only runtime-valued bounds defaults to codepoint.
-    fn templateRangeNumeric(self: *Compiler, ast: *const GoalAst, set_id: GoalAst.SetId) bool {
+    fn templateRangeNumeric(self: *Compiler, ast: *const Ast, set_id: Ast.SetId) bool {
         const limits = templateRangeLimits(ast, set_id) orelse return false;
         return self.limitNumericLiteral(ast, limits.lower) or self.limitNumericLiteral(ast, limits.upper);
     }
 
-    fn limitNumericLiteral(self: *Compiler, ast: *const GoalAst, limit: GoalAst.Limit) bool {
+    fn limitNumericLiteral(self: *Compiler, ast: *const Ast, limit: Ast.Limit) bool {
         const id = switch (limit) {
             .expr => |id| id,
             else => return false,
@@ -2491,7 +2469,7 @@ pub const Compiler = struct {
 
     // Whether a template destructure lowers to inline steps, and by which
     // strategy. Null keeps the plan path.
-    fn templateStepable(self: *Compiler, ast: *const GoalAst, segments: []const GoalAst.Segment) ?TemplateKind {
+    fn templateStepable(self: *Compiler, ast: *const Ast, segments: []const Ast.Segment) ?TemplateKind {
         // Path A: the static layout — only literals plus exactly one
         // bind/placeholder, within the 255-byte literal cap.
         var specials: u32 = 0;
@@ -2530,10 +2508,10 @@ pub const Compiler = struct {
     fn rangeDescriptor(
         self: *Compiler,
         module_id: Module.Id,
-        ast: *const GoalAst,
-        limit: GoalAst.Limit,
+        ast: *const Ast,
+        limit: Ast.Limit,
         region: Region,
-        eval_out: *?GoalAst.NodeId,
+        eval_out: *?Ast.NodeId,
     ) Error!RangeDescriptor {
         switch (limit) {
             .none => return .{ .kind = @intFromEnum(RangeLimitKind.none), .arg = 0 },
@@ -2617,9 +2595,9 @@ pub const Compiler = struct {
     fn writeMatchSteps(
         self: *Compiler,
         module_id: Module.Id,
-        ast: *const GoalAst,
-        places: []const GoalAst.PlaceDef,
-        constraints: []const GoalAst.Constraint,
+        ast: *const Ast,
+        places: []const Ast.PlaceDef,
+        constraints: []const Ast.Constraint,
         scrutinee: StepScrutinee,
         region: Region,
     ) Error!void {
@@ -3040,8 +3018,8 @@ pub const Compiler = struct {
                         .range => {
                             const range_constraint = self.repeatRangeConstraint(ast, c.pattern.sub).?;
                             const rc = range_constraint.kind.in_range;
-                            var lower_eval: ?GoalAst.NodeId = null;
-                            var upper_eval: ?GoalAst.NodeId = null;
+                            var lower_eval: ?Ast.NodeId = null;
+                            var upper_eval: ?Ast.NodeId = null;
                             const lower_desc = try self.rangeDescriptor(module_id, ast, rc.lower, step_region, &lower_eval);
                             const upper_desc = try self.rangeDescriptor(module_id, ast, rc.upper, step_region, &upper_eval);
                             std.debug.assert(lower_eval == null and upper_eval == null);
@@ -3174,7 +3152,7 @@ pub const Compiler = struct {
         }
     }
 
-    fn findSearchGroup(self: *Compiler, groups: []SearchGroup, src: GoalAst.PlaceId) ?*SearchGroup {
+    fn findSearchGroup(self: *Compiler, groups: []SearchGroup, src: Ast.PlaceId) ?*SearchGroup {
         _ = self;
         for (groups) |*group| {
             if (group.src == src) return group;
@@ -3189,8 +3167,8 @@ pub const Compiler = struct {
     fn hasKeyListConstant(
         self: *Compiler,
         module_id: Module.Id,
-        constraints: []const GoalAst.Constraint,
-        place: GoalAst.PlaceId,
+        constraints: []const Ast.Constraint,
+        place: Ast.PlaceId,
         region: Region,
     ) Error!u16 {
         var key_count: usize = 0;
@@ -3214,7 +3192,7 @@ pub const Compiler = struct {
         return constant;
     }
 
-    fn singleSetConstraint(ast: *const GoalAst, set_id: GoalAst.SetId) ?*const GoalAst.Constraint {
+    fn singleSetConstraint(ast: *const Ast, set_id: Ast.SetId) ?*const Ast.Constraint {
         const set = &ast.constraint_sets.items[set_id];
         if (set.constraints.items.len == 0) return null;
         return &set.constraints.items[0];
@@ -3227,8 +3205,8 @@ pub const Compiler = struct {
     fn emitSearchTest(
         self: *Compiler,
         module_id: Module.Id,
-        ast: *const GoalAst,
-        set_id: GoalAst.SetId,
+        ast: *const Ast,
+        set_id: Ast.SetId,
         reg: u8,
         region: Region,
     ) Error!?Ir.Index {
@@ -3278,8 +3256,8 @@ pub const Compiler = struct {
     // placeholder). The register already holds the found key or value.
     fn emitSearchBind(
         self: *Compiler,
-        ast: *const GoalAst,
-        set_id: GoalAst.SetId,
+        ast: *const Ast,
+        set_id: Ast.SetId,
         reg: u8,
         region: Region,
     ) Error!void {
@@ -3300,8 +3278,8 @@ pub const Compiler = struct {
     fn writeRepeatOperand(
         self: *Compiler,
         module_id: Module.Id,
-        ast: *const GoalAst,
-        part: GoalAst.Part,
+        ast: *const Ast,
+        part: Ast.Part,
         region: Region,
     ) Error!void {
         switch (part) {
@@ -3318,8 +3296,8 @@ pub const Compiler = struct {
     fn emitRepeatCountSteps(
         self: *Compiler,
         module_id: Module.Id,
-        ast: *const GoalAst,
-        count: GoalAst.Part,
+        ast: *const Ast,
+        count: Ast.Part,
         reg: u8,
         fail_jumps: *ArrayList(Ir.Index),
         region: Region,
@@ -3365,8 +3343,8 @@ pub const Compiler = struct {
     fn emitRepeatCountConst(
         self: *Compiler,
         module_id: Module.Id,
-        ast: *const GoalAst,
-        id: GoalAst.NodeId,
+        ast: *const Ast,
+        id: Ast.NodeId,
         reg: u8,
         fail_jumps: *ArrayList(Ir.Index),
         region: Region,
@@ -3388,9 +3366,9 @@ pub const Compiler = struct {
     fn emitMergeSolve(
         self: *Compiler,
         module_id: Module.Id,
-        ast: *const GoalAst,
-        ty: ?GoalAst.ValueType,
-        parts: []const GoalAst.Part,
+        ast: *const Ast,
+        ty: ?Ast.ValueType,
+        parts: []const Ast.Part,
         src_reg: u8,
         dead_reg: u8,
         // The source register is a proven number (a template MatchCastNum
@@ -3491,7 +3469,7 @@ pub const Compiler = struct {
     fn emitTemplateStatic(
         self: *Compiler,
         module_id: Module.Id,
-        segments: []const GoalAst.Segment,
+        segments: []const Ast.Segment,
         reg: u8,
         dead_reg: u8,
         fail_jumps: *ArrayList(Ir.Index),
@@ -3502,7 +3480,7 @@ pub const Compiler = struct {
         defer prefix.deinit(allocator);
         var suffix = ArrayList(u8){};
         defer suffix.deinit(allocator);
-        var special: ?GoalAst.Part = null;
+        var special: ?Ast.Part = null;
         for (segments) |segment| switch (segment) {
             .literal => |s| if (special == null)
                 try prefix.appendSlice(allocator, s)
@@ -3564,11 +3542,11 @@ pub const Compiler = struct {
         // already interned as a string constant.
         lit: u16,
         // An evaluated value segment: a bound read or a call.
-        value: GoalAst.Part,
+        value: Ast.Part,
         // A character-range segment: the sub-set holding the in_range.
-        char_range: GoalAst.SetId,
+        char_range: Ast.SetId,
         // The one bind/placeholder solvable.
-        solvable: GoalAst.Part,
+        solvable: Ast.Part,
     };
 
     // Path B: cursor-register chomping. `front`/`end` cursors bound each
@@ -3579,8 +3557,8 @@ pub const Compiler = struct {
     fn emitTemplateCursor(
         self: *Compiler,
         module_id: Module.Id,
-        ast: *const GoalAst,
-        segments: []const GoalAst.Segment,
+        ast: *const Ast,
+        segments: []const Ast.Segment,
         reg: u8,
         regs: TemplateRegs,
         dead_reg: u8,
@@ -3711,8 +3689,8 @@ pub const Compiler = struct {
     fn emitTemplateSubCast(
         self: *Compiler,
         module_id: Module.Id,
-        ast: *const GoalAst,
-        set_id: GoalAst.SetId,
+        ast: *const Ast,
+        set_id: Ast.SetId,
         cast_src: u8,
         cast_dst: u8,
         dead_reg: u8,
@@ -3735,8 +3713,8 @@ pub const Compiler = struct {
     fn emitTemplateStructuralCast(
         self: *Compiler,
         module_id: Module.Id,
-        ast: *const GoalAst,
-        set_id: GoalAst.SetId,
+        ast: *const Ast,
+        set_id: Ast.SetId,
         cast_src: u8,
         cast_dst: u8,
         fail_jumps: *ArrayList(Ir.Index),
@@ -3763,8 +3741,8 @@ pub const Compiler = struct {
     fn emitTemplateCast(
         self: *Compiler,
         module_id: Module.Id,
-        ast: *const GoalAst,
-        set_id: GoalAst.SetId,
+        ast: *const Ast,
+        set_id: Ast.SetId,
         cast_src: u8,
         cast_dst: u8,
         dead_reg: u8,
@@ -3817,7 +3795,7 @@ pub const Compiler = struct {
     fn emitTemplateSegment(
         self: *Compiler,
         module_id: Module.Id,
-        ast: *const GoalAst,
+        ast: *const Ast,
         seg: EffSeg,
         reg: u8,
         regs: TemplateRegs,
@@ -3889,16 +3867,16 @@ pub const Compiler = struct {
     fn emitInRangeStep(
         self: *Compiler,
         module_id: Module.Id,
-        ast: *const GoalAst,
+        ast: *const Ast,
         reg: u8,
-        lower: GoalAst.Limit,
-        upper: GoalAst.Limit,
+        lower: Ast.Limit,
+        upper: Ast.Limit,
         fail_jumps: *ArrayList(Ir.Index),
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
-        var lower_eval: ?GoalAst.NodeId = null;
-        var upper_eval: ?GoalAst.NodeId = null;
+        var lower_eval: ?Ast.NodeId = null;
+        var upper_eval: ?Ast.NodeId = null;
         const lower_desc = try self.rangeDescriptor(module_id, ast, lower, region, &lower_eval);
         const upper_desc = try self.rangeDescriptor(module_id, ast, upper, region, &upper_eval);
 
@@ -3935,11 +3913,11 @@ pub const Compiler = struct {
     fn ensureGoalPlace(
         self: *Compiler,
         module_id: Module.Id,
-        constraints: []const GoalAst.Constraint,
-        places: []const GoalAst.PlaceDef,
+        constraints: []const Ast.Constraint,
+        places: []const Ast.PlaceDef,
         materialized: []bool,
         scratch_base: u8,
-        place: GoalAst.PlaceId,
+        place: Ast.PlaceId,
         region: Region,
     ) Error!void {
         if (materialized[place]) return;

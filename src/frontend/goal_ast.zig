@@ -31,8 +31,13 @@ pub const Declaration = struct {
     name: PathTable.Id,
     underscored: bool,
     params: ArrayList(PathTable.Id) = .{},
+    // Per-parameter parser/value kinds, matching the backend
+    // Function.ParamTypes bitset: bit i set means params[i] is a value, unset
+    // a parser. Value declarations have every param bit set.
+    param_types: u32 = 0,
     body: NodeId,
     region: Region,
+    ident_region: Region,
 };
 
 pub const GoalType = enum {
