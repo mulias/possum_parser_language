@@ -1172,9 +1172,6 @@ test "audit: pattern shapes not yet stepable compile to a match plan" {
         // solve_repeat: the pattern operand is a global
         \\G = "" $ 1 ; ("" $ [1, 1]) -> (G * N) $ N
         ,
-        // solve_repeat: the pattern operand is a fallible call
-        \\F = "" $ 1 ; ("" $ [1, 1]) -> (F() * 2) $ "ok"
-        ,
         // search_key: an unbound key whose value evaluates (reads the key)
         \\Id(Z) = "" $ Z ; ("" $ {"5": 5}) -> {A: Id(A)} $ A
         ,

@@ -1902,20 +1902,21 @@ pub const Compiler = struct {
     const RepeatShape = enum { value, chunk, range, array };
 
     // How a solve_repeat lowers to inline steps. `value`: the pattern
-    // operand evaluates at match time (a constant or a bound read), the
-    // count is derived from the scrutinee's value, and the count operand
-    // is tested against it. `chunk`: the pattern is a bare binder or
-    // placeholder solved from a known count. `range`: the pattern is a
+    // operand evaluates at match time (a constant, a bound read, or any
+    // evaluable expression — a call, merge, or literal container), the
+    // count is derived from the scrutinee's value in place, and the count
+    // operand is tested against it. `chunk`: the pattern is a bare binder
+    // or placeholder solved from a known count. `range`: the pattern is a
     // codepoint range scanned over a string value, the count is the
     // codepoint count. `array`: the pattern is a fixed-length array of
     // leaf-tested elements, matched chunk by chunk in a loop. Null keeps
     // the plan path — deeper structural sub-patterns, globals (which may
-    // be zero-arity functions), fallible evaluations (merges, calls,
-    // nested repeats), and both-unresolved shapes (a runtime error the
-    // plan preserves).
+    // be zero-arity functions), non-evaluable pattern operands (alts,
+    // sequences, nested matches, value-cased local callees), and
+    // both-unresolved shapes (a runtime error the plan preserves).
     fn repeatShape(self: *Compiler, ast: *const Ast, pattern_part: Ast.Part, count: Ast.Part) ?RepeatShape {
         switch (pattern_part) {
-            .expr => |id| if (self.constPatternNode(ast, id) and self.repeatCountStepable(ast, count)) {
+            .expr => |id| if (self.evalExprStepable(ast, id) and self.repeatCountStepable(ast, count)) {
                 return .value;
             },
             .read => if (self.repeatCountStepable(ast, count)) return .value,
