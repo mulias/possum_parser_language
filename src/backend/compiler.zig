@@ -212,7 +212,7 @@ pub const Compiler = struct {
 
         const function = try self.declareAnonFunction(.{ .module_id = module_id, .name = main_name });
 
-        try self.emitAnonFunctionBody(module_id, main_node, function, main_node.anonymous_function.ast.region);
+        try self.emitAnonFunctionBody(module_id, main_node, function, main_node.anonymous_function.region);
 
         self.main = function;
     }
@@ -225,7 +225,7 @@ pub const Compiler = struct {
         function: *Elem.DynElem.Function,
         region: Region,
     ) !void {
-        const name = node.anonymous_function.ast.node.name;
+        const name = node.anonymous_function.name;
         const ast = self.goalAst(module_id);
         const goal_body = goalFunctionBody(ast, name) orelse
             @panic("Internal Error: no goal body for anonymous function");
@@ -281,7 +281,7 @@ pub const Compiler = struct {
                         decl_key.module_id,
                         node,
                         function,
-                        anon.ast.region,
+                        anon.region,
                     );
                 }
             },
@@ -316,13 +316,13 @@ pub const Compiler = struct {
             return elem.asDyn().asFunction();
         }
 
-        const ast = self.frontend.getNode(key).anonymous_function.ast;
+        const anon = self.frontend.getNode(key).anonymous_function;
 
         const function = try Elem.DynElem.Function.create(self.vm, .{
             .module_id = key.module_id,
             .name = try self.internPathForRuntime(key.name),
             .arity = 0,
-            .region = ast.region,
+            .region = anon.region,
             .is_anonymous = true,
         });
 

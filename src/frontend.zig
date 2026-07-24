@@ -1,8 +1,6 @@
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const HashMap = std.AutoArrayHashMapUnmanaged;
-const Can = @import("frontend/can.zig");
-const CanAst = @import("frontend/can_ast.zig");
 const Goal = @import("frontend/goal.zig");
 pub const Ast = @import("frontend/goal_ast.zig");
 const DependencyGraph = @import("frontend/dependency_graph.zig");
@@ -30,15 +28,12 @@ resolver: DependencyResolver.Resolver,
 // one. Its body compiles from the module's goal ast like any other
 // anonymous function.
 main: ?PathTable.Id = null,
-// Per-module goal asts, built from unfolded can during parse and folded
-// immediately; the goal binding pass classifies them in finalize, once
-// the dependency graph is resolved.
+// Per-module goal asts, built from the parsed ast during parse; folded
+// and classified by the goal binding pass in finalize, once the
+// dependency graph is resolved.
 goals: std.AutoArrayHashMapUnmanaged(Module.Id, *Goal) = .{},
-// Diagnostics from the goal binding pass. Not reported as errors:
-// can-binding remains the reporter until the compiler consumes goal, and
-// finalize asserts these are empty whenever can-binding succeeds. They
-// print to the debug writer with the bound goal so cram tests can see
-// them.
+// Diagnostics collected by the goal binding pass, reported as compile
+// errors in finalize.
 goal_diagnostics: std.ArrayListUnmanaged(binding.Diagnostic) = .{},
 // The target module's requested goal print stage; the bound stage can
 // only print from finalize.
@@ -80,8 +75,8 @@ const ImportChainEntry = struct {
 
 // Spelled out (not inferred) because module loading recurses through
 // addModule -> registerImports -> addModule. InvalidCharacter and
-// Overflow surface from number parsing during canonicalization.
-pub const AddModuleError = Error || Can.Error || Parser.Error || Goal.Error ||
+// Overflow surface from number parsing during goal build.
+pub const AddModuleError = Error || Parser.Error || Goal.Error ||
     error{ InvalidCharacter, Overflow };
 
 pub fn init(vm: *VM) !*Frontend {
@@ -125,9 +120,7 @@ pub fn addTargetModule(self: *Frontend, module: Module, opts: AddModuleOpts) Add
     try self.applyImplicitDumps(module.id);
     try self.registerImports(module, ast);
 
-    if (ast.main) |main_ast| {
-        self.main = main_ast.node.name;
-    }
+    self.main = ast.main_name;
 }
 
 pub fn addModule(self: *Frontend, module: Module, opts: AddModuleOpts) AddModuleError!void {
@@ -154,7 +147,7 @@ fn applyImplicitDumps(self: *Frontend, module_id: Module.Id) !void {
 // Load each imported module and wire the import into the resolver. A
 // newly loaded module is parsed and registered recursively, depth-first,
 // so its own imports load before the importer's next import.
-fn registerImports(self: *Frontend, module: Module, ast: CanAst) AddModuleError!void {
+fn registerImports(self: *Frontend, module: Module, ast: *const Ast) AddModuleError!void {
     for (ast.imports.items) |import| {
         const result = switch (import.path) {
             .file => |p| self.vm.loader.getOrLoadFile(p, module.id),
@@ -257,35 +250,51 @@ pub fn addModuleAlias(
 pub fn finalize(self: *Frontend) !void {
     try self.resolver.resolve();
     try self.reportResolverDiagnostics();
-    // try self.resolver.prune();
+    // Value folding runs after resolution: it can drop an identifier
+    // operand the resolver must have already recorded.
+    try self.foldGoals();
     try self.analyzeGoalBindings();
     // Print the bound goal (when requested) ahead of any binding error, so
     // a rejected pattern's bound goal is visible above the diagnostic.
     try self.printBoundGoal();
     try self.reportGoalDiagnostics();
     try self.checkFunctionCalls();
-    // try self.analyzeLiveness();
 }
 
-// Check parser function calls against callee param kinds on the can ast,
-// where arguments still carry their surface parser-or-value kind; the goal
-// ast the backend compiles from has erased it.
+// Fold every module's goal ast, and print the target module's folded goal
+// if that stage was requested.
+fn foldGoals(self: *Frontend) !void {
+    var iter = self.goals.iterator();
+    while (iter.next()) |entry| {
+        try entry.value_ptr.*.fold();
+    }
+
+    if (self.print_goal_stage) |stage| {
+        if (stage == .folded) {
+            if (self.target_module_id) |target| {
+                if (self.goals.get(target)) |goal| try goal.print(self.writers.debug);
+            }
+        }
+    }
+}
+
+// Check function calls against callee param kinds on the goal ast: a
+// `call` records which arguments are values, a declaration which params
+// are, and only parser-invoked callees can mismatch.
 fn checkFunctionCalls(self: *Frontend) !void {
     var iter = self.dependenciesIterator();
 
     while (iter.next()) |entry| {
         const key = entry.key_ptr.*;
         const node = entry.value_ptr.*;
-        const body = switch (node.*) {
+        const Target = struct { ast: *const Ast, body: Ast.NodeId };
+        const target: Target = switch (node.*) {
             .precompiled => continue,
-            .declaration => |*decl_node| switch (decl_node.ast) {
-                .parser => |p| p.node.body,
-                .value => continue,
-            },
-            .anonymous_function => |*anon| anon.ast.node.body,
+            .declaration => |*decl_node| .{ .ast = decl_node.module_ast, .body = decl_node.decl.body },
+            .anonymous_function => |*anon| .{ .ast = anon.module_ast, .body = anon.body },
         };
 
-        if (try call_check.checkParserFunction(self, node, body)) |diagnostic| {
+        if (try call_check.checkFunction(self, node, target.ast, target.body)) |diagnostic| {
             switch (diagnostic.expected) {
                 .parser => try self.printError(key.module_id, diagnostic.region, "Expected parser but got value", .{}),
                 .value => try self.printError(key.module_id, diagnostic.region, "Expected value but got parser", .{}),
@@ -425,8 +434,14 @@ pub fn dependenciesIterator(self: *Frontend) HashMap(DependencyGraph.NodeKey, *D
     return self.resolver.graph.nodes.iterator();
 }
 
-fn parse(self: *Frontend, module: Module, opts: AddModuleOpts) !CanAst {
-    var can = Can.init(&self.arena, self.writers, &self.strings, &self.paths, module);
+fn parse(self: *Frontend, module: Module, opts: AddModuleOpts) !*const Ast {
+    // The goal ast is built directly from the parsed ast and feeds the
+    // dependency resolver, call check, and backend. Folding is deferred to
+    // finalize, after resolution: value folding can drop an identifier
+    // operand (`_ * X`) that the resolver must first see. Binding then
+    // classifies the folded goal in finalize.
+    const goal = try self.arena.allocator().create(Goal);
+    goal.* = Goal.init(&self.arena, self.writers, &self.strings, &self.paths, module);
 
     if (module.source.len > 0) {
         var parser = Parser.init(&self.arena, module, self.writers, .{
@@ -442,54 +457,14 @@ fn parse(self: *Frontend, module: Module, opts: AddModuleOpts) !CanAst {
             );
         }
 
-        // The goal ast is built directly from the parsed ast, in parallel
-        // with can, which still feeds the dependency resolver and call
-        // check. Goal build runs first so its validation errors are the
-        // ones reported, proving the port ahead of removing can. Generated
-        // names (anonymous functions, import aliases) must match can's so
-        // the goal references the same dependency-graph nodes; the counters
-        // run in lockstep, asserted below. Folding is a separate pass;
-        // binding classifies the goal in finalize, once the dependency
-        // graph is resolved.
-        const goal = try self.arena.allocator().create(Goal);
-        goal.* = Goal.init(&self.arena, self.writers, &self.strings, &self.paths, module);
         try goal.build(parser.ast);
-
-        _ = try can.canonicalize(parser.ast);
-        std.debug.assert(goal.anonymous_function_count == can.anonymous_function_count);
-        std.debug.assert(goal.import_alias_count == can.import_alias_count);
-        assertImportsMatch(goal.ast.imports.items, can.ast.imports.items);
         if (opts.printGoalAst) |stage| {
             if (stage == .created) try goal.print(self.writers.debug);
         }
-        try goal.fold();
-        if (opts.printGoalAst) |stage| {
-            if (stage == .folded) try goal.print(self.writers.debug);
-        }
-        try self.goals.put(self.arena.allocator(), module.id, goal);
     }
 
-    return can.ast;
-}
-
-// Temporary dual-build check: the goal ast's imports list must match the
-// canonicalizer's until the resolver reads it directly. Removed with can.
-fn assertImportsMatch(goal_imports: []const Ast.Import, can_imports: []const CanAst.Import) void {
-    std.debug.assert(goal_imports.len == can_imports.len);
-    for (goal_imports, can_imports) |g, c| {
-        switch (g.path) {
-            .file => |p| std.debug.assert(c.path == .file and std.mem.eql(u8, p, c.path.file)),
-            .stdlib => |p| std.debug.assert(c.path == .stdlib and std.mem.eql(u8, p, c.path.stdlib)),
-        }
-        switch (g.target) {
-            .dump => |d| std.debug.assert(c.target == .dump and d.private == c.target.dump.private),
-            .alias => |a| {
-                std.debug.assert(c.target == .alias);
-                std.debug.assert(a.name == c.target.alias.name);
-                std.debug.assert(a.selector == c.target.alias.selector);
-            },
-        }
-    }
+    try self.goals.put(self.arena.allocator(), module.id, goal);
+    return &goal.ast;
 }
 
 fn printError(self: *Frontend, module_id: Module.Id, region: Region, comptime message: []const u8, args: anytype) !void {

@@ -13,6 +13,15 @@ main: ?NodeId = null,
 // The generated name of main's anonymous-function node in the dependency
 // graph; binding analysis resolves main's locals against it.
 main_name: ?PathTable.Id = null,
+// The source region of main's bare expression, for main's function elem
+// and diagnostics. The body node's own region can be narrower (a template
+// interpolation, say), so the whole-expression region is kept separately.
+main_region: ?Region = null,
+// The number of anonymous functions created before main was finalized.
+// main is inserted into the dependency graph at this point in
+// anonymous-function creation order, matching where its body's lambdas and
+// any later declarations' lambdas fall.
+main_order: u64 = 0,
 // Module imports, in source-traversal order: top-level dumps and alias
 // declarations, plus the private aliases synthesized for inline import
 // expressions. The frontend wires each into the dependency resolver; the

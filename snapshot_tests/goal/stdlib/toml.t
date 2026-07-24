@@ -1225,16 +1225,16 @@ Full created-stage goal form of stdlib/toml.
                     (call _Doc.UpdateAtHeaderPath [Current~5 PathRest~2 Val~3 Updater~4]))))
               %0 = scrutinee
               (arm
-                (bind %0 Updated~7))))
-          (call _Doc.Insert [Doc~0 Key~1 (call _Doc.Value [Updated~7]) (call _Doc.Type [Updated~7])])))
+                (bind %0 Updated~6))))
+          (call _Doc.Insert [Doc~0 Key~1 (call _Doc.Value [Updated~6]) (call _Doc.Type [Updated~6])])))
       (arm
         body: (seq result=1
           (match
             scrutinee: (call _Doc.UpdateAtHeaderPath [_Doc.Empty PathRest~2 Val~3 Updater~4])
             %0 = scrutinee
             (arm
-              (bind %0 InnerDoc~8)))
-          (call _Doc.Insert [Doc~0 Key~1 (call _Doc.Value [InnerDoc~8]) (call _Doc.Type [InnerDoc~8])]))))
+              (bind %0 InnerDoc~7)))
+          (call _Doc.Insert [Doc~0 Key~1 (call _Doc.Value [InnerDoc~7]) (call _Doc.Type [InnerDoc~7])]))))
   
   _Doc.UpdateAtLastAoTElement(AoTDoc, PathRest, Val, Updater) =
     (seq result=1

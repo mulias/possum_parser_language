@@ -59,8 +59,8 @@ Full created-stage goal form of stdlib/object_value.
                   %0 = scrutinee)
                 value: (set
                   %0 = scrutinee)))
-            count: (bind S~2))))
-      S~2)
+            count: (bind S~1))))
+      S~1)
   
   Obj.Keys(O) =
     (call _Obj.Keys [
@@ -84,9 +84,9 @@ Full created-stage goal form of stdlib/object_value.
                 (bind %0 K~2))
               value: (set
                 %0 = scrutinee))
-            (bind %1 Rest~4)))
+            (bind %1 Rest~3)))
         body: (call _Obj.Keys [
-          Rest~4
+          Rest~3
           (merge
             (merge
               (array [])
@@ -119,16 +119,16 @@ Full created-stage goal form of stdlib/object_value.
                 %0 = scrutinee)
               value: (set
                 %0 = scrutinee
-                (bind %0 V~3)))
-            (bind %1 Rest~4)))
+                (bind %0 V~2)))
+            (bind %1 Rest~3)))
         body: (call _Obj.Values [
-          Rest~4
+          Rest~3
           (merge
             (merge
               (array [])
               Acc~1)
             (array [
-              V~3
+              V~2
             ]))
         ]))
       (arm

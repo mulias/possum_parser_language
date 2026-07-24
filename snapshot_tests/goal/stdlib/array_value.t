@@ -24,8 +24,8 @@ Full created-stage goal form of stdlib/array_value.
         (arm
           (is_type %0 array)
           (len_min %0 1)
-          (bind %1 R~2)))
-      R~2)
+          (bind %1 R~1)))
+      R~1)
   
   Array.Length(A) =
     (seq result=1
@@ -38,8 +38,8 @@ Full created-stage goal form of stdlib/array_value.
               %0 = scrutinee
               (is_type %0 array)
               (len_eq %0 1))
-            count: (bind L~2))))
-      L~2)
+            count: (bind L~1))))
+      L~1)
   
   Array.Reverse(A) =
     (call _Array.Reverse [
@@ -466,7 +466,7 @@ Full created-stage goal form of stdlib/array_value.
               (arm
                 (is_type %0 array)
                 (len_min %0 1)
-                (bind %1 RowRest~5)))
+                (bind %1 RowRest~4)))
             body: (call __Table.RestPerRow [
               Rest~3
               (merge
@@ -474,7 +474,7 @@ Full created-stage goal form of stdlib/array_value.
                   (array [])
                   Acc~1)
                 (array [
-                  RowRest~5
+                  RowRest~4
                 ]))
             ]))
           (arm

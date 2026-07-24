@@ -619,20 +619,19 @@
   =============8:Array.Length=============
   Array.Length(A) = A -> ([_] * L) & L
   ========================================
-  0000    | PushUnderscoreVar
-  0001    | PushVar2 L
-  0004    | GetLocalMove l0
-  0006    | JumpIfFailure 6 -> 28
-  0009    | MatchWindowEnter 5
-  0011    | MatchScrutinee r0
-  0013    | MatchRepeatInit r0 /1 n=r2 base=r3 -> 26
-  0020    | MatchBind l2 r2
-  0023    | Jump 23 -> 27
-  0026    | MatchFail
-  0027    | MatchWindowExit
-  0028    | TakeRight 28 -> 33
-  0031    | GetLocalMove l2
-  0033    | End
+  0000    | PushVar2 L
+  0003    | GetLocalMove l0
+  0005    | JumpIfFailure 5 -> 27
+  0008    | MatchWindowEnter 5
+  0010    | MatchScrutinee r0
+  0012    | MatchRepeatInit r0 /1 n=r2 base=r3 -> 25
+  0019    | MatchBind l1 r2
+  0022    | Jump 22 -> 26
+  0025    | MatchFail
+  0026    | MatchWindowExit
+  0027    | TakeRight 27 -> 32
+  0030    | GetLocalMove l1
+  0032    | End
   ========================================
   
   ==============0:@Multiply===============

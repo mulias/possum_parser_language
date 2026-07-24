@@ -125,6 +125,8 @@ fn convertRoot(self: *Goal, root: *ParsedAst.RNode) Error!void {
         self.current_parent_function_name = name;
         self.ast.main = try self.convertParser(root);
         self.ast.main_name = name;
+        self.ast.main_region = root.region;
+        self.ast.main_order = self.anonymous_function_count;
     } else {
         try self.printError(root.region, "Only one main parser expression is allowed per module", .{});
         return Error.MultipleMainParsers;

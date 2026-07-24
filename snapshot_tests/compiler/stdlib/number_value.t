@@ -447,18 +447,17 @@
   =============2:Array.Length=============
   Array.Length(A) = A -> ([_] * L) & L
   ========================================
-  0000    | PushUnderscoreVar
-  0001    | PushVar L
-  0003    | GetLocalMove l0
-  0005    | JumpIfFailure 5 -> 27
-  0008    | MatchWindowEnter 5
-  0010    | MatchScrutinee r0
-  0012    | MatchRepeatInit r0 /1 n=r2 base=r3 -> 25
-  0019    | MatchBind l2 r2
-  0022    | Jump 22 -> 26
-  0025    | MatchFail
-  0026    | MatchWindowExit
-  0027    | TakeRight 27 -> 32
-  0030    | GetLocalMove l2
-  0032    | End
+  0000    | PushVar L
+  0002    | GetLocalMove l0
+  0004    | JumpIfFailure 4 -> 26
+  0007    | MatchWindowEnter 5
+  0009    | MatchScrutinee r0
+  0011    | MatchRepeatInit r0 /1 n=r2 base=r3 -> 24
+  0018    | MatchBind l1 r2
+  0021    | Jump 21 -> 25
+  0024    | MatchFail
+  0025    | MatchWindowExit
+  0026    | TakeRight 26 -> 31
+  0029    | GetLocalMove l1
+  0031    | End
   ========================================

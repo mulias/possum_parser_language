@@ -277,9 +277,9 @@ Full created-stage goal form of stdlib/ast.
               (is_type %0 object)
               (keys_min %0 1)
               (has_key %0 "endpos")
-              (bind %1 EndPos~4)))
+              (bind %1 EndPos~3)))
           body: (object [
-            (pair "endpos" EndPos~4)
+            (pair "endpos" EndPos~3)
           ]))
         (arm
           body: (object []))))

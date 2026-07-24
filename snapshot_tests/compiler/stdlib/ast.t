@@ -487,52 +487,51 @@
   }
   ========================================
   0000    | PushVar2 StartPos
-  0003    | PushUnderscoreVar
-  0004    | PushVar2 EndPos
-  0007    | PushEmptyObject
-  0008    | JumpIfFailure 8 -> 63
-  0011    | SetInputMark
-  0012    | GetLocalMove l0
-  0014    | JumpIfFailure 14 -> 46
-  0017    | MatchWindowEnter 3
-  0019    | MatchScrutinee r0
-  0021    | MatchType r0 object -> 44
-  0026    | MatchKeysMin r0 1 -> 44
-  0031    | MatchKey r1 r0["startpos"] -> 44
-  0038    | MatchBind l2 r1
-  0041    | Jump 41 -> 45
-  0044    | MatchFail
-  0045    | MatchWindowExit
-  0046    | ConditionalThen 46 -> 61
-  0049    | GetConstantMutable 13: {_0_}
-  0051    | PushString2 "startpos"
-  0054    | GetLocalMove l2
-  0056    | InsertKeyVal 0
-  0058    | Jump 58 -> 62
-  0061    | PushEmptyObject
-  0062    | Merge
-  0063    | JumpIfFailure 63 -> 118
-  0066    | SetInputMark
-  0067    | GetLocalMove l1
-  0069    | JumpIfFailure 69 -> 101
-  0072    | MatchWindowEnter 3
-  0074    | MatchScrutinee r0
-  0076    | MatchType r0 object -> 99
-  0081    | MatchKeysMin r0 1 -> 99
-  0086    | MatchKey r1 r0["endpos"] -> 99
-  0093    | MatchBind l4 r1
-  0096    | Jump 96 -> 100
-  0099    | MatchFail
-  0100    | MatchWindowExit
-  0101    | ConditionalThen 101 -> 116
-  0104    | GetConstantMutable 15: {_0_}
-  0106    | PushString2 "endpos"
-  0109    | GetLocalMove l4
-  0111    | InsertKeyVal 0
-  0113    | Jump 113 -> 117
-  0116    | PushEmptyObject
-  0117    | Merge
-  0118    | End
+  0003    | PushVar2 EndPos
+  0006    | PushEmptyObject
+  0007    | JumpIfFailure 7 -> 62
+  0010    | SetInputMark
+  0011    | GetLocalMove l0
+  0013    | JumpIfFailure 13 -> 45
+  0016    | MatchWindowEnter 3
+  0018    | MatchScrutinee r0
+  0020    | MatchType r0 object -> 43
+  0025    | MatchKeysMin r0 1 -> 43
+  0030    | MatchKey r1 r0["startpos"] -> 43
+  0037    | MatchBind l2 r1
+  0040    | Jump 40 -> 44
+  0043    | MatchFail
+  0044    | MatchWindowExit
+  0045    | ConditionalThen 45 -> 60
+  0048    | GetConstantMutable 13: {_0_}
+  0050    | PushString2 "startpos"
+  0053    | GetLocalMove l2
+  0055    | InsertKeyVal 0
+  0057    | Jump 57 -> 61
+  0060    | PushEmptyObject
+  0061    | Merge
+  0062    | JumpIfFailure 62 -> 117
+  0065    | SetInputMark
+  0066    | GetLocalMove l1
+  0068    | JumpIfFailure 68 -> 100
+  0071    | MatchWindowEnter 3
+  0073    | MatchScrutinee r0
+  0075    | MatchType r0 object -> 98
+  0080    | MatchKeysMin r0 1 -> 98
+  0085    | MatchKey r1 r0["endpos"] -> 98
+  0092    | MatchBind l3 r1
+  0095    | Jump 95 -> 99
+  0098    | MatchFail
+  0099    | MatchWindowExit
+  0100    | ConditionalThen 100 -> 115
+  0103    | GetConstantMutable 15: {_0_}
+  0105    | PushString2 "endpos"
+  0108    | GetLocalMove l3
+  0110    | InsertKeyVal 0
+  0112    | Jump 112 -> 116
+  0115    | PushEmptyObject
+  0116    | Merge
+  0117    | End
   ========================================
   
   ================2:const=================

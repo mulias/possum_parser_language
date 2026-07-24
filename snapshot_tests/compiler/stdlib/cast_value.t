@@ -38,14 +38,13 @@
   ==============2:Is.Number===============
   Is.Number(V) = V -> (0 + _)
   ========================================
-  0000    | PushUnderscoreVar
-  0001    | GetLocalMove l0
-  0003    | JumpIfFailure 3 -> 22
-  0006    | MatchWindowEnter 2
-  0008    | MatchScrutinee r0
-  0010    | MatchMergeNum r1 r0 - 0 -> 20
-  0017    | Jump 17 -> 21
-  0020    | MatchFail
-  0021    | MatchWindowExit
-  0022    | End
+  0000    | GetLocalMove l0
+  0002    | JumpIfFailure 2 -> 21
+  0005    | MatchWindowEnter 2
+  0007    | MatchScrutinee r0
+  0009    | MatchMergeNum r1 r0 - 0 -> 19
+  0016    | Jump 16 -> 20
+  0019    | MatchFail
+  0020    | MatchWindowExit
+  0021    | End
   ========================================

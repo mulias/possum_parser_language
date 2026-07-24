@@ -214,7 +214,7 @@ Full created-stage goal form of stdlib/array.
           scrutinee: (call elem~0)
           %0 = scrutinee
           (arm
-            (bind %0 First~6))))
+            (bind %0 First~5))))
       (call _rows_padded [
         elem~0
         col_sep~1
@@ -223,7 +223,7 @@ Full created-stage goal form of stdlib/array.
         1
         MaxRowLen~4
         (array [
-          First~6
+          First~5
         ])
         (array [])
       ]))
