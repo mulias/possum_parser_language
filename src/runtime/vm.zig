@@ -1045,33 +1045,11 @@ pub const VM = struct {
                 previous.release();
             },
             .MatchObjectRest => {
-                // The src object minus the members named by the key-list
-                // constant, which the preceding MatchKey steps already
-                // claimed. Fresh object; creator handle into dst.
-                const dst = self.readByte();
-                const src = self.readByte();
-                const constant_idx = self.readShort();
-                const keys = self.getConstant(constant_idx).asDyn().asArray().elems.items;
-                const src_object = self.getScratch(src).asDyn().asObject();
-                const rest = try Elem.DynElem.Object.create(self, src_object.members.count());
-                try self.pushTempDyn(&rest.dyn);
-                var iter = src_object.members.iterator();
-                outer: while (iter.next()) |entry| {
-                    const sid = entry.key_ptr.*;
-                    for (keys) |key| {
-                        if (key.asString() == sid) continue :outer;
-                    }
-                    try rest.put(self, sid, entry.value_ptr.*);
-                }
-                self.dropTempDyn();
-                const previous = self.getScratch(dst);
-                self.setScratch(dst, rest.dyn.elem());
-                previous.release();
-            },
-            .MatchObjectRestSearch => {
                 // The src object minus the const keys named by the key-list
-                // constant and the search keys sitting in the claim
-                // registers. Fresh object; creator handle into dst.
+                // constant (which the preceding MatchKey steps claimed) and
+                // the search keys sitting in the claim registers. A
+                // claim_count of 0 is the const-keys-only form. Fresh
+                // object; creator handle into dst.
                 const dst = self.readByte();
                 const src = self.readByte();
                 const constant_idx = self.readShort();

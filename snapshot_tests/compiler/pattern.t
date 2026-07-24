@@ -543,19 +543,19 @@
   0002    | GetConstant 0: const
   0004    | GetConstant 1: {"a": 1, "b": 2}
   0006    | CallFunction 1
-  0008    | JumpIfFailure 8 -> 53
+  0008    | JumpIfFailure 8 -> 55
   0011    | MatchWindowEnter 4
   0013    | MatchScrutinee r0
-  0015    | MatchType r0 object -> 51
-  0020    | MatchCount r0 >=1 -> 51
-  0026    | MatchKey r1 r0["a"] -> 51
-  0033    | MatchCmp r1 == 1 -> 51
+  0015    | MatchType r0 object -> 53
+  0020    | MatchCount r0 >=1 -> 53
+  0026    | MatchKey r1 r0["a"] -> 53
+  0033    | MatchCmp r1 == 1 -> 53
   0040    | MatchObjectRest r2 r0 \ ["a"]
-  0045    | MatchBind l0 r2
-  0048    | Jump 48 -> 52
-  0051    | MatchFail
-  0052    | MatchWindowExit
-  0053    | End
+  0047    | MatchBind l0 r2
+  0050    | Jump 50 -> 54
+  0053    | MatchFail
+  0054    | MatchWindowExit
+  0055    | End
   ========================================
 
   $ possum -p 'const({"a": 1, "b": 2}) -> ({"b": 2} + A)' -i ''
@@ -574,19 +574,19 @@
   0002    | GetConstant 0: const
   0004    | GetConstant 1: {"a": 1, "b": 2}
   0006    | CallFunction 1
-  0008    | JumpIfFailure 8 -> 53
+  0008    | JumpIfFailure 8 -> 55
   0011    | MatchWindowEnter 4
   0013    | MatchScrutinee r0
-  0015    | MatchType r0 object -> 51
-  0020    | MatchCount r0 >=1 -> 51
-  0026    | MatchKey r1 r0["b"] -> 51
-  0033    | MatchCmp r1 == 2 -> 51
+  0015    | MatchType r0 object -> 53
+  0020    | MatchCount r0 >=1 -> 53
+  0026    | MatchKey r1 r0["b"] -> 53
+  0033    | MatchCmp r1 == 2 -> 53
   0040    | MatchObjectRest r2 r0 \ ["b"]
-  0045    | MatchBind l0 r2
-  0048    | Jump 48 -> 52
-  0051    | MatchFail
-  0052    | MatchWindowExit
-  0053    | End
+  0047    | MatchBind l0 r2
+  0050    | Jump 50 -> 54
+  0053    | MatchFail
+  0054    | MatchWindowExit
+  0055    | End
   ========================================
 
   $ possum -p 'const({"a": 1, "b": 2}) -> (A + {"b": 2})' -i ''
@@ -605,19 +605,19 @@
   0002    | GetConstant 0: const
   0004    | GetConstant 1: {"a": 1, "b": 2}
   0006    | CallFunction 1
-  0008    | JumpIfFailure 8 -> 53
+  0008    | JumpIfFailure 8 -> 55
   0011    | MatchWindowEnter 4
   0013    | MatchScrutinee r0
-  0015    | MatchType r0 object -> 51
-  0020    | MatchCount r0 >=1 -> 51
+  0015    | MatchType r0 object -> 53
+  0020    | MatchCount r0 >=1 -> 53
   0026    | MatchObjectRest r1 r0 \ ["b"]
-  0031    | MatchBind l0 r1
-  0034    | MatchKey r2 r0["b"] -> 51
-  0041    | MatchCmp r2 == 2 -> 51
-  0048    | Jump 48 -> 52
-  0051    | MatchFail
-  0052    | MatchWindowExit
-  0053    | End
+  0033    | MatchBind l0 r1
+  0036    | MatchKey r2 r0["b"] -> 53
+  0043    | MatchCmp r2 == 2 -> 53
+  0050    | Jump 50 -> 54
+  0053    | MatchFail
+  0054    | MatchWindowExit
+  0055    | End
   ========================================
 
   $ possum -p 'const({"a": 1, "b": 2}) -> {"a": 1, ...B}' -i ''
@@ -636,19 +636,19 @@
   0002    | GetConstant 0: const
   0004    | GetConstant 1: {"a": 1, "b": 2}
   0006    | CallFunction 1
-  0008    | JumpIfFailure 8 -> 53
+  0008    | JumpIfFailure 8 -> 55
   0011    | MatchWindowEnter 4
   0013    | MatchScrutinee r0
-  0015    | MatchType r0 object -> 51
-  0020    | MatchCount r0 >=1 -> 51
-  0026    | MatchKey r1 r0["a"] -> 51
-  0033    | MatchCmp r1 == 1 -> 51
+  0015    | MatchType r0 object -> 53
+  0020    | MatchCount r0 >=1 -> 53
+  0026    | MatchKey r1 r0["a"] -> 53
+  0033    | MatchCmp r1 == 1 -> 53
   0040    | MatchObjectRest r2 r0 \ ["a"]
-  0045    | MatchBind l0 r2
-  0048    | Jump 48 -> 52
-  0051    | MatchFail
-  0052    | MatchWindowExit
-  0053    | End
+  0047    | MatchBind l0 r2
+  0050    | Jump 50 -> 54
+  0053    | MatchFail
+  0054    | MatchWindowExit
+  0055    | End
   ========================================
 
   $ possum -p '2 -> 0..5' -i '2'
@@ -3145,16 +3145,16 @@
   0004    | GetConstant 1: alpha
   0006    | GetConstant 2: digit
   0008    | CallFunction 2
-  0010    | JumpIfFailure 10 -> 35
+  0010    | JumpIfFailure 10 -> 37
   0013    | MatchWindowEnter 3
   0015    | MatchScrutinee r0
-  0017    | MatchType r0 object -> 33
+  0017    | MatchType r0 object -> 35
   0022    | MatchObjectRest r1 r0 \ []
-  0027    | MatchBind l0 r1
-  0030    | Jump 30 -> 34
-  0033    | MatchFail
-  0034    | MatchWindowExit
-  0035    | End
+  0029    | MatchBind l0 r1
+  0032    | Jump 32 -> 36
+  0035    | MatchFail
+  0036    | MatchWindowExit
+  0037    | End
   ========================================
 
   $ possum -p '"abc" -> "%(S)"' -i 'abc'

@@ -93,7 +93,6 @@ pub const OpCode = enum(u8) {
     MatchMergeNum,
     MatchNextUnclaimed,
     MatchObjectRest,
-    MatchObjectRestSearch,
     MatchRangeBound,
     MatchRepeatChunk,
     MatchRepeatInit,
@@ -276,7 +275,6 @@ pub const OpCode = enum(u8) {
             .MatchBind,
             .MatchElem,
             .MatchObjectRest,
-            .MatchObjectRestSearch,
             .MatchSearchInit,
             .MatchSlice,
             .MatchStrInit,
@@ -570,7 +568,6 @@ pub const OpCode = enum(u8) {
             .MatchMergeNum,
             .MatchNextUnclaimed,
             .MatchObjectRest,
-            .MatchObjectRestSearch,
             .MatchRepeatInit,
             .MatchRepeatNext,
             .MatchRepeatRange,
@@ -726,7 +723,6 @@ pub const OpCode = enum(u8) {
             .MatchScrutinee => self.registerInstruction(chunk, writer, offset),
             .MatchSearchInit => self.registerInstruction(chunk, writer, offset),
             .MatchNextUnclaimed => self.matchNextUnclaimedInstruction(chunk, vm, module, writer, offset),
-            .MatchObjectRestSearch => self.matchObjectRestSearchInstruction(chunk, vm, module, writer, offset),
             .MatchBind => self.matchBindInstruction(chunk, writer, offset),
             .MatchSubScrutinee => self.matchSubScrutineeInstruction(chunk, writer, offset),
             .MatchElem => self.matchElemInstruction(chunk, writer, offset),
@@ -955,23 +951,15 @@ pub const OpCode = enum(u8) {
         const dst = chunk.read(offset + 1);
         const src = chunk.read(offset + 2);
         const constantIdx = (@as(usize, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
-        var keys = module.getConstant(constantIdx);
-        try writer.print("{s} r{} r{} \\ ", .{ @tagName(self), dst, src });
-        try keys.print(vm, writer);
-        try writer.print("\n", .{});
-        return offset + 5;
-    }
-
-    fn matchObjectRestSearchInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
-        const dst = chunk.read(offset + 1);
-        const src = chunk.read(offset + 2);
-        const constantIdx = (@as(usize, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
         const claim_base = chunk.read(offset + 5);
         const claim_count = chunk.read(offset + 6);
         var keys = module.getConstant(constantIdx);
         try writer.print("{s} r{} r{} \\ ", .{ @tagName(self), dst, src });
         try keys.print(vm, writer);
-        try writer.print(" r{}..r{}\n", .{ claim_base, claim_base + claim_count });
+        if (claim_count != 0) {
+            try writer.print(" r{}..r{}", .{ claim_base, claim_base + claim_count });
+        }
+        try writer.print("\n", .{});
         return offset + 7;
     }
 

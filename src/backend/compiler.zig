@@ -4130,23 +4130,15 @@ pub const Compiler = struct {
                 const constant = try self.hasKeyListConstant(module_id, constraints, r.src, region);
                 // Search pairs on the same object claimed keys into the
                 // claim registers; the rest must exclude those too.
-                if (self.findSearchGroup(self.arm_search_groups, r.src)) |group| {
-                    _ = try self.ir().push(self.vm.allocator, .{ .match_rest_search = .{
-                        .op = .MatchObjectRestSearch,
-                        .dst = scratch_base + @as(u8, @intCast(place)),
-                        .src = scratch_base + @as(u8, @intCast(r.src)),
-                        .constant = constant,
-                        .claim_base = group.base,
-                        .claim_count = group.count,
-                    } }, region);
-                } else {
-                    _ = try self.ir().push(self.vm.allocator, .{ .match_rest = .{
-                        .op = .MatchObjectRest,
-                        .byte1 = scratch_base + @as(u8, @intCast(place)),
-                        .byte2 = scratch_base + @as(u8, @intCast(r.src)),
-                        .constant = constant,
-                    } }, region);
-                }
+                const claim = self.findSearchGroup(self.arm_search_groups, r.src);
+                _ = try self.ir().push(self.vm.allocator, .{ .match_rest = .{
+                    .op = .MatchObjectRest,
+                    .dst = scratch_base + @as(u8, @intCast(place)),
+                    .src = scratch_base + @as(u8, @intCast(r.src)),
+                    .constant = constant,
+                    .claim_base = if (claim) |g| g.base else 0,
+                    .claim_count = if (claim) |g| g.count else 0,
+                } }, region);
             },
             // Key places materialize at their has_key constraint.
             .key => @panic("Internal Error: key place used before its has_key constraint"),

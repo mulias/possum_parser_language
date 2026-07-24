@@ -90,7 +90,7 @@
   0025    | MatchSearchInit r5
   0027    | MatchNextUnclaimed key=r3 val=r4 src=r0 cursor=r5 keys=r3..r3 \ [] loop->53
   0037    | MatchBind l2 r3
-  0040    | MatchObjectRestSearch r1 r0 \ [] r3..r4
+  0040    | MatchObjectRest r1 r0 \ [] r3..r4
   0047    | MatchBind l3 r1
   0050    | Jump 50 -> 54
   0053    | MatchFail
@@ -138,7 +138,7 @@
   0025    | MatchSearchInit r5
   0027    | MatchNextUnclaimed key=r3 val=r4 src=r0 cursor=r5 keys=r3..r3 \ [] loop->53
   0037    | MatchBind l2 r4
-  0040    | MatchObjectRestSearch r1 r0 \ [] r3..r4
+  0040    | MatchObjectRest r1 r0 \ [] r3..r4
   0047    | MatchBind l3 r1
   0050    | Jump 50 -> 54
   0053    | MatchFail

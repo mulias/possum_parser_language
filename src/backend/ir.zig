@@ -80,12 +80,11 @@ pub const Ir = struct {
         // for a leftover under an odd negation count. Carries a forward
         // fail-jump target.
         match_merge_num: struct { dst: u8, src: u8, constant: u16, negate: bool, target: Index },
-        // MatchObjectRest (dst, src, key-list constant): det, no jump.
-        match_rest: struct { op: OpCode, byte1: u8, byte2: u8, constant: u16 },
-        // MatchObjectRestSearch (dst, src, key-list constant, claim
-        // register range): det, no jump. Subtracts both the constant
-        // const-key list and the claimed search-key registers.
-        match_rest_search: struct { op: OpCode, dst: u8, src: u8, constant: u16, claim_base: u8, claim_count: u8 },
+        // MatchObjectRest (dst, src, key-list constant, claim register
+        // range): det, no jump. Subtracts the constant const-key list and
+        // the claim_count claimed search-key registers; claim_count 0 is
+        // the const-keys-only form.
+        match_rest: struct { op: OpCode, dst: u8, src: u8, constant: u16, claim_base: u8, claim_count: u8 },
         // MatchNextUnclaimed (key_dst, val_dst, src, cursor, claim_count,
         // key-list constant): semidet member search. The claim range is
         // the claim_count registers below key_dst; the constant lists the
@@ -371,12 +370,6 @@ pub const Ir = struct {
                 },
                 .match_rest => |m| {
                     try chunk.writeOp(allocator, m.op, region);
-                    try chunk.write(allocator, m.byte1, region);
-                    try chunk.write(allocator, m.byte2, region);
-                    try chunk.writeShort(allocator, m.constant, region);
-                },
-                .match_rest_search => |m| {
-                    try chunk.writeOp(allocator, m.op, region);
                     try chunk.write(allocator, m.dst, region);
                     try chunk.write(allocator, m.src, region);
                     try chunk.writeShort(allocator, m.constant, region);
@@ -588,8 +581,7 @@ pub const Ir = struct {
             .match_cast => 6,
             .match_const => |m| if (matchConstHasSrcReg(m.op)) @as(u32, 7) else 6,
             .match_merge_num => 8,
-            .match_rest => 5,
-            .match_rest_search => 7,
+            .match_rest => 7,
             .match_search => 10,
             .match_key_bound => 10,
             .match_range => 10,
@@ -770,7 +762,6 @@ pub const Ir = struct {
             .match_const => |m| m.op,
             .match_merge_num => .MatchMergeNum,
             .match_rest => |m| m.op,
-            .match_rest_search => |m| m.op,
             .match_search => |m| m.op,
             .match_key_bound => |m| m.op,
             .match_range => |m| m.op,
