@@ -13,6 +13,42 @@ main: ?NodeId = null,
 // The generated name of main's anonymous-function node in the dependency
 // graph; binding analysis resolves main's locals against it.
 main_name: ?PathTable.Id = null,
+// Module imports, in source-traversal order: top-level dumps and alias
+// declarations, plus the private aliases synthesized for inline import
+// expressions. The frontend wires each into the dependency resolver; the
+// list is consumed building the graph and ignored afterward.
+imports: ArrayList(Import) = .{},
+
+pub const Import = struct {
+    path: Path,
+    target: Target,
+    region: Region,
+
+    pub const Path = union(enum) {
+        // A disk path from a string literal.
+        file: []const u8,
+        // A logical embedded-module name like "stdlib/json".
+        stdlib: []const u8,
+    };
+
+    pub const Target = union(enum) {
+        // Unqualified: every public export of the module is visible bare.
+        // A private dump ('_!') is not re-exported to importing modules.
+        dump: Dump,
+        // Qualified: names prefixed with the alias resolve among the
+        // module's public exports, optionally re-rooted on a selector.
+        alias: Alias,
+    };
+
+    pub const Dump = struct {
+        private: bool,
+    };
+
+    pub const Alias = struct {
+        name: PathTable.Id,
+        selector: ?PathTable.Id,
+    };
+};
 
 pub const Goal = @This();
 pub const NodeId = u32;
@@ -123,10 +159,17 @@ pub const Ident = struct {
     name: PathTable.Id,
     builtin: bool,
     underscored: bool,
+    // The surface kind of the identifier's position: a parser name is
+    // invoked and never becomes a local, a value name evaluates and an
+    // unresolved one becomes a frame local. The dependency resolver keys
+    // its parser-vs-value resolution on this.
+    kind: Kind,
     // Filled by binding analysis: an eval-position ident is a frame-local
     // read or a module-level constant/function reference. No resolution
     // survives the bound stage except placeholder (`_` never reads).
     resolution: Resolution = .unresolved,
+
+    pub const Kind = enum { parser, value };
 
     pub const Resolution = union(enum) {
         unresolved,

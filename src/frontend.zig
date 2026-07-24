@@ -456,6 +456,7 @@ fn parse(self: *Frontend, module: Module, opts: AddModuleOpts) !CanAst {
         try goal.build(parser.ast);
         std.debug.assert(goal.anonymous_function_count == can.anonymous_function_count);
         std.debug.assert(goal.import_alias_count == can.import_alias_count);
+        assertImportsMatch(goal.ast.imports.items, can.ast.imports.items);
         if (opts.printGoalAst) |stage| {
             if (stage == .created) try goal.print(self.writers.debug);
         }
@@ -467,6 +468,26 @@ fn parse(self: *Frontend, module: Module, opts: AddModuleOpts) !CanAst {
     }
 
     return can.ast;
+}
+
+// Temporary dual-build check: the goal ast's imports list must match the
+// canonicalizer's until the resolver reads it directly. Removed with can.
+fn assertImportsMatch(goal_imports: []const Ast.Import, can_imports: []const CanAst.Import) void {
+    std.debug.assert(goal_imports.len == can_imports.len);
+    for (goal_imports, can_imports) |g, c| {
+        switch (g.path) {
+            .file => |p| std.debug.assert(c.path == .file and std.mem.eql(u8, p, c.path.file)),
+            .stdlib => |p| std.debug.assert(c.path == .stdlib and std.mem.eql(u8, p, c.path.stdlib)),
+        }
+        switch (g.target) {
+            .dump => |d| std.debug.assert(c.target == .dump and d.private == c.target.dump.private),
+            .alias => |a| {
+                std.debug.assert(c.target == .alias);
+                std.debug.assert(a.name == c.target.alias.name);
+                std.debug.assert(a.selector == c.target.alias.selector);
+            },
+        }
+    }
 }
 
 fn printError(self: *Frontend, module_id: Module.Id, region: Region, comptime message: []const u8, args: anytype) !void {

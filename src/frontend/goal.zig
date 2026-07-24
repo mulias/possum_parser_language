@@ -67,7 +67,12 @@ fn convertRoot(self: *Goal, root: *ParsedAst.RNode) Error!void {
     self.current_parent_function_name = null;
 
     if (root.node == .Import and root.node.Import.selector == null) {
-        // Unqualified dump: the canonicalizer's import list owns it.
+        // An unqualified dump: the module's public exports bind bare.
+        try self.ast.imports.append(self.alloc(), .{
+            .path = importPath(root.node.Import.path),
+            .target = .{ .dump = .{ .private = root.node.Import.private } },
+            .region = root.region,
+        });
         return;
     }
 
@@ -87,7 +92,18 @@ fn convertRoot(self: *Goal, root: *ParsedAst.RNode) Error!void {
         } else {
             const name_ident = try declName(head);
             if (body.node == .Import) {
-                // A module import bound to an alias: the canonicalizer owns it.
+                // A module import bound to an alias.
+                const import = body.node.Import;
+                const alias_name = try self.paths.insert(self.strings, name_ident.name);
+                const selector = if (import.selector) |s|
+                    try self.paths.insert(self.strings, s)
+                else
+                    null;
+                try self.ast.imports.append(self.alloc(), .{
+                    .path = importPath(import.path),
+                    .target = .{ .alias = .{ .name = alias_name, .selector = selector } },
+                    .region = root.region,
+                });
                 return;
             }
             if (name_ident.kind == .Parser) {
@@ -192,16 +208,34 @@ fn nextAnonymousFunctionName(self: *Goal) Error!PathTable.Id {
     return try self.paths.insert(self.strings, name_str);
 }
 
-// The synthesized private alias an import expression mounts on; its name
-// increments a counter shared in lockstep with the canonicalizer so the
-// referencing ident matches the dependency graph.
-fn importExpressionAlias(self: *Goal, kind: enum { parser, value }) Error!PathTable.Id {
+// The synthesized private alias an import expression mounts on: the member
+// is mounted on a '_@'-prefixed alias and the expression becomes a bare
+// reference to it. The counter runs in lockstep with the canonicalizer so
+// the referencing ident matches the dependency graph, and the import is
+// recorded so the resolver mounts the alias.
+fn importExpressionAlias(self: *Goal, import: ParsedAst.ImportNode, kind: enum { parser, value }, region: Region) Error!PathTable.Id {
     const alias_str = switch (kind) {
         .parser => try std.fmt.allocPrint(self.alloc(), "_@import{d}", .{self.import_alias_count}),
         .value => try std.fmt.allocPrint(self.alloc(), "_@Import{d}", .{self.import_alias_count}),
     };
     self.import_alias_count += 1;
-    return try self.paths.insert(self.strings, alias_str);
+    const alias_name = try self.paths.insert(self.strings, alias_str);
+    try self.ast.imports.append(self.alloc(), .{
+        .path = importPath(import.path),
+        .target = .{ .alias = .{
+            .name = alias_name,
+            .selector = try self.paths.insert(self.strings, import.selector.?),
+        } },
+        .region = region,
+    });
+    return alias_name;
+}
+
+fn importPath(path: ParsedAst.ImportNode.Path) Ast.Import.Path {
+    return switch (path) {
+        .file => |p| .{ .file = p },
+        .stdlib => |p| .{ .stdlib = p },
+    };
 }
 
 fn importSelectorKind(selector: []const u8) enum { parser, value } {
@@ -298,9 +332,9 @@ fn convertParser(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
         .StringTemplate => |parts| self.convertParserTemplate(parts, region),
         .Conditional => self.convertParserAlt(rnode),
         .Function => |func| self.convertParserCall(func, region),
-        .False => self.invoked(try self.nameIdentGoal(try self.paths.insert(self.strings, "false"), region), region),
-        .True => self.invoked(try self.nameIdentGoal(try self.paths.insert(self.strings, "true"), region), region),
-        .Null => self.invoked(try self.nameIdentGoal(try self.paths.insert(self.strings, "null"), region), region),
+        .False => self.invoked(try self.nameIdentGoal(try self.paths.insert(self.strings, "false"), .parser, region), region),
+        .True => self.invoked(try self.nameIdentGoal(try self.paths.insert(self.strings, "true"), .parser, region), region),
+        .Null => self.invoked(try self.nameIdentGoal(try self.paths.insert(self.strings, "null"), .parser, region), region),
         .NumberFloat, .NumberString => self.invoked(try self.addGoal(.{
             .number_string = try self.parserNumberFields(rnode),
         }, region), region),
@@ -308,11 +342,11 @@ fn convertParser(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
         .Identifier => |ident| if (ident.kind != .Parser)
             Error.InvalidAst
         else
-            self.invoked(try self.parsedIdentGoal(ident, region), region),
+            self.invoked(try self.parsedIdentGoal(ident, .parser, region), region),
         .Import => |import| blk: {
             _ = import.selector orelse break :blk Error.InvalidAst;
-            const name = try self.importExpressionAlias(.parser);
-            break :blk self.invoked(try self.nameIdentGoal(name, region), region);
+            const name = try self.importExpressionAlias(import.*, .parser, region);
+            break :blk self.invoked(try self.nameIdentGoal(name, .parser, region), region);
         },
     };
 }
@@ -399,18 +433,18 @@ fn convertParserFunctionCallArg(self: *Goal, rnode: *ParsedAst.RNode) Error!Conv
 fn convertParserValue(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
     const region = rnode.region;
     return switch (rnode.node) {
-        .Identifier => |ident| self.parsedIdentGoal(ident, region),
-        .False => self.nameIdentGoal(try self.paths.insert(self.strings, "false"), region),
-        .True => self.nameIdentGoal(try self.paths.insert(self.strings, "true"), region),
-        .Null => self.nameIdentGoal(try self.paths.insert(self.strings, "null"), region),
+        .Identifier => |ident| self.parsedIdentGoal(ident, .parser, region),
+        .False => self.nameIdentGoal(try self.paths.insert(self.strings, "false"), .parser, region),
+        .True => self.nameIdentGoal(try self.paths.insert(self.strings, "true"), .parser, region),
+        .Null => self.nameIdentGoal(try self.paths.insert(self.strings, "null"), .parser, region),
         .String => |s| self.addGoal(.{ .string = try self.alloc().dupe(u8, s) }, region),
         .NumberFloat, .NumberString, .Negation => self.addGoal(.{
             .number_string = try self.parserNumberFields(rnode),
         }, region),
         .Import => |import| blk: {
             _ = import.selector orelse break :blk Error.InvalidAst;
-            const name = try self.importExpressionAlias(.parser);
-            break :blk self.nameIdentGoal(name, region);
+            const name = try self.importExpressionAlias(import.*, .parser, region);
+            break :blk self.nameIdentGoal(name, .parser, region);
         },
         else => self.convertParser(rnode),
     };
@@ -592,12 +626,12 @@ fn convertValue(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
         .Identifier => |ident| if (ident.kind == .Parser)
             Error.InvalidAst
         else
-            self.parsedIdentGoal(ident, region),
+            self.parsedIdentGoal(ident, .value, region),
         .Import => |import| blk: {
             const selector = import.selector orelse break :blk Error.InvalidAst;
             if (importSelectorKind(selector) != .value) break :blk Error.InvalidAst;
-            const name = try self.importExpressionAlias(.value);
-            break :blk self.nameIdentGoal(name, region);
+            const name = try self.importExpressionAlias(import.*, .value, region);
+            break :blk self.nameIdentGoal(name, .value, region);
         },
     };
 }
@@ -748,7 +782,7 @@ fn convertPattern(self: *Goal, rnode: *ParsedAst.RNode) Error!*Pattern.RNode {
             const selector = import.selector orelse return Error.InvalidAst;
             if (importSelectorKind(selector) != .value) return Error.InvalidAst;
             break :blk .{ .identifier = .{
-                .name = try self.importExpressionAlias(.value),
+                .name = try self.importExpressionAlias(import.*, .value, region),
                 .builtin = false,
                 .underscored = false,
             } };
@@ -757,19 +791,21 @@ fn convertPattern(self: *Goal, rnode: *ParsedAst.RNode) Error!*Pattern.RNode {
     return Pattern.create(self.alloc(), node, region);
 }
 
-fn parsedIdentGoal(self: *Goal, ident: ParsedAst.IdentifierNode, region: Region) Error!NodeId {
+fn parsedIdentGoal(self: *Goal, ident: ParsedAst.IdentifierNode, kind: Ast.Ident.Kind, region: Region) Error!NodeId {
     return self.addGoal(.{ .ident = .{
         .name = try self.paths.insert(self.strings, ident.name),
         .builtin = ident.builtin,
         .underscored = ident.underscored,
+        .kind = kind,
     } }, region);
 }
 
-fn nameIdentGoal(self: *Goal, name: PathTable.Id, region: Region) Error!NodeId {
+fn nameIdentGoal(self: *Goal, name: PathTable.Id, kind: Ast.Ident.Kind, region: Region) Error!NodeId {
     return self.addGoal(.{ .ident = .{
         .name = name,
         .builtin = false,
         .underscored = false,
+        .kind = kind,
     } }, region);
 }
 
@@ -804,11 +840,14 @@ fn seqPair(self: *Goal, first: NodeId, second: NodeId, result: u32, region: Regi
     return self.addGoal(.{ .seq = .{ .goals = goals, .result = result } }, region);
 }
 
+// Pattern-expression identifiers (range limits, repeat caps, compound
+// merge exprs) evaluate in value semantics, so they carry the value kind.
 fn identGoal(self: *Goal, ident: anytype, region: Region) Error!NodeId {
     return self.addGoal(.{ .ident = .{
         .name = ident.name,
         .builtin = ident.builtin,
         .underscored = ident.underscored,
+        .kind = .value,
     } }, region);
 }
 
