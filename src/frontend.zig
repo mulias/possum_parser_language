@@ -444,12 +444,18 @@ fn parse(self: *Frontend, module: Module, opts: AddModuleOpts) !CanAst {
 
         _ = try can.canonicalize(parser.ast);
 
-        // The goal ast is built from unfolded can; folding is a separate
-        // pass on each representation. Binding classifies the goal in
-        // finalize, once the dependency graph is resolved.
+        // The goal ast is built directly from the parsed ast, in parallel
+        // with can, which still feeds the dependency resolver and call
+        // check. Generated names (anonymous functions, import aliases) must
+        // match can's so the goal references the same dependency-graph
+        // nodes; the counters run in lockstep, asserted below. Folding is a
+        // separate pass; binding classifies the goal in finalize, once the
+        // dependency graph is resolved.
         const goal = try self.arena.allocator().create(Goal);
         goal.* = Goal.init(&self.arena, self.writers, &self.strings, &self.paths, module);
-        try goal.actualize(can);
+        try goal.build(parser.ast);
+        std.debug.assert(goal.anonymous_function_count == can.anonymous_function_count);
+        std.debug.assert(goal.import_alias_count == can.import_alias_count);
         if (opts.printGoalAst) |stage| {
             if (stage == .created) try goal.print(self.writers.debug);
         }

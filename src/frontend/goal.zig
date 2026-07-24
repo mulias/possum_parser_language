@@ -4,8 +4,8 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 const Writer = std.Io.Writer;
 const Ast = @import("goal_ast.zig");
-const Can = @import("can.zig");
-const CanAst = @import("can_ast.zig");
+const ParsedAst = @import("parsed_ast.zig").Ast;
+const Pattern = @import("pattern_tree.zig");
 const Module = @import("../runtime.zig").Module;
 const StringTable = @import("string_table.zig").FrontendStringTable;
 const PathTable = @import("path_table.zig").PathTable;
@@ -18,16 +18,25 @@ module: Module,
 strings: *StringTable,
 paths: *PathTable,
 ast: Ast = .{},
+// Counters for generated names. They must run in lockstep with the
+// canonicalizer's during the dual-build window so goal lambda names and
+// import-alias references match the dependency graph the resolver builds
+// from can.
+anonymous_function_count: u64 = 0,
+import_alias_count: u64 = 0,
+current_parent_function_name: ?PathTable.Id = null,
 
 pub const Goal = @This();
 pub const NodeId = Ast.NodeId;
 pub const SetId = Ast.SetId;
 pub const PlaceId = Ast.PlaceId;
 
-// GoalAstGap: a can construct the goal ast cannot express yet.
+// GoalAstGap: a construct the goal ast cannot express yet.
 // PatternTooLarge: a place index, length, or key count exceeds what the
 // match-step byte encoding admits.
-pub const Error = error{ OutOfMemory, GoalAstGap, MergeTypeConflict, PatternTooLarge, InvalidCharacter } || Writer.Error;
+// InvalidAst: a context violation the canonicalizer rejects first; goal
+// build only reaches these branches if its context routing diverges.
+pub const Error = error{ OutOfMemory, GoalAstGap, MergeTypeConflict, PatternTooLarge, InvalidCharacter, InvalidAst } || Writer.Error;
 
 pub fn init(
     arena: *ArenaAllocator,
@@ -45,56 +54,723 @@ pub fn init(
     };
 }
 
-pub fn actualize(self: *Goal, can: Can) Error!void {
-    for (can.ast.declarations.items) |decl| {
-        switch (decl) {
-            .parser => |p| {
-                var params = ArrayList(PathTable.Id){};
-                try params.ensureTotalCapacity(self.alloc(), p.node.params.items.len);
-                var param_types: u32 = 0;
-                for (p.node.params.items, 0..) |param, i| {
-                    params.appendAssumeCapacity(param.name());
-                    if (param == .value and i < 32) param_types |= @as(u32, 1) << @intCast(i);
-                }
-                try self.ast.declarations.append(self.alloc(), .{
-                    .name = p.node.ident.node.name,
-                    .underscored = p.node.ident.node.underscored,
-                    .params = params,
-                    .param_types = param_types,
-                    .body = try self.convertParser(p.node.body),
-                    .region = p.region,
-                    .ident_region = p.node.ident.region,
-                });
-            },
-            .value => |v| {
-                var params = ArrayList(PathTable.Id){};
-                try params.ensureTotalCapacity(self.alloc(), v.node.params.items.len);
-                var param_types: u32 = 0;
-                for (v.node.params.items, 0..) |param, i| {
-                    params.appendAssumeCapacity(param.node.name);
-                    if (i < 32) param_types |= @as(u32, 1) << @intCast(i);
-                }
-                try self.ast.declarations.append(self.alloc(), .{
-                    .name = v.node.ident.node.name,
-                    .underscored = v.node.ident.node.underscored,
-                    .params = params,
-                    .param_types = param_types,
-                    .body = try self.convertValue(v.node.body),
-                    .region = v.region,
-                    .ident_region = v.node.ident.region,
-                });
-            },
-        }
+// Build the goal ast directly from the parsed ast: the same context
+// validation, thunking, and alt/seq/template desugaring the canonicalizer
+// performs, emitting goal nodes and pattern trees. Context violations the
+// canonicalizer rejects are unreachable here — it runs first and aborts —
+// so their branches return InvalidAst without a message.
+pub fn build(self: *Goal, parsed: ParsedAst) Error!void {
+    for (parsed.roots.items) |root| try self.convertRoot(root);
+}
+
+fn convertRoot(self: *Goal, root: *ParsedAst.RNode) Error!void {
+    self.current_parent_function_name = null;
+
+    if (root.node == .Import and root.node.Import.selector == null) {
+        // Unqualified dump: the canonicalizer's import list owns it.
+        return;
     }
 
-    if (can.ast.main) |main_fn| {
-        self.ast.main = try self.convertParser(main_fn.node.body);
-        self.ast.main_name = main_fn.node.name;
+    if (root.node == .DeclareGlobal) {
+        const global = root.node.DeclareGlobal;
+        const head = global.head;
+        const body = global.body;
+
+        if (head.node == .Function) {
+            const func = head.node.Function;
+            const name_ident = try declName(func.name);
+            if (name_ident.kind == .Parser) {
+                try self.addParserDeclaration(name_ident, func.name.region, func.paramsOrArgs.items, body, root.region);
+            } else {
+                try self.addValueDeclaration(name_ident, func.name.region, func.paramsOrArgs.items, body, root.region);
+            }
+        } else {
+            const name_ident = try declName(head);
+            if (body.node == .Import) {
+                // A module import bound to an alias: the canonicalizer owns it.
+                return;
+            }
+            if (name_ident.kind == .Parser) {
+                try self.addParserDeclaration(name_ident, head.region, &.{}, body, root.region);
+            } else {
+                try self.addValueDeclaration(name_ident, head.region, &.{}, body, root.region);
+            }
+        }
+    } else if (self.ast.main == null) {
+        const name = try self.paths.insert(self.strings, "@main");
+        self.current_parent_function_name = name;
+        self.ast.main = try self.convertParser(root);
+        self.ast.main_name = name;
     }
+    // A second bare expression is rejected by the canonicalizer.
+}
+
+// The declared name for a function head, synthesizing an identifier for
+// the reserved-word declarations `false`, `true`, and `null`.
+fn declName(name_node: *ParsedAst.RNode) Error!ParsedAst.IdentifierNode {
+    return switch (name_node.node) {
+        .Identifier => |ident| ident,
+        .False => .{ .name = "false", .builtin = false, .underscored = false, .kind = .Parser },
+        .True => .{ .name = "true", .builtin = false, .underscored = false, .kind = .Parser },
+        .Null => .{ .name = "null", .builtin = false, .underscored = false, .kind = .Parser },
+        else => Error.InvalidAst,
+    };
+}
+
+fn addParserDeclaration(
+    self: *Goal,
+    name_ident: ParsedAst.IdentifierNode,
+    name_region: Region,
+    params: []const *ParsedAst.RNode,
+    body: *ParsedAst.RNode,
+    region: Region,
+) Error!void {
+    const name = try self.paths.insert(self.strings, name_ident.name);
+    self.current_parent_function_name = name;
+
+    var param_ids = ArrayList(PathTable.Id){};
+    try param_ids.ensureTotalCapacity(self.alloc(), params.len);
+    var param_types: u32 = 0;
+    for (params, 0..) |param, i| {
+        const pident = param.node.Identifier;
+        param_ids.appendAssumeCapacity(try self.paths.insert(self.strings, pident.name));
+        if (pident.kind == .Value and i < 32) param_types |= @as(u32, 1) << @intCast(i);
+    }
+
+    try self.ast.declarations.append(self.alloc(), .{
+        .name = name,
+        .underscored = name_ident.underscored,
+        .params = param_ids,
+        .param_types = param_types,
+        .body = try self.convertParser(body),
+        .region = region,
+        .ident_region = name_region,
+    });
+}
+
+fn addValueDeclaration(
+    self: *Goal,
+    name_ident: ParsedAst.IdentifierNode,
+    name_region: Region,
+    params: []const *ParsedAst.RNode,
+    body: *ParsedAst.RNode,
+    region: Region,
+) Error!void {
+    const name = try self.paths.insert(self.strings, name_ident.name);
+
+    var param_ids = ArrayList(PathTable.Id){};
+    try param_ids.ensureTotalCapacity(self.alloc(), params.len);
+    var param_types: u32 = 0;
+    for (params, 0..) |param, i| {
+        const pident = param.node.Identifier;
+        param_ids.appendAssumeCapacity(try self.paths.insert(self.strings, pident.name));
+        if (i < 32) param_types |= @as(u32, 1) << @intCast(i);
+    }
+
+    try self.ast.declarations.append(self.alloc(), .{
+        .name = name,
+        .underscored = name_ident.underscored,
+        .params = param_ids,
+        .param_types = param_types,
+        .body = try self.convertValue(body),
+        .region = region,
+        .ident_region = name_region,
+    });
 }
 
 fn alloc(self: *Goal) Allocator {
     return self.arena.allocator();
+}
+
+fn nextAnonymousFunctionName(self: *Goal) Error!PathTable.Id {
+    const name_str = try std.fmt.allocPrint(
+        self.alloc(),
+        "@fn{d}",
+        .{self.anonymous_function_count},
+    );
+    self.anonymous_function_count += 1;
+    return try self.paths.insert(self.strings, name_str);
+}
+
+// The synthesized private alias an import expression mounts on; its name
+// increments a counter shared in lockstep with the canonicalizer so the
+// referencing ident matches the dependency graph.
+fn importExpressionAlias(self: *Goal, kind: enum { parser, value }) Error!PathTable.Id {
+    const alias_str = switch (kind) {
+        .parser => try std.fmt.allocPrint(self.alloc(), "_@import{d}", .{self.import_alias_count}),
+        .value => try std.fmt.allocPrint(self.alloc(), "_@Import{d}", .{self.import_alias_count}),
+    };
+    self.import_alias_count += 1;
+    return try self.paths.insert(self.strings, alias_str);
+}
+
+fn importSelectorKind(selector: []const u8) enum { parser, value } {
+    for (selector) |c| {
+        if (c == '_' or c == '@') continue;
+        return if (std.ascii.isUpper(c)) .value else .parser;
+    }
+    return .parser;
+}
+
+fn isParserArg(node: ParsedAst.Node) bool {
+    return switch (node) {
+        .NumberFloat,
+        .NumberString,
+        .False,
+        .Null,
+        .True,
+        .String,
+        .StringTemplate,
+        .Range,
+        => true,
+        .ValueLabel,
+        .Array,
+        .Object,
+        => false,
+        .Identifier => |ident| ident.kind == .Parser,
+        .Import => |import| if (import.selector) |selector|
+            importSelectorKind(selector) == .parser
+        else
+            true,
+        .InfixNode => |infix| isParserArg(infix.left.node),
+        .Negation => |inner| isParserArg(inner.node),
+        .Conditional => |cond| isParserArg(cond.condition.node),
+        .Function => |func| isParserArg(func.name.node),
+        .DeclareGlobal => |decl| isParserArg(decl.head.node),
+    };
+}
+
+// Operand position: the parser runs here. Bare identifiers and literal
+// parsers are invoked, so they lower to zero-arg calls; their value forms
+// appear only in argument, callee, and range-bound positions
+// (convertParserValue).
+fn convertParser(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
+    const region = rnode.region;
+    return switch (rnode.node) {
+        .InfixNode => |infix| switch (infix.infixType) {
+            .Destructure => self.convertDestructure(
+                try self.convertParser(infix.left),
+                try self.convertPattern(infix.right),
+                region,
+            ),
+            .Merge => self.addGoal(.{ .merge = .{
+                .left = try self.convertParser(infix.left),
+                .right = try self.convertParser(infix.right),
+            } }, region),
+            .Or => self.convertParserAlt(rnode),
+            .Repeat => blk: {
+                const body = try self.convertParser(infix.left);
+                const count = try self.foldPattern(try self.convertPattern(infix.right));
+                break :blk self.addGoal(.{ .repeat = .{
+                    .body = body,
+                    .cap = try self.repeatCap(count),
+                    .count_test = try self.patternSet(count),
+                } }, region);
+            },
+            .Return => self.seqPair(
+                try self.convertParser(infix.left),
+                try self.convertValue(infix.right),
+                1,
+                region,
+            ),
+            .TakeLeft => self.seqPair(
+                try self.convertParser(infix.left),
+                try self.convertParser(infix.right),
+                0,
+                region,
+            ),
+            .TakeRight => self.seqPair(
+                try self.convertParser(infix.left),
+                try self.convertParser(infix.right),
+                1,
+                region,
+            ),
+            .NumberSubtract => Error.InvalidAst,
+        },
+        .Range => |r| self.invoked(try self.addGoal(.{ .range = .{
+            .lower = if (r.lower) |lower| try self.convertParserValue(lower) else null,
+            .upper = if (r.upper) |upper| try self.convertParserValue(upper) else null,
+        } }, region), region),
+        .Negation => self.invoked(try self.addGoal(.{
+            .number_string = try self.parserNumberFields(rnode),
+        }, region), region),
+        .ValueLabel, .Array, .Object, .DeclareGlobal => Error.InvalidAst,
+        .StringTemplate => |parts| self.convertParserTemplate(parts, region),
+        .Conditional => self.convertParserAlt(rnode),
+        .Function => |func| self.convertParserCall(func, region),
+        .False => self.invoked(try self.nameIdentGoal(try self.paths.insert(self.strings, "false"), region), region),
+        .True => self.invoked(try self.nameIdentGoal(try self.paths.insert(self.strings, "true"), region), region),
+        .Null => self.invoked(try self.nameIdentGoal(try self.paths.insert(self.strings, "null"), region), region),
+        .NumberFloat, .NumberString => self.invoked(try self.addGoal(.{
+            .number_string = try self.parserNumberFields(rnode),
+        }, region), region),
+        .String => |s| self.invoked(try self.addGoal(.{ .string = try self.alloc().dupe(u8, s) }, region), region),
+        .Identifier => |ident| if (ident.kind != .Parser)
+            Error.InvalidAst
+        else
+            self.invoked(try self.parsedIdentGoal(ident, region), region),
+        .Import => |import| blk: {
+            _ = import.selector orelse break :blk Error.InvalidAst;
+            const name = try self.importExpressionAlias(.parser);
+            break :blk self.invoked(try self.nameIdentGoal(name, region), region);
+        },
+    };
+}
+
+// The number_string fields for a parser-context number literal or its
+// negation, mirroring the canonicalizer: a NumberFloat prints to a
+// string tagged negative when below zero, a bare negation flips a
+// non-negated literal, and a double negation is rejected.
+fn parserNumberFields(self: *Goal, rnode: *ParsedAst.RNode) Error!Ast.NumberString {
+    return switch (rnode.node) {
+        .NumberFloat => |f| .{
+            .number = try std.fmt.allocPrint(self.alloc(), "{d}", .{f}),
+            .negated = f < 0,
+        },
+        .NumberString => |ns| .{
+            .number = try self.alloc().dupe(u8, ns.number),
+            .negated = ns.negated,
+        },
+        .Negation => |inner| blk: {
+            const fields = try self.parserNumberFields(inner);
+            if (fields.negated) break :blk Error.InvalidAst;
+            break :blk .{ .number = fields.number, .negated = true };
+        },
+        else => Error.InvalidAst,
+    };
+}
+
+fn convertParserCall(self: *Goal, func: ParsedAst.FunctionNode, region: Region) Error!NodeId {
+    const callee = try self.convertParserValue(func.name);
+    const args = try self.alloc().alloc(NodeId, func.paramsOrArgs.items.len);
+    var value_args: u32 = 0;
+    for (func.paramsOrArgs.items, 0..) |arg, i| {
+        const converted = try self.convertParserFunctionCallArg(arg);
+        args[i] = converted.id;
+        if (converted.is_value and i < 32) value_args |= @as(u32, 1) << @intCast(i);
+    }
+    return self.addGoal(.{ .call = .{
+        .callee = callee,
+        .args = args,
+        .value_args = value_args,
+    } }, region);
+}
+
+// One argument to a parser function call. A simple parser elem (number,
+// string, bare identifier) passes as itself; a composite parser thunks
+// into an anonymous function; a value argument (label, array, object)
+// evaluates eagerly.
+const ConvertedArg = struct { id: NodeId, is_value: bool };
+
+fn convertParserFunctionCallArg(self: *Goal, rnode: *ParsedAst.RNode) Error!ConvertedArg {
+    if (isParserArg(rnode.node)) {
+        switch (rnode.node) {
+            .NumberFloat,
+            .NumberString,
+            .False,
+            .Null,
+            .True,
+            .String,
+            .Identifier,
+            => return .{ .id = try self.convertParserValue(rnode), .is_value = false },
+            else => {
+                const name = try self.nextAnonymousFunctionName();
+                const parent = self.current_parent_function_name;
+
+                self.current_parent_function_name = name;
+                const body = try self.convertParser(rnode);
+                self.current_parent_function_name = parent;
+
+                return .{ .id = try self.addGoal(.{ .lambda = .{
+                    .parent_name = parent,
+                    .name = name,
+                    .body = body,
+                } }, rnode.region), .is_value = false };
+            },
+        }
+    } else {
+        return .{ .id = try self.convertLabeledValue(rnode), .is_value = true };
+    }
+}
+
+// Value position within a parser context: arguments, callees, range
+// bounds. Parsers are passed, never invoked. Identifiers pass the
+// function, literals pass the literal parser elem.
+fn convertParserValue(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
+    const region = rnode.region;
+    return switch (rnode.node) {
+        .Identifier => |ident| self.parsedIdentGoal(ident, region),
+        .False => self.nameIdentGoal(try self.paths.insert(self.strings, "false"), region),
+        .True => self.nameIdentGoal(try self.paths.insert(self.strings, "true"), region),
+        .Null => self.nameIdentGoal(try self.paths.insert(self.strings, "null"), region),
+        .String => |s| self.addGoal(.{ .string = try self.alloc().dupe(u8, s) }, region),
+        .NumberFloat, .NumberString, .Negation => self.addGoal(.{
+            .number_string = try self.parserNumberFields(rnode),
+        }, region),
+        .Import => |import| blk: {
+            _ = import.selector orelse break :blk Error.InvalidAst;
+            const name = try self.importExpressionAlias(.parser);
+            break :blk self.nameIdentGoal(name, region);
+        },
+        else => self.convertParser(rnode),
+    };
+}
+
+// "Hello %(name)" as a parser is `call("Hello") + to_string(call(name))`:
+// a merge fold over the segments, stringifying interpolations.
+fn convertParserTemplate(
+    self: *Goal,
+    parts: ArrayList(*ParsedAst.RNode),
+    region: Region,
+) Error!NodeId {
+    var acc: ?NodeId = null;
+    for (parts.items) |part| {
+        const parsed = try self.convertParser(part);
+        const segment = switch (part.node) {
+            .String => parsed,
+            else => try self.addGoal(.{ .to_string = parsed }, part.region),
+        };
+        acc = if (acc) |left|
+            try self.addGoal(.{ .merge = .{ .left = left, .right = segment } }, region)
+        else
+            segment;
+    }
+    return acc orelse self.invoked(try self.addGoal(.{ .string = "" }, region), region);
+}
+
+fn convertParserAlt(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
+    var arms = ArrayList(Ast.AltArm){};
+    try self.collectParserAltArms(rnode, &arms);
+    return self.addGoal(.{ .alt = arms }, rnode.region);
+}
+
+// Flattens `|` and `?:` chains into one ordered arm list. The guard/body
+// split is the commit point: guard failure tries the next arm, body
+// failure fails the whole alt. The final operand is always a body-only
+// arm; nested chains in final position splice, so no pass downstream sees
+// a right-nested alt.
+fn collectParserAltArms(
+    self: *Goal,
+    rnode: *ParsedAst.RNode,
+    arms: *ArrayList(Ast.AltArm),
+) Error!void {
+    switch (rnode.node) {
+        .InfixNode => |infix| if (infix.infixType == .Or) {
+            try arms.append(self.alloc(), .{
+                .guard = try self.convertParser(infix.left),
+                .body = null,
+            });
+            try self.collectParserAltArms(infix.right, arms);
+        } else {
+            try arms.append(self.alloc(), .{
+                .guard = null,
+                .body = try self.convertParser(rnode),
+            });
+        },
+        .Conditional => |cond| {
+            try arms.append(self.alloc(), .{
+                .guard = try self.convertParser(cond.condition),
+                .body = try self.convertParser(cond.then_branch),
+            });
+            try self.collectParserAltArms(cond.else_branch, arms);
+        },
+        else => try arms.append(self.alloc(), .{
+            .guard = null,
+            .body = try self.convertParser(rnode),
+        }),
+    }
+}
+
+// A value argument to a parser function, or a `$`-labeled value. Bare
+// literals must be labeled to read as values; the canonicalizer reports
+// an unlabeled one first.
+fn convertLabeledValue(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
+    return switch (rnode.node) {
+        .InfixNode,
+        .Range,
+        .Negation,
+        .ValueLabel,
+        .Array,
+        .Object,
+        .Conditional,
+        .Function,
+        .DeclareGlobal,
+        .Identifier,
+        .Import,
+        => self.convertValue(rnode),
+        .False,
+        .True,
+        .Null,
+        .NumberFloat,
+        .NumberString,
+        .String,
+        .StringTemplate,
+        => Error.InvalidAst,
+    };
+}
+
+// Value position: everything is eager, arguments included. A bare
+// identifier stays a value; a zero-arg value function is an alias for its
+// value, so no call is inserted.
+fn convertValue(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
+    const region = rnode.region;
+    return switch (rnode.node) {
+        .InfixNode => |infix| switch (infix.infixType) {
+            .Destructure => self.convertDestructure(
+                try self.convertValue(infix.left),
+                try self.convertPattern(infix.right),
+                region,
+            ),
+            .Merge => self.addGoal(.{ .merge = .{
+                .left = try self.convertValue(infix.left),
+                .right = try self.convertValue(infix.right),
+            } }, region),
+            .Or => self.convertValueAlt(rnode),
+            .Repeat => self.addGoal(.{ .mult = .{
+                .left = try self.convertValue(infix.left),
+                .right = try self.convertValue(infix.right),
+            } }, region),
+            .Return => self.seqPair(
+                try self.convertValue(infix.left),
+                try self.convertValue(infix.right),
+                1,
+                region,
+            ),
+            .TakeLeft => self.seqPair(
+                try self.convertValue(infix.left),
+                try self.convertValue(infix.right),
+                0,
+                region,
+            ),
+            .TakeRight => self.seqPair(
+                try self.convertValue(infix.left),
+                try self.convertValue(infix.right),
+                1,
+                region,
+            ),
+            .NumberSubtract => self.addGoal(.{ .merge = .{
+                .left = try self.convertValue(infix.left),
+                .right = try self.addGoal(.{
+                    .neg = try self.convertValue(infix.right),
+                }, infix.right.region),
+            } }, region),
+        },
+        .Range => Error.InvalidAst,
+        .Negation => |inner| self.addGoal(.{ .neg = try self.convertValue(inner) }, region),
+        .ValueLabel => |inner| self.convertValue(inner),
+        .Array => |elems| blk: {
+            var items = ArrayList(NodeId){};
+            try items.ensureTotalCapacity(self.alloc(), elems.items.len);
+            for (elems.items) |elem| items.appendAssumeCapacity(try self.convertValue(elem));
+            break :blk self.addGoal(.{ .array = items }, region);
+        },
+        .Object => |pairs| blk: {
+            var converted = ArrayList(Ast.ObjectPair){};
+            try converted.ensureTotalCapacity(self.alloc(), pairs.items.len);
+            for (pairs.items) |pair| converted.appendAssumeCapacity(.{
+                .key = try self.convertValue(pair.key),
+                .value = try self.convertValue(pair.value),
+            });
+            break :blk self.addGoal(.{ .object = converted }, region);
+        },
+        .StringTemplate => |parts| self.convertValueTemplate(parts, region),
+        .Conditional => self.convertValueAlt(rnode),
+        .Function => |func| self.convertValueCall(func, region),
+        .DeclareGlobal => Error.InvalidAst,
+        .False => self.addGoal(.false, region),
+        .True => self.addGoal(.true, region),
+        .Null => self.addGoal(.null, region),
+        .NumberFloat => |f| self.addGoal(.{ .number_float = f }, region),
+        .NumberString => |ns| if (ns.toFloat()) |f|
+            self.addGoal(.{ .number_float = f }, region)
+        else |_|
+            self.addGoal(.{ .number_string = .{
+                .number = try self.alloc().dupe(u8, ns.number),
+                .negated = ns.negated,
+            } }, region),
+        .String => |s| self.addGoal(.{ .string = try self.alloc().dupe(u8, s) }, region),
+        .Identifier => |ident| if (ident.kind == .Parser)
+            Error.InvalidAst
+        else
+            self.parsedIdentGoal(ident, region),
+        .Import => |import| blk: {
+            const selector = import.selector orelse break :blk Error.InvalidAst;
+            if (importSelectorKind(selector) != .value) break :blk Error.InvalidAst;
+            const name = try self.importExpressionAlias(.value);
+            break :blk self.nameIdentGoal(name, region);
+        },
+    };
+}
+
+fn convertValueCall(self: *Goal, func: ParsedAst.FunctionNode, region: Region) Error!NodeId {
+    const callee = try self.convertValue(func.name);
+    const args = try self.alloc().alloc(NodeId, func.paramsOrArgs.items.len);
+    for (func.paramsOrArgs.items, 0..) |arg, i| args[i] = try self.convertValue(arg);
+    return self.addGoal(.{ .call = .{
+        .callee = callee,
+        .args = args,
+        .value_args = allValueArgs(args.len),
+    } }, region);
+}
+
+fn convertValueTemplate(
+    self: *Goal,
+    parts: ArrayList(*ParsedAst.RNode),
+    region: Region,
+) Error!NodeId {
+    var acc: ?NodeId = null;
+    for (parts.items) |part| {
+        const value = try self.convertValue(part);
+        const segment = switch (part.node) {
+            .String => value,
+            else => try self.addGoal(.{ .to_string = value }, part.region),
+        };
+        acc = if (acc) |left|
+            try self.addGoal(.{ .merge = .{ .left = left, .right = segment } }, region)
+        else
+            segment;
+    }
+    return acc orelse self.addGoal(.{ .string = "" }, region);
+}
+
+fn convertValueAlt(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
+    var arms = ArrayList(Ast.AltArm){};
+    try self.collectValueAltArms(rnode, &arms);
+    return self.addGoal(.{ .alt = arms }, rnode.region);
+}
+
+fn collectValueAltArms(
+    self: *Goal,
+    rnode: *ParsedAst.RNode,
+    arms: *ArrayList(Ast.AltArm),
+) Error!void {
+    switch (rnode.node) {
+        .InfixNode => |infix| if (infix.infixType == .Or) {
+            try arms.append(self.alloc(), .{
+                .guard = try self.convertValue(infix.left),
+                .body = null,
+            });
+            try self.collectValueAltArms(infix.right, arms);
+        } else {
+            try arms.append(self.alloc(), .{
+                .guard = null,
+                .body = try self.convertValue(rnode),
+            });
+        },
+        .Conditional => |cond| {
+            try arms.append(self.alloc(), .{
+                .guard = try self.convertValue(cond.condition),
+                .body = try self.convertValue(cond.then_branch),
+            });
+            try self.collectValueAltArms(cond.else_branch, arms);
+        },
+        else => try arms.append(self.alloc(), .{
+            .guard = null,
+            .body = try self.convertValue(rnode),
+        }),
+    }
+}
+
+// A pattern tree built from the parsed ast, folded before lowering.
+// Context violations are unreachable — the canonicalizer rejects them
+// first.
+fn convertPattern(self: *Goal, rnode: *ParsedAst.RNode) Error!*Pattern.RNode {
+    const region = rnode.region;
+    const node: Pattern.Node = switch (rnode.node) {
+        .InfixNode => |infix| switch (infix.infixType) {
+            .Merge => .{ .merge = .{
+                .left = try self.convertPattern(infix.left),
+                .right = try self.convertPattern(infix.right),
+            } },
+            .Repeat => .{ .repeat = .{
+                .left = try self.convertPattern(infix.left),
+                .right = try self.convertPattern(infix.right),
+            } },
+            .NumberSubtract => .{ .merge = .{
+                .left = try self.convertPattern(infix.left),
+                .right = try Pattern.create(
+                    self.alloc(),
+                    .{ .negation = try self.convertPattern(infix.right) },
+                    infix.right.region,
+                ),
+            } },
+            else => return Error.InvalidAst,
+        },
+        .Range => |range| .{ .range = .{
+            .lower = if (range.lower) |l| try self.convertPattern(l) else null,
+            .upper = if (range.upper) |u| try self.convertPattern(u) else null,
+        } },
+        .Negation => |inner| .{ .negation = try self.convertPattern(inner) },
+        .ValueLabel, .Conditional, .DeclareGlobal => return Error.InvalidAst,
+        .Array => |elems| blk: {
+            var converted = ArrayList(*Pattern.RNode){};
+            try converted.ensureTotalCapacity(self.alloc(), elems.items.len);
+            for (elems.items) |elem| converted.appendAssumeCapacity(try self.convertPattern(elem));
+            break :blk .{ .array = converted };
+        },
+        .Object => |pairs| blk: {
+            var converted = ArrayList(Pattern.ObjectPair){};
+            try converted.ensureTotalCapacity(self.alloc(), pairs.items.len);
+            for (pairs.items) |pair| converted.appendAssumeCapacity(.{
+                .key = try self.convertPattern(pair.key),
+                .value = try self.convertPattern(pair.value),
+            });
+            break :blk .{ .object = converted };
+        },
+        .StringTemplate => |parts| blk: {
+            var converted = ArrayList(*Pattern.RNode){};
+            try converted.ensureTotalCapacity(self.alloc(), parts.items.len);
+            for (parts.items) |part| converted.appendAssumeCapacity(try self.convertPattern(part));
+            break :blk .{ .string_template = converted };
+        },
+        .Function => |func| .{ .function_call = func },
+        .False => .false,
+        .True => .true,
+        .Null => .null,
+        .NumberFloat => |f| .{ .number_float = f },
+        .NumberString => |ns| if (ns.toFloat()) |f|
+            Pattern.Node{ .number_float = f }
+        else |_|
+            Pattern.Node{ .number_string = .{
+                .number = try self.alloc().dupe(u8, ns.number),
+                .negated = ns.negated,
+            } },
+        .String => |s| .{ .string = try self.alloc().dupe(u8, s) },
+        .Identifier => |ident| if (ident.kind == .Parser)
+            return Error.InvalidAst
+        else
+            .{ .identifier = .{
+                .name = try self.paths.insert(self.strings, ident.name),
+                .builtin = ident.builtin,
+                .underscored = ident.underscored,
+            } },
+        .Import => |import| blk: {
+            const selector = import.selector orelse return Error.InvalidAst;
+            if (importSelectorKind(selector) != .value) return Error.InvalidAst;
+            break :blk .{ .identifier = .{
+                .name = try self.importExpressionAlias(.value),
+                .builtin = false,
+                .underscored = false,
+            } };
+        },
+    };
+    return Pattern.create(self.alloc(), node, region);
+}
+
+fn parsedIdentGoal(self: *Goal, ident: ParsedAst.IdentifierNode, region: Region) Error!NodeId {
+    return self.addGoal(.{ .ident = .{
+        .name = try self.paths.insert(self.strings, ident.name),
+        .builtin = ident.builtin,
+        .underscored = ident.underscored,
+    } }, region);
+}
+
+fn nameIdentGoal(self: *Goal, name: PathTable.Id, region: Region) Error!NodeId {
+    return self.addGoal(.{ .ident = .{
+        .name = name,
+        .builtin = false,
+        .underscored = false,
+    } }, region);
 }
 
 fn printError(self: *Goal, region: Region, comptime format: []const u8, args: anytype) !void {
@@ -145,313 +821,9 @@ fn invoked(self: *Goal, callee: NodeId, region: Region) Error!NodeId {
     } }, region);
 }
 
-// Operand position: the parser runs here. Bare identifiers and literal
-// parsers are invoked, so they lower to zero-arg calls; their value forms
-// appear only in argument, callee, and range-bound positions
-// (convertParserValue).
-fn convertParser(self: *Goal, rnode: *CanAst.Parser.RNode) Error!NodeId {
-    const region = rnode.region;
-    return switch (rnode.node) {
-        .@"or", .conditional => self.convertParserAlt(rnode),
-        .@"return" => |op| self.seqPair(
-            try self.convertParser(op.left),
-            try self.convertValue(op.right),
-            1,
-            region,
-        ),
-        .take_right => |op| self.seqPair(
-            try self.convertParser(op.left),
-            try self.convertParser(op.right),
-            1,
-            region,
-        ),
-        .take_left => |op| self.seqPair(
-            try self.convertParser(op.left),
-            try self.convertParser(op.right),
-            0,
-            region,
-        ),
-        .merge => |op| self.addGoal(.{ .merge = .{
-            .left = try self.convertParser(op.left),
-            .right = try self.convertParser(op.right),
-        } }, region),
-        .number_string => |ns| self.invoked(try self.addGoal(.{ .number_string = .{
-            .number = ns.number,
-            .negated = ns.negated,
-        } }, region), region),
-        .string => |s| self.invoked(try self.addGoal(.{ .string = s }, region), region),
-        .range => |r| self.invoked(try self.addGoal(.{ .range = .{
-            .lower = if (r.lower) |lower| try self.convertParserValue(lower) else null,
-            .upper = if (r.upper) |upper| try self.convertParserValue(upper) else null,
-        } }, region), region),
-        .string_template => |parts| self.convertParserTemplate(parts, region),
-        .identifier => |ident| self.invoked(try self.identGoal(ident, region), region),
-        .function_call => |fc| self.convertParserCall(fc, region),
-        .anonymous_function => |anon| self.convertAnonymousFunction(anon, region),
-        .destructure => |op| self.convertDestructure(
-            try self.convertParser(op.left),
-            op.right,
-            region,
-        ),
-        .repeat => |op| blk: {
-            const body = try self.convertParser(op.left);
-            const count = try self.foldPattern(op.right);
-            break :blk self.addGoal(.{ .repeat = .{
-                .body = body,
-                .cap = try self.repeatCap(count),
-                .count_test = try self.patternSet(count),
-            } }, region);
-        },
-    };
-}
-
-fn convertParserCall(self: *Goal, fc: CanAst.Parser.FunctionCall, region: Region) Error!NodeId {
-    const callee = try self.convertParserValue(fc.function);
-    const args = try self.alloc().alloc(NodeId, fc.args.items.len);
-    var value_args: u32 = 0;
-    for (fc.args.items, 0..) |arg, i| {
-        args[i] = switch (arg) {
-            .parser => |p| try self.convertParserValue(p),
-            .value => |v| blk: {
-                if (i < 32) value_args |= @as(u32, 1) << @intCast(i);
-                break :blk try self.convertValue(v);
-            },
-        };
-    }
-    return self.addGoal(.{ .call = .{
-        .callee = callee,
-        .args = args,
-        .value_args = value_args,
-    } }, region);
-}
-
-// Value position within a parser context: arguments, callees, range
-// bounds. Parsers are passed, never invoked. Can has already thunked
-// composite arguments into anonymous functions, so what remains is
-// identifiers (pass the function), the thunks themselves, and literals
-// (pass the literal parser elem).
-fn convertParserValue(self: *Goal, rnode: *CanAst.Parser.RNode) Error!NodeId {
-    const region = rnode.region;
-    return switch (rnode.node) {
-        .identifier => |ident| self.identGoal(ident, region),
-        .anonymous_function => |anon| self.convertAnonymousFunction(anon, region),
-        .string => |s| self.addGoal(.{ .string = s }, region),
-        .number_string => |ns| self.addGoal(.{ .number_string = .{
-            .number = ns.number,
-            .negated = ns.negated,
-        } }, region),
-        else => self.convertParser(rnode),
-    };
-}
-
-// "Hello %(name)" as a parser is `call("Hello") + to_string(call(name))`:
-// a merge fold over the segments, stringifying interpolations.
-fn convertParserTemplate(
-    self: *Goal,
-    parts: ArrayList(*CanAst.Parser.RNode),
-    region: Region,
-) Error!NodeId {
-    var acc: ?NodeId = null;
-    for (parts.items) |part| {
-        const parsed = try self.convertParser(part);
-        const segment = switch (part.node) {
-            .string => parsed,
-            else => try self.addGoal(.{ .to_string = parsed }, part.region),
-        };
-        acc = if (acc) |left|
-            try self.addGoal(.{ .merge = .{ .left = left, .right = segment } }, region)
-        else
-            segment;
-    }
-    return acc orelse self.invoked(try self.addGoal(.{ .string = "" }, region), region);
-}
-
-fn convertAnonymousFunction(
-    self: *Goal,
-    anon: CanAst.Parser.AnonymousFunction,
-    region: Region,
-) Error!NodeId {
-    return self.addGoal(.{ .lambda = .{
-        .parent_name = anon.parent_name,
-        .name = anon.name,
-        .body = try self.convertParser(anon.body),
-    } }, region);
-}
-
-fn convertParserAlt(self: *Goal, rnode: *CanAst.Parser.RNode) Error!NodeId {
-    var arms = ArrayList(Ast.AltArm){};
-    try self.collectParserAltArms(rnode, &arms);
-    return self.addGoal(.{ .alt = arms }, rnode.region);
-}
-
-// Flattens `|` and `?:` chains into one ordered arm list. The guard/body
-// split is the commit point: guard failure tries the next arm, body
-// failure fails the whole alt. The final operand is always a body-only
-// arm; nested chains in final position splice, so no pass downstream sees
-// a right-nested alt.
-fn collectParserAltArms(
-    self: *Goal,
-    rnode: *CanAst.Parser.RNode,
-    arms: *ArrayList(Ast.AltArm),
-) Error!void {
-    switch (rnode.node) {
-        .@"or" => |op| {
-            try arms.append(self.alloc(), .{
-                .guard = try self.convertParser(op.left),
-                .body = null,
-            });
-            try self.collectParserAltArms(op.right, arms);
-        },
-        .conditional => |cond| {
-            try arms.append(self.alloc(), .{
-                .guard = try self.convertParser(cond.condition),
-                .body = try self.convertParser(cond.then_branch),
-            });
-            try self.collectParserAltArms(cond.else_branch, arms);
-        },
-        else => try arms.append(self.alloc(), .{
-            .guard = null,
-            .body = try self.convertParser(rnode),
-        }),
-    }
-}
-
-// Value position: everything is eager, arguments included. A bare
-// identifier stays a value; a zero-arg value function is an alias for its
-// value, so no call is inserted.
-fn convertValue(self: *Goal, rnode: *CanAst.Value.RNode) Error!NodeId {
-    const region = rnode.region;
-    return switch (rnode.node) {
-        .@"or", .conditional => self.convertValueAlt(rnode),
-        .@"return" => |op| self.seqPair(
-            try self.convertValue(op.left),
-            try self.convertValue(op.right),
-            1,
-            region,
-        ),
-        .take_right => |op| self.seqPair(
-            try self.convertValue(op.left),
-            try self.convertValue(op.right),
-            1,
-            region,
-        ),
-        .take_left => |op| self.seqPair(
-            try self.convertValue(op.left),
-            try self.convertValue(op.right),
-            0,
-            region,
-        ),
-        .merge => |op| self.addGoal(.{ .merge = .{
-            .left = try self.convertValue(op.left),
-            .right = try self.convertValue(op.right),
-        } }, region),
-        .negation => |inner| self.addGoal(.{ .neg = try self.convertValue(inner) }, region),
-        .true => self.addGoal(.true, region),
-        .false => self.addGoal(.false, region),
-        .null => self.addGoal(.null, region),
-        .number_float => |f| self.addGoal(.{ .number_float = f }, region),
-        .number_string => |ns| self.addGoal(.{ .number_string = .{
-            .number = ns.number,
-            .negated = ns.negated,
-        } }, region),
-        .string => |s| self.addGoal(.{ .string = s }, region),
-        .string_template => |parts| self.convertValueTemplate(parts, region),
-        .array => |items| blk: {
-            var elems = ArrayList(NodeId){};
-            try elems.ensureTotalCapacity(self.alloc(), items.items.len);
-            for (items.items) |item| elems.appendAssumeCapacity(try self.convertValue(item));
-            break :blk self.addGoal(.{ .array = elems }, region);
-        },
-        .object => |pairs| blk: {
-            var converted = ArrayList(Ast.ObjectPair){};
-            try converted.ensureTotalCapacity(self.alloc(), pairs.items.len);
-            for (pairs.items) |pair| converted.appendAssumeCapacity(.{
-                .key = try self.convertValue(pair.key),
-                .value = try self.convertValue(pair.value),
-            });
-            break :blk self.addGoal(.{ .object = converted }, region);
-        },
-        .identifier => |ident| self.identGoal(ident, region),
-        .function_call => |fc| self.convertValueCall(fc, region),
-        .destructure => |op| self.convertDestructure(
-            try self.convertValue(op.left),
-            op.right,
-            region,
-        ),
-        .repeat => |op| self.addGoal(.{ .mult = .{
-            .left = try self.convertValue(op.left),
-            .right = try self.convertValue(op.right),
-        } }, region),
-    };
-}
-
-fn convertValueCall(self: *Goal, fc: CanAst.Value.FunctionCall, region: Region) Error!NodeId {
-    const callee = try self.convertValue(fc.function);
-    const args = try self.alloc().alloc(NodeId, fc.args.items.len);
-    for (fc.args.items, 0..) |arg, i| args[i] = try self.convertValue(arg);
-    return self.addGoal(.{ .call = .{
-        .callee = callee,
-        .args = args,
-        .value_args = allValueArgs(args.len),
-    } }, region);
-}
-
 fn allValueArgs(count: usize) u32 {
     if (count >= 32) return std.math.maxInt(u32);
     return (@as(u32, 1) << @intCast(count)) - 1;
-}
-
-fn convertValueTemplate(
-    self: *Goal,
-    parts: ArrayList(*CanAst.Value.RNode),
-    region: Region,
-) Error!NodeId {
-    var acc: ?NodeId = null;
-    for (parts.items) |part| {
-        const value = try self.convertValue(part);
-        const segment = switch (part.node) {
-            .string => value,
-            else => try self.addGoal(.{ .to_string = value }, part.region),
-        };
-        acc = if (acc) |left|
-            try self.addGoal(.{ .merge = .{ .left = left, .right = segment } }, region)
-        else
-            segment;
-    }
-    return acc orelse self.addGoal(.{ .string = "" }, region);
-}
-
-fn convertValueAlt(self: *Goal, rnode: *CanAst.Value.RNode) Error!NodeId {
-    var arms = ArrayList(Ast.AltArm){};
-    try self.collectValueAltArms(rnode, &arms);
-    return self.addGoal(.{ .alt = arms }, rnode.region);
-}
-
-fn collectValueAltArms(
-    self: *Goal,
-    rnode: *CanAst.Value.RNode,
-    arms: *ArrayList(Ast.AltArm),
-) Error!void {
-    switch (rnode.node) {
-        .@"or" => |op| {
-            try arms.append(self.alloc(), .{
-                .guard = try self.convertValue(op.left),
-                .body = null,
-            });
-            try self.collectValueAltArms(op.right, arms);
-        },
-        .conditional => |cond| {
-            try arms.append(self.alloc(), .{
-                .guard = try self.convertValue(cond.condition),
-                .body = try self.convertValue(cond.then_branch),
-            });
-            try self.collectValueAltArms(cond.else_branch, arms);
-        },
-        else => try arms.append(self.alloc(), .{
-            .guard = null,
-            .body = try self.convertValue(rnode),
-        }),
-    }
 }
 
 // Pattern decomposition: places + constraints.
@@ -459,7 +831,7 @@ fn collectValueAltArms(
 fn convertDestructure(
     self: *Goal,
     scrutinee: NodeId,
-    pattern: *CanAst.Pattern.RNode,
+    pattern: *Pattern.RNode,
     region: Region,
 ) Error!NodeId {
     const folded = try self.foldPattern(pattern);
@@ -482,7 +854,7 @@ fn convertDestructure(
 
 // A ConstraintSet rooted at a synthetic scrutinee: repeat counts and
 // composite sub-patterns.
-fn patternSet(self: *Goal, pattern: *CanAst.Pattern.RNode) Error!SetId {
+fn patternSet(self: *Goal, pattern: *Pattern.RNode) Error!SetId {
     const folded = try self.foldPattern(pattern);
     var set = Ast.ConstraintSet{
         .places = .{},
@@ -534,13 +906,12 @@ fn boundedByte(self: *Goal, value: usize, region: Region, comptime what: []const
 
 // Bottom-up constant folding of a pattern tree, run before lowering to
 // places and constraints. Constant merges, repeats, and negations fold
-// by interval/numeric arithmetic (CanAst.Pattern.merge/repeat/negate);
+// by interval/numeric arithmetic (Pattern.merge/repeat/negate);
 // negation distributes over a number merge (`-(X + 3)` is `-X + -3`) so
 // the merge's sole variable part stays solvable. Folding before lowering
 // keeps the constraint form free of the fold machinery it would
 // otherwise need on places and sub-sets.
-fn foldPattern(self: *Goal, pattern: *CanAst.Pattern.RNode) FoldError!*CanAst.Pattern.RNode {
-    const Pattern = CanAst.Pattern;
+fn foldPattern(self: *Goal, pattern: *Pattern.RNode) FoldError!*Pattern.RNode {
     switch (pattern.node) {
         .merge => |op| {
             const left = try self.foldPattern(op.left);
@@ -622,11 +993,10 @@ fn foldPattern(self: *Goal, pattern: *CanAst.Pattern.RNode) FoldError!*CanAst.Pa
 // range * range — returns null and keeps the repeat node.
 fn foldedPatternRepeat(
     self: *Goal,
-    left: *CanAst.Pattern.RNode,
-    right: *CanAst.Pattern.RNode,
+    left: *Pattern.RNode,
+    right: *Pattern.RNode,
     region: Region,
-) FoldError!?*CanAst.Pattern.RNode {
-    const Pattern = CanAst.Pattern;
+) FoldError!?*Pattern.RNode {
     const count = constPatternNumber(right) orelse return null;
     switch (left.node) {
         .number_float, .number_string => {
@@ -640,12 +1010,12 @@ fn foldedPatternRepeat(
         },
         .range => |r| {
             if (count < 0) return null;
-            var new_lower: ?*CanAst.Pattern.RNode = null;
+            var new_lower: ?*Pattern.RNode = null;
             if (r.lower) |l| {
                 const lv = constPatternNumber(l) orelse return null;
                 new_lower = try Pattern.create(self.alloc(), .{ .number_float = lv * count }, region);
             }
-            var new_upper: ?*CanAst.Pattern.RNode = null;
+            var new_upper: ?*Pattern.RNode = null;
             if (r.upper) |u| {
                 const uv = constPatternNumber(u) orelse return null;
                 new_upper = try Pattern.create(self.alloc(), .{ .number_float = uv * count }, region);
@@ -660,11 +1030,10 @@ fn foldedPatternRepeat(
 }
 
 // Fold a flattened merge part list in place: adjacent constants fuse
-// (CanAst.Pattern.merge), null identities drop, and adjacent placeholders
+// (Pattern.merge), null identities drop, and adjacent placeholders
 // collapse (`_ + _` is one absorption). Mirrors what the constraint-level
 // foldMergeParts did, but on the pattern tree before lowering.
-fn foldMergePartPatterns(self: *Goal, parts: *ArrayList(*CanAst.Pattern.RNode)) FoldError!void {
-    const Pattern = CanAst.Pattern;
+fn foldMergePartPatterns(self: *Goal, parts: *ArrayList(*Pattern.RNode)) FoldError!void {
     var write: usize = 0;
     for (parts.items) |part| {
         if (write > 0) {
@@ -682,11 +1051,11 @@ fn foldMergePartPatterns(self: *Goal, parts: *ArrayList(*CanAst.Pattern.RNode)) 
     parts.shrinkRetainingCapacity(write);
 }
 
-fn isPatternPlaceholder(self: *Goal, pattern: *const CanAst.Pattern.RNode) bool {
+fn isPatternPlaceholder(self: *Goal, pattern: *const Pattern.RNode) bool {
     return pattern.node == .identifier and self.isPlaceholder(pattern.node.identifier.name);
 }
 
-fn constPatternNumber(pattern: *const CanAst.Pattern.RNode) ?f64 {
+fn constPatternNumber(pattern: *const Pattern.RNode) ?f64 {
     return switch (pattern.node) {
         .number_float => |f| f,
         .number_string => |ns| ns.toFloat() catch null,
@@ -697,7 +1066,7 @@ fn constPatternNumber(pattern: *const CanAst.Pattern.RNode) ?f64 {
 // The static merge type a pattern merge imposes: the first structurally
 // typed leaf, ignoring conflicts (they surface at lowering). Used only
 // to decide whether negation distributes.
-fn mergeTypeOf(self: *Goal, pattern: *const CanAst.Pattern.RNode) ?Ast.ValueType {
+fn mergeTypeOf(self: *Goal, pattern: *const Pattern.RNode) ?Ast.ValueType {
     return switch (pattern.node) {
         .merge => |op| self.mergeTypeOf(op.left) orelse self.mergeTypeOf(op.right),
         else => mergePartStaticType(pattern),
@@ -706,7 +1075,7 @@ fn mergeTypeOf(self: *Goal, pattern: *const CanAst.Pattern.RNode) ?Ast.ValueType
 
 fn lowerPattern(
     self: *Goal,
-    pattern: *CanAst.Pattern.RNode,
+    pattern: *Pattern.RNode,
     place: PlaceId,
     places: *ArrayList(Ast.PlaceDef),
     constraints: *ArrayList(Ast.Constraint),
@@ -802,7 +1171,7 @@ fn lowerPattern(
             } }, region);
         },
         .merge => {
-            var part_patterns = ArrayList(*CanAst.Pattern.RNode){};
+            var part_patterns = ArrayList(*Pattern.RNode){};
             var ty: ?Ast.ValueType = null;
             try self.collectMergePatterns(pattern, &part_patterns, &ty);
             if (ty == .array) {
@@ -867,8 +1236,8 @@ fn lowerPattern(
 
 fn collectMergePatterns(
     self: *Goal,
-    pattern: *CanAst.Pattern.RNode,
-    parts: *ArrayList(*CanAst.Pattern.RNode),
+    pattern: *Pattern.RNode,
+    parts: *ArrayList(*Pattern.RNode),
     ty: *?Ast.ValueType,
 ) Error!void {
     switch (pattern.node) {
@@ -906,7 +1275,7 @@ fn collectMergePatterns(
 // negations, and second unknown-length parts keep the runtime solve).
 fn lowerArrayMerge(
     self: *Goal,
-    parts: []const *CanAst.Pattern.RNode,
+    parts: []const *Pattern.RNode,
     place: PlaceId,
     places: *ArrayList(Ast.PlaceDef),
     constraints: *ArrayList(Ast.Constraint),
@@ -1011,7 +1380,7 @@ fn article(ty: Ast.ValueType) []const u8 {
 // merge is invalid for every type. Negation only ever produces numbers;
 // a negated local stays untyped so the match fails instead of the merge
 // typing, mirroring the interpreter's mergePartType.
-fn mergePartStaticType(pattern: *const CanAst.Pattern.RNode) ?Ast.ValueType {
+fn mergePartStaticType(pattern: *const Pattern.RNode) ?Ast.ValueType {
     return switch (pattern.node) {
         .array => .array,
         .object => .object,
@@ -1036,7 +1405,7 @@ fn mergePartStaticType(pattern: *const CanAst.Pattern.RNode) ?Ast.ValueType {
 // backend (post-classification) can decide.
 fn lowerStringMerge(
     self: *Goal,
-    parts: []const *CanAst.Pattern.RNode,
+    parts: []const *Pattern.RNode,
     place: PlaceId,
     places: *ArrayList(Ast.PlaceDef),
     constraints: *ArrayList(Ast.Constraint),
@@ -1112,7 +1481,7 @@ fn lowerStringMerge(
 // parts and computed keys keep the runtime solve.
 fn lowerObjectMerge(
     self: *Goal,
-    parts: []const *CanAst.Pattern.RNode,
+    parts: []const *Pattern.RNode,
     place: PlaceId,
     places: *ArrayList(Ast.PlaceDef),
     constraints: *ArrayList(Ast.Constraint),
@@ -1214,7 +1583,7 @@ fn lowerObjectMerge(
     return true;
 }
 
-fn concatLiterals(self: *Goal, parts: []const *CanAst.Pattern.RNode) Error![]const u8 {
+fn concatLiterals(self: *Goal, parts: []const *Pattern.RNode) Error![]const u8 {
     var total: usize = 0;
     for (parts) |part| total += switch (part.node) {
         .string => |s| s.len,
@@ -1232,7 +1601,7 @@ fn concatLiterals(self: *Goal, parts: []const *CanAst.Pattern.RNode) Error![]con
     return bytes;
 }
 
-fn patternPart(self: *Goal, pattern: *CanAst.Pattern.RNode) Error!Ast.Part {
+fn patternPart(self: *Goal, pattern: *Pattern.RNode) Error!Ast.Part {
     return switch (pattern.node) {
         .identifier => |ident| if (self.isPlaceholder(ident.name))
             .placeholder
@@ -1250,7 +1619,7 @@ fn patternPart(self: *Goal, pattern: *CanAst.Pattern.RNode) Error!Ast.Part {
     };
 }
 
-fn patternLimit(self: *Goal, bound: ?*CanAst.Pattern.RNode) Error!Ast.Limit {
+fn patternLimit(self: *Goal, bound: ?*Pattern.RNode) Error!Ast.Limit {
     const pattern = bound orelse return .none;
     return switch (pattern.node) {
         .identifier => |ident| if (self.isPlaceholder(ident.name))
@@ -1265,7 +1634,7 @@ fn patternLimit(self: *Goal, bound: ?*CanAst.Pattern.RNode) Error!Ast.Limit {
 // recognizable at creation: an exact count, a bare local, an upper range
 // limit, or an evaluable expression. Unrecognized shapes impose no cap;
 // binding analysis clears caps whose reads are unbound.
-fn repeatCap(self: *Goal, pattern: *CanAst.Pattern.RNode) Error!Ast.Limit {
+fn repeatCap(self: *Goal, pattern: *Pattern.RNode) Error!Ast.Limit {
     return switch (pattern.node) {
         .number_string, .number_float => .{
             .expr = try self.patternLiteralGoal(pattern),
@@ -1286,7 +1655,7 @@ fn repeatCap(self: *Goal, pattern: *CanAst.Pattern.RNode) Error!Ast.Limit {
     };
 }
 
-fn patternLiteralGoal(self: *Goal, pattern: *CanAst.Pattern.RNode) Error!NodeId {
+fn patternLiteralGoal(self: *Goal, pattern: *Pattern.RNode) Error!NodeId {
     const region = pattern.region;
     return switch (pattern.node) {
         .true => self.addGoal(.true, region),
@@ -1304,22 +1673,15 @@ fn patternLiteralGoal(self: *Goal, pattern: *CanAst.Pattern.RNode) Error!NodeId 
 
 fn patternCallGoal(
     self: *Goal,
-    fc: CanAst.Value.FunctionCall,
+    func: ParsedAst.FunctionNode,
     region: Region,
 ) Error!NodeId {
-    const callee = try self.convertValue(fc.function);
-    const args = try self.alloc().alloc(NodeId, fc.args.items.len);
-    for (fc.args.items, 0..) |arg, i| args[i] = try self.convertValue(arg);
-    return self.addGoal(.{ .call = .{
-        .callee = callee,
-        .args = args,
-        .value_args = allValueArgs(args.len),
-    } }, region);
+    return self.convertValueCall(func, region);
 }
 
 // Evaluable pattern expressions: range limits and other positions where
 // every read must be bound at match time.
-fn patternExprGoal(self: *Goal, pattern: *CanAst.Pattern.RNode) Error!NodeId {
+fn patternExprGoal(self: *Goal, pattern: *Pattern.RNode) Error!NodeId {
     const region = pattern.region;
     return switch (pattern.node) {
         .true, .false, .null, .number_float, .number_string, .string => self.patternLiteralGoal(pattern),
