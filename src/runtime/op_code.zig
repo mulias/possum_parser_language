@@ -104,6 +104,7 @@ pub const OpCode = enum(u8) {
     MatchStrSuffix,
     MatchStrVal,
     MatchSubScrutinee,
+    MatchSubtractEval,
     MatchType,
     // Open a fresh match register window sized to the operand width
     // (placeholders), saving the current base; close it, releasing its
@@ -333,6 +334,9 @@ pub const OpCode = enum(u8) {
             // left on the stack, stringifies it, and byte-compares it at
             // the cursor.
             .MatchStrVal,
+            // Pops the evaluated summed part and subtracts it from the
+            // source register into the destination on both paths.
+            .MatchSubtractEval,
             => .{ .branch = .{
                 .fallthrough = .{ .pops = 1, .pushes = 0 },
                 .jump = .{ .pops = 1, .pushes = 0 },
@@ -616,6 +620,9 @@ pub const OpCode = enum(u8) {
             // Pops and releases the evaluated segment value; the compare
             // reads its bytes before releasing.
             .MatchStrVal,
+            // Pops and releases the evaluated summed part; the numeric
+            // residual written into the destination is not a Dyn handle.
+            .MatchSubtractEval,
             => .{ .operands = .consumed, .result = .none },
 
             // The matched value stays on the stack on success (pattern
@@ -761,6 +768,7 @@ pub const OpCode = enum(u8) {
             => self.matchCountJumpInstruction(chunk, writer, offset),
             .MatchSlot => self.matchSlotInstruction(chunk, writer, offset),
             .MatchEval => self.matchEvalInstruction(chunk, writer, offset),
+            .MatchSubtractEval => self.matchSubtractEvalInstruction(chunk, writer, offset),
             .MatchRepeatChunk,
             .MatchRepeatValue,
             => self.matchRepeatInstruction(chunk, writer, offset),
@@ -1158,6 +1166,15 @@ pub const OpCode = enum(u8) {
         const jump = (@as(u16, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
         const target = offset + 5 + jump;
         try writer.print("{s} r{} -> {}\n", .{ @tagName(self), register, target });
+        return offset + 5;
+    }
+
+    fn matchSubtractEvalInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const dst = chunk.read(offset + 1);
+        const src = chunk.read(offset + 2);
+        const jump = (@as(u16, @intCast(chunk.read(offset + 3))) << 8) | chunk.read(offset + 4);
+        const target = offset + 5 + jump;
+        try writer.print("{s} r{} <- r{} - <pop> -> {}\n", .{ @tagName(self), dst, src, target });
         return offset + 5;
     }
 

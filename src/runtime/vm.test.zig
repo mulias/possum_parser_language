@@ -1156,6 +1156,48 @@ test "a template with a repeat segment compiles to a match plan" {
     }
 }
 
+test "audit: pattern shapes not yet stepable compile to a match plan" {
+    // Catalog of the constraint shapes constraintsStepable still rejects,
+    // each of which keeps the plan path (a DestructurePlan). When one
+    // becomes stepable, move it to the stepable side and delete its case
+    // here. Two more non-stepable shapes have their own tests: a repeat
+    // with neither side evaluated ("(A * N) errors...") and a template
+    // repeat segment ("a template with a repeat segment..."). See
+    // src/backend/compiler.zig constraintsStepable.
+    const cases = [_][]const u8{
+        // solve_merge: no part names the type, so it needs runtime type
+        // dispatch (a number-typed merge with a runtime part does step)
+        \\G = "" $ 9 ; ("" $ 14) -> (G + X) $ X
+        ,
+        // solve_repeat: the pattern operand is a global
+        \\G = "" $ 1 ; ("" $ [1, 1]) -> (G * N) $ N
+        ,
+        // solve_repeat: the pattern operand is a fallible call
+        \\F = "" $ 1 ; ("" $ [1, 1]) -> (F() * 2) $ "ok"
+        ,
+        // search_key: an unbound key whose value evaluates (reads the key)
+        \\Id(Z) = "" $ Z ; ("" $ {"5": 5}) -> {A: Id(A)} $ A
+        ,
+        // search_key: a deep (non-leaf) key pattern
+        \\("" $ {"a": 1}) -> {[K]: 1} $ K
+        ,
+    };
+    for (cases) |src| {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        // Plans are built at compile time, so they exist regardless of
+        // whether the match then succeeds, fails, or errors at runtime.
+        _ = vm.interpret("test", src, "") catch {};
+        var plan_count: usize = 0;
+        for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+        if (plan_count < 1) {
+            std.debug.print("expected a match plan for: {s}\n", .{src});
+            return error.TestExpectedMatchPlan;
+        }
+    }
+}
+
 test "last(a, b, c) = a > b > c ; last(1, 2, 3)" {
     const parser =
         \\last(a, b, c) = a > b > c
@@ -3392,6 +3434,56 @@ test "('' $ 5) -> -(2 + N) distributes negation over merge parts" {
         Elem.numberFloat(-7),
         vm,
     );
+}
+
+test "a number merge with runtime parts subtracts them inline" {
+    // A typed number merge whose non-leftover parts include a global, a
+    // bound read, and a call: each is evaluated and subtracted at match
+    // time (MatchSubtractEval) rather than folded, so the arm steps.
+    const parser =
+        \\G = "" $ 9 ; N = "" $ 4 ; Inc(A) = "" $ A + 1 ;
+        \\("" $ 20) -> (1 + G + N + Inc(0) + X) $ X
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        Elem.numberFloat(5), // 20 - 1 - 9 - 4 - 1
+        vm,
+    );
+    var plan_count: usize = 0;
+    for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+    try std.testing.expectEqual(0, plan_count);
+}
+
+test "a runtime number merge fails a non-number scrutinee" {
+    const parser =
+        \\G = "" $ 9 ; ("" $ "x") -> (1 + G + X) $ X
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectFailure(
+        try vm.interpret("test", parser, ""),
+    );
+}
+
+test "a template global hole compares its value inline" {
+    const parser =
+        \\A = "" $ "b" ; ("" $ "abc") -> "a%(A)c" $ "ok"
+    ;
+    var vm = VM.create();
+    try vm.init(allocator, writers, config);
+    defer vm.deinit();
+    try testing.expectSuccess(
+        try vm.interpret("test", parser, ""),
+        (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
+        vm,
+    );
+    var plan_count: usize = 0;
+    for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
+    try std.testing.expectEqual(0, plan_count);
 }
 
 test "a negated placeholder rest fails against a non-number" {

@@ -145,6 +145,14 @@ pub const ExpectedSet = struct {
     }
 };
 
+// The f64 value of a number Elem (a float or a NumberString), or null when
+// the Elem isn't a number.
+fn numberFloatOf(elem: Elem, strings: StringTable) ?f64 {
+    if (elem.isFloat()) return elem.asFloat();
+    if (elem.isType(.NumberString)) return elem.asNumberString().toNumberFloat(strings).asFloat();
+    return null;
+}
+
 // Print the source text of a region on one line for a report headline,
 // clipped at the first newline or excerpt_max_len bytes.
 fn printSourceExcerpt(source: []const u8, region: Region, writer: *Writer) !void {
@@ -1484,6 +1492,32 @@ pub const VM = struct {
                 const previous = self.getScratch(dst);
                 self.setScratch(dst, Elem.numberFloat(residual));
                 previous.release();
+            },
+            .MatchSubtractEval => {
+                // The residual of a number merge with runtime-evaluated
+                // parts: the preceding expression left one summed part on
+                // the stack; subtract it from src into dst. Chained once
+                // per runtime part after MatchMergeNum folds the constants.
+                // Fails when src or the popped part isn't a number.
+                const dst = self.readByte();
+                const src = self.readByte();
+                const offset = self.readShort();
+                const part = self.pop();
+                const src_value = self.getScratch(src);
+                if (numberFloatOf(src_value, self.strings)) |src_float| {
+                    if (numberFloatOf(part, self.strings)) |part_float| {
+                        const previous = self.getScratch(dst);
+                        self.setScratch(dst, Elem.numberFloat(src_float - part_float));
+                        previous.release();
+                        part.release();
+                    } else {
+                        part.release();
+                        self.cur_frame.ip += offset;
+                    }
+                } else {
+                    part.release();
+                    self.cur_frame.ip += offset;
+                }
             },
             .MatchMergeBool => {
                 // Booleans merge by logical OR, so the residual of a merge

@@ -2090,13 +2090,19 @@ pub const Compiler = struct {
         negate: bool,
         kind: enum { bind, read, placeholder },
         slot: u8,
+        // A non-leftover part evaluates at match time (a bound read,
+        // global, or call) rather than folding to a compile-time constant,
+        // so the residual subtracts it with a MatchSubtractEval step.
+        has_runtime_part: bool,
     };
 
-    // A number merge steps when every part but one is a constant number
-    // and the leftover is a bind, bound read, or placeholder, possibly
-    // under negations: the residual after subtracting the constants
-    // determines the leftover directly. Anything else — evals, globals,
-    // several unknown parts — keeps the plan path.
+    // A number merge steps when exactly one part is the leftover — a bind,
+    // bound read, or placeholder, possibly under negations — and every
+    // other part is a value the residual subtracts: a constant number
+    // (folded), or a bound read, global, or call (evaluated per match). The
+    // leftover is the residual after subtracting the rest. A negated
+    // non-leftover part, a negated leftover paired with a runtime part, two
+    // unknowns, or a non-numeric part keeps the plan path.
     fn classifyNumMergeStep(
         self: *Compiler,
         ast: *const Ast,
@@ -2106,13 +2112,10 @@ pub const Compiler = struct {
         _ = self;
         if ((ty orelse return null) != .number) return null;
         var found: ?NumMergeStep = null;
+        var has_runtime = false;
         for (parts, 0..) |part, i| {
             var negate = false;
-            const leftover = switch (part) {
-                .expr => |node| {
-                    if (!constNumberNode(ast, node)) return null;
-                    continue;
-                },
+            const inner = switch (part) {
                 .sub => |set_id| blk: {
                     const set = &ast.constraint_sets.items[set_id];
                     if (set.constraints.items.len != 1) return null;
@@ -2126,15 +2129,51 @@ pub const Compiler = struct {
                 },
                 else => part,
             };
-            if (found != null) return null;
-            found = switch (leftover) {
-                .bind => |l| .{ .part_index = i, .negate = negate, .kind = .bind, .slot = l.slot },
-                .read => |l| .{ .part_index = i, .negate = negate, .kind = .read, .slot = l.slot },
-                .placeholder => .{ .part_index = i, .negate = negate, .kind = .placeholder, .slot = 0 },
+            switch (inner) {
+                // Unbound parts must be the single leftover.
+                .bind, .placeholder => {
+                    if (found) |f| {
+                        // A read already taken as the leftover demotes to a
+                        // summed part when a genuine unbound appears.
+                        if (f.kind != .read or f.negate) return null;
+                        has_runtime = true;
+                    }
+                    found = switch (inner) {
+                        .bind => |l| .{ .part_index = i, .negate = negate, .kind = .bind, .slot = l.slot, .has_runtime_part = false },
+                        .placeholder => .{ .part_index = i, .negate = negate, .kind = .placeholder, .slot = 0, .has_runtime_part = false },
+                        else => unreachable,
+                    };
+                },
+                // A read is the leftover only until a genuine unbound part
+                // claims that role; otherwise it is a summed runtime value.
+                .read => |l| {
+                    if (found == null) {
+                        found = .{ .part_index = i, .negate = negate, .kind = .read, .slot = l.slot, .has_runtime_part = false };
+                    } else {
+                        if (negate) return null;
+                        has_runtime = true;
+                    }
+                },
+                // Summed value parts: constants fold, everything else
+                // (calls, globals) evaluates at match time. Negation of a
+                // summed part is unsupported inline.
+                .expr => |node| {
+                    if (negate) return null;
+                    if (!constNumberNode(ast, node)) has_runtime = true;
+                },
+                .global => {
+                    if (negate) return null;
+                    has_runtime = true;
+                },
                 else => return null,
-            };
+            }
         }
-        return found;
+        var step = found orelse return null;
+        // Negating the leftover flips the residual sign, which the runtime
+        // subtraction chain does not express; keep it on the plan path.
+        if (step.negate and has_runtime) return null;
+        step.has_runtime_part = has_runtime;
+        return step;
     }
 
     fn constNumberNode(ast: *const Ast, id: Ast.NodeId) bool {
@@ -2317,7 +2356,11 @@ pub const Compiler = struct {
                 // String-typed merges, object merges, and repeat segments
                 // keep the plan path.
                 .gate,
-            .global, .local => .gate,
+            // A global hole evaluates at match time (invoking a zero-arity
+            // function) and compares like a bound read; a multi-arity
+            // function global is rejected at emit, as the plan path does.
+            .global => .value,
+            .local => .gate,
         };
     }
 
@@ -3345,6 +3388,10 @@ pub const Compiler = struct {
             return;
         }
         const step = self.classifyNumMergeStep(ast, ty, parts).?;
+        if (step.has_runtime_part) {
+            try self.emitNumMergeRuntime(module_id, ast, parts, step, src_reg, dead_reg, fail_jumps, region);
+            return;
+        }
         var sum: f64 = 0;
         for (parts, 0..) |part, i| {
             if (i == step.part_index) continue;
@@ -3380,6 +3427,73 @@ pub const Compiler = struct {
             .constant = constant,
             .target = Ir.unpatched_jump,
         } }, region));
+        switch (step.kind) {
+            .bind => _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                .op = .MatchBind,
+                .byte1 = step.slot,
+                .byte2 = dead_reg,
+            } }, region),
+            .read => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                .op = .MatchSlot,
+                .byte1 = dead_reg,
+                .byte2 = step.slot,
+                .target = Ir.unpatched_jump,
+            } }, region)),
+            .placeholder => {},
+        }
+    }
+
+    // The residual of a number merge whose non-leftover parts include a
+    // runtime value (a bound read, global, or call): fold the constant
+    // parts and subtract them (MatchMergeNum, which also gates src as a
+    // number), then subtract each runtime part in turn (MatchSubtractEval)
+    // into dead_reg, and bind or compare the leftover against it.
+    fn emitNumMergeRuntime(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        parts: []const Ast.Part,
+        step: NumMergeStep,
+        src_reg: u8,
+        dead_reg: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        var const_sum: f64 = 0;
+        for (parts, 0..) |part, i| {
+            if (i == step.part_index) continue;
+            switch (part) {
+                .expr => |id| if (constNumberNode(ast, id)) {
+                    const elem = try self.goalPatternConstElem(ast, id);
+                    const_sum += elem.asFloat();
+                },
+                else => {},
+            }
+        }
+        const constant = try self.makeConstantU16(module_id, Elem.numberFloat(const_sum), region);
+        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
+            .op = .MatchMergeNum,
+            .byte1 = dead_reg,
+            .byte2 = src_reg,
+            .constant = constant,
+            .target = Ir.unpatched_jump,
+        } }, region));
+        for (parts, 0..) |part, i| {
+            if (i == step.part_index) continue;
+            const is_const = switch (part) {
+                .expr => |id| constNumberNode(ast, id),
+                else => false,
+            };
+            if (is_const) continue;
+            try self.emitEvaluablePartValue(module_id, ast, part, region);
+            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                .op = .MatchSubtractEval,
+                .byte1 = dead_reg,
+                .byte2 = dead_reg,
+                .target = Ir.unpatched_jump,
+            } }, region));
+        }
         switch (step.kind) {
             .bind => _ = try self.ir().push(allocator, .{ .match_bytes = .{
                 .op = .MatchBind,
@@ -3778,11 +3892,7 @@ pub const Compiler = struct {
                 .target = Ir.unpatched_jump,
             } }, region)),
             .value => |part| {
-                switch (part) {
-                    .read => |ls| try self.emitUnaryOp(.GetLocal, ls.slot, region),
-                    .expr => |id| try self.writeGoal(module_id, ast, id),
-                    else => unreachable,
-                }
+                try self.emitEvaluablePartValue(module_id, ast, part, region);
                 try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_str_val = .{
                     .op = .MatchStrVal,
                     .src = reg,
@@ -3894,7 +4004,7 @@ pub const Compiler = struct {
         const allocator = self.vm.allocator;
         switch (part) {
             .read, .global, .expr => {
-                try self.emitNegatedEvalValue(module_id, ast, part, region);
+                try self.emitEvaluablePartValue(module_id, ast, part, region);
                 var i: u32 = 0;
                 while (i < count) : (i += 1) try self.emitOp(.NegateNumber, region);
                 try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
@@ -3931,10 +4041,11 @@ pub const Compiler = struct {
         }
     }
 
-    // Push an evaluable negated inner's value: a bound local, a global
-    // (invoking a zero-arity function like the plan's const_fn), or an
-    // expression goal (a constant or a call).
-    fn emitNegatedEvalValue(
+    // Push an evaluable part's value onto the stack: a bound local, a
+    // global (invoking a zero-arity function like the plan's const_fn), or
+    // an expression goal (a constant or a call). Shared by negation and
+    // template value holes.
+    fn emitEvaluablePartValue(
         self: *Compiler,
         module_id: Module.Id,
         ast: *const Ast,
