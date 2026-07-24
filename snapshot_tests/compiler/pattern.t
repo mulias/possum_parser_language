@@ -846,19 +846,22 @@
   ========================================
   0000    | PushVar V
   0002    | GetLocalMove l0
-  0004    | JumpIfFailure 4 -> 40
+  0004    | JumpIfFailure 4 -> 46
   0007    | MatchWindowEnter 5
   0009    | MatchScrutinee r0
-  0011    | MatchType r0 object -> 38
-  0016    | MatchCount r0 >=1 -> 38
-  0022    | MatchKeyBound key=r2 val=r3 src=r0[l1] keys=r2..r2 \ [] -> 38
-  0032    | MatchBind l2 r3
-  0035    | Jump 35 -> 39
-  0038    | MatchFail
-  0039    | MatchWindowExit
-  0040    | TakeRight 40 -> 45
-  0043    | GetLocalMove l2
-  0045    | End
+  0011    | MatchType r0 object -> 44
+  0016    | MatchCount r0 >=1 -> 44
+  0022    | MatchKeyBound key=r2 val=r3 src=r0[l1] keys=r2..r2 \ [] -> 44
+  0032    | MatchWindowEnter 2
+  0034    | MatchSubScrutinee r0 ^r3
+  0037    | MatchBind l2 r0
+  0040    | MatchWindowExit
+  0041    | Jump 41 -> 45
+  0044    | MatchFail
+  0045    | MatchWindowExit
+  0046    | TakeRight 46 -> 51
+  0049    | GetLocalMove l2
+  0051    | End
   ========================================
   
   ================2:@main=================
@@ -2667,20 +2670,24 @@
   0002    | GetConstant 1: alpha
   0004    | GetConstant 2: digit
   0006    | CallFunction 2
-  0008    | JumpIfFailure 8 -> 56
+  0008    | JumpIfFailure 8 -> 63
   0011    | MatchWindowEnter 5
   0013    | MatchScrutinee r0
-  0015    | MatchType r0 object -> 54
-  0020    | MatchCount r0 >=1 -> 54
+  0015    | MatchType r0 object -> 61
+  0020    | MatchCount r0 >=1 -> 61
   0026    | MatchSearchInit r4
-  0028    | MatchNextUnclaimed key=r2 val=r3 src=r0 cursor=r4 keys=r2..r2 \ [] loop->54
-  0038    | MatchCmp r3 == 1 -> 48
-  0045    | Jump 45 -> 51
-  0048    | JumpBack 48 -> 28
-  0051    | Jump 51 -> 55
-  0054    | MatchFail
-  0055    | MatchWindowExit
-  0056    | End
+  0028    | MatchNextUnclaimed key=r2 val=r3 src=r0 cursor=r4 keys=r2..r2 \ [] loop->61
+  0038    | MatchWindowEnter 2
+  0040    | MatchSubScrutinee r0 ^r3
+  0043    | MatchCmp r0 == 1 -> 53
+  0050    | Jump 50 -> 57
+  0053    | MatchWindowExit
+  0054    | JumpBack 54 -> 28
+  0057    | MatchWindowExit
+  0058    | Jump 58 -> 62
+  0061    | MatchFail
+  0062    | MatchWindowExit
+  0063    | End
   ========================================
 
   $ possum -p 'object(alpha, digit) -> {"a": A, ..._}' -i 'a1b2'

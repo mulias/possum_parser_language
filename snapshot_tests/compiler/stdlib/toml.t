@@ -3987,16 +3987,19 @@
   Obj.Has(O, K) = O -> {K: _, ..._}
   ========================================
   0000    | GetLocalMove l0
-  0002    | JumpIfFailure 2 -> 35
+  0002    | JumpIfFailure 2 -> 41
   0005    | MatchWindowEnter 5
   0007    | MatchScrutinee r0
-  0009    | MatchType r0 object -> 33
-  0014    | MatchCount r0 >=1 -> 33
-  0020    | MatchKeyBound key=r2 val=r3 src=r0[l1] keys=r2..r2 \ [] -> 33
-  0030    | Jump 30 -> 34
-  0033    | MatchFail
-  0034    | MatchWindowExit
-  0035    | End
+  0009    | MatchType r0 object -> 39
+  0014    | MatchCount r0 >=1 -> 39
+  0020    | MatchKeyBound key=r2 val=r3 src=r0[l1] keys=r2..r2 \ [] -> 39
+  0030    | MatchWindowEnter 2
+  0032    | MatchSubScrutinee r0 ^r3
+  0035    | MatchWindowExit
+  0036    | Jump 36 -> 40
+  0039    | MatchFail
+  0040    | MatchWindowExit
+  0041    | End
   ========================================
   
   ===============13:Obj.Get===============
@@ -4004,19 +4007,22 @@
   ========================================
   0000    | PushVar2 V
   0003    | GetLocalMove l0
-  0005    | JumpIfFailure 5 -> 41
+  0005    | JumpIfFailure 5 -> 47
   0008    | MatchWindowEnter 5
   0010    | MatchScrutinee r0
-  0012    | MatchType r0 object -> 39
-  0017    | MatchCount r0 >=1 -> 39
-  0023    | MatchKeyBound key=r2 val=r3 src=r0[l1] keys=r2..r2 \ [] -> 39
-  0033    | MatchBind l2 r3
-  0036    | Jump 36 -> 40
-  0039    | MatchFail
-  0040    | MatchWindowExit
-  0041    | TakeRight 41 -> 46
-  0044    | GetLocalMove l2
-  0046    | End
+  0012    | MatchType r0 object -> 45
+  0017    | MatchCount r0 >=1 -> 45
+  0023    | MatchKeyBound key=r2 val=r3 src=r0[l1] keys=r2..r2 \ [] -> 45
+  0033    | MatchWindowEnter 2
+  0035    | MatchSubScrutinee r0 ^r3
+  0038    | MatchBind l2 r0
+  0041    | MatchWindowExit
+  0042    | Jump 42 -> 46
+  0045    | MatchFail
+  0046    | MatchWindowExit
+  0047    | TakeRight 47 -> 52
+  0050    | GetLocalMove l2
+  0052    | End
   ========================================
   
   ===============13:Obj.Put===============

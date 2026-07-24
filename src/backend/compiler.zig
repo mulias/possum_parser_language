@@ -2925,6 +2925,7 @@ pub const Compiler = struct {
                     // were written in; pairs claim their found keys into
                     // the claim registers for later pairs and the rest.
                     const constant = try self.hasKeyListConstant(module_id, constraints, c.place, step_region);
+                    const value_set = &ast.constraint_sets.items[c.value];
 
                     const bound_key: ?u8 = if (singleSetConstraint(ast, c.key)) |kc| switch (kc.kind) {
                         .eq_slot => |s| s.slot,
@@ -2932,9 +2933,10 @@ pub const Compiler = struct {
                     } else null;
 
                     if (bound_key) |slot| {
-                        // A known key probes its member directly; a value
-                        // test failure fails the arm since no other
-                        // member can carry this key.
+                        // A known key probes its member directly; the
+                        // value matches in a nested window, and a mismatch
+                        // fails the arm since no other member can carry
+                        // this key.
                         try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_key_bound = .{
                             .op = .MatchKeyBound,
                             .key_dst = key_dst,
@@ -2945,16 +2947,15 @@ pub const Compiler = struct {
                             .constant = constant,
                             .target = Ir.unpatched_jump,
                         } }, step_region));
-                        if (try self.emitSearchTest(module_id, ast, c.value, value_reg, step_region)) |fail_idx| {
-                            try fail_jumps.append(allocator, fail_idx);
-                        }
-                        try self.emitSearchBind(ast, c.value, value_reg, step_region);
+                        try self.writeMatchSteps(module_id, ast, value_set.places.items, value_set.constraints.items, .{ .sub = .{ .src_reg = value_reg, .on_fail = .{ .arm = &fail_jumps } } }, step_region);
                         continue;
                     }
 
                     // An unknown key scans for the first unclaimed member
-                    // the value pattern accepts; a value that can fail
-                    // loops back to try the next member.
+                    // the value pattern accepts; the value matches in a
+                    // nested window scrutinized by the found member, and a
+                    // rejected candidate exits that window and loops back.
+                    // The key binds only once the value matched.
                     try self.emitUnaryOp(.MatchSearchInit, cursor_reg, step_region);
                     const loop = self.ir().nextIndex();
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_search = .{
@@ -2967,30 +2968,15 @@ pub const Compiler = struct {
                         .constant = constant,
                         .target = Ir.unpatched_jump,
                     } }, step_region));
-
-                    if (!self.searchSetStepable(ast, c.value, false)) {
-                        // A structural value matches in a nested window
-                        // scrutinized by the found member; a rejected
-                        // candidate exits that window and loops back. The
-                        // key binds only once the value matched.
-                        const value_set = &ast.constraint_sets.items[c.value];
-                        try self.writeMatchSteps(module_id, ast, value_set.places.items, value_set.constraints.items, .{ .sub = .{ .src_reg = value_reg, .on_fail = .{ .retry = loop } } }, step_region);
-                        try self.emitSearchBind(ast, c.key, key_dst, step_region);
-                        continue;
-                    }
-
-                    // Tests before binds: a member the pair rejects loops
-                    // to the next candidate without touching any slot.
-                    const value_fail = try self.emitSearchTest(module_id, ast, c.value, value_reg, step_region);
-                    try self.emitSearchBind(ast, c.key, key_dst, step_region);
-                    try self.emitSearchBind(ast, c.value, value_reg, step_region);
-
-                    if (value_fail) |fail_idx| {
-                        const okJump = try self.emitJump(.Jump, step_region);
-                        self.patchJump(fail_idx);
-                        try self.emitJumpBack(.JumpBack, loop, step_region);
-                        self.patchJump(okJump);
-                    }
+                    try self.writeMatchSteps(module_id, ast, value_set.places.items, value_set.constraints.items, .{ .sub = .{ .src_reg = value_reg, .on_fail = .{ .retry = loop } } }, step_region);
+                    if (singleSetConstraint(ast, c.key)) |kc| switch (kc.kind) {
+                        .bind => |b| _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                            .op = .MatchBind,
+                            .byte1 = b.slot,
+                            .byte2 = key_dst,
+                        } }, step_region),
+                        else => {},
+                    };
                 },
                 .solve_repeat => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
@@ -3193,67 +3179,6 @@ pub const Compiler = struct {
         const set = &ast.constraint_sets.items[set_id];
         if (set.constraints.items.len == 0) return null;
         return &set.constraints.items[0];
-    }
-
-    // Emit a search sub-pattern's leaf test against reg. Returns the
-    // fail-jump index for a semidet test, or null when the sub-pattern
-    // always matches (a bind or placeholder). armStepable admits only
-    // these kinds.
-    fn emitSearchTest(
-        self: *Compiler,
-        module_id: Module.Id,
-        ast: *const Ast,
-        set_id: Ast.SetId,
-        reg: u8,
-        region: Region,
-    ) Error!?Ir.Index {
-        const allocator = self.vm.allocator;
-        const constraint = singleSetConstraint(ast, set_id) orelse return null;
-        switch (constraint.kind) {
-            .bind => return null,
-            .eq_const => |c| {
-                const elem = try self.goalPatternConstElem(ast, c.value);
-                const constant = try self.makeConstantU16(module_id, elem, region);
-                return try self.ir().push(allocator, .{ .match_cmp = .{
-                    .reg = reg,
-                    .kind = .constant,
-                    .arg = constant,
-                    .target = Ir.unpatched_jump,
-                } }, region);
-            },
-            .eq_slot => |c| {
-                return try self.ir().push(allocator, .{ .match_cmp = .{
-                    .reg = reg,
-                    .kind = .slot,
-                    .arg = c.slot,
-                    .target = Ir.unpatched_jump,
-                } }, region);
-            },
-            .eq_global => |c| {
-                return try self.emitEqGlobalStep(module_id, c.name, reg, region);
-            },
-            else => unreachable,
-        }
-    }
-
-    // Bind a search sub-pattern's slot from reg (or nothing for a test or
-    // placeholder). The register already holds the found key or value.
-    fn emitSearchBind(
-        self: *Compiler,
-        ast: *const Ast,
-        set_id: Ast.SetId,
-        reg: u8,
-        region: Region,
-    ) Error!void {
-        const constraint = singleSetConstraint(ast, set_id) orelse return;
-        switch (constraint.kind) {
-            .bind => |c| _ = try self.ir().push(self.vm.allocator, .{ .match_bytes = .{
-                .op = .MatchBind,
-                .byte1 = c.slot,
-                .byte2 = reg,
-            } }, region),
-            else => {},
-        }
     }
 
     // Push a repeat operand's value onto the stack for the repeat step
