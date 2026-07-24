@@ -25,6 +25,9 @@ ast: Ast = .{},
 anonymous_function_count: u64 = 0,
 import_alias_count: u64 = 0,
 current_parent_function_name: ?PathTable.Id = null,
+// Declaration and alias names already bound in this module, for the
+// duplicate-declaration check.
+declared_names: std.AutoHashMapUnmanaged(PathTable.Id, void) = .{},
 
 pub const Goal = @This();
 pub const NodeId = Ast.NodeId;
@@ -34,9 +37,26 @@ pub const PlaceId = Ast.PlaceId;
 // GoalAstGap: a construct the goal ast cannot express yet.
 // PatternTooLarge: a place index, length, or key count exceeds what the
 // match-step byte encoding admits.
-// InvalidAst: a context violation the canonicalizer rejects first; goal
-// build only reaches these branches if its context routing diverges.
-pub const Error = error{ OutOfMemory, GoalAstGap, MergeTypeConflict, PatternTooLarge, InvalidCharacter, InvalidAst } || Writer.Error;
+// InvalidAst and the context/import/param variants: context violations
+// build rejects, each printed with a message before the error is raised.
+pub const Error = error{
+    OutOfMemory,
+    GoalAstGap,
+    MergeTypeConflict,
+    PatternTooLarge,
+    InvalidCharacter,
+    InvalidAst,
+    InvalidGlobalParser,
+    InvalidImport,
+    InvalidPatternNode,
+    InvalidFunctionArgument,
+    MultipleMainParsers,
+    DuplicateParameterName,
+    NamespacedParameterName,
+    DuplicateDeclaration,
+    ReservedBuiltinName,
+    RangeNotValidInValueContext,
+} || Writer.Error;
 
 pub fn init(
     arena: *ArenaAllocator,
@@ -83,28 +103,16 @@ fn convertRoot(self: *Goal, root: *ParsedAst.RNode) Error!void {
 
         if (head.node == .Function) {
             const func = head.node.Function;
-            const name_ident = try declName(func.name);
+            const name_ident = try self.declName(func.name, "Invalid function name");
             if (name_ident.kind == .Parser) {
                 try self.addParserDeclaration(name_ident, func.name.region, func.paramsOrArgs.items, body, root.region);
             } else {
                 try self.addValueDeclaration(name_ident, func.name.region, func.paramsOrArgs.items, body, root.region);
             }
         } else {
-            const name_ident = try declName(head);
+            const name_ident = try self.declName(head, "Invalid alias name");
             if (body.node == .Import) {
-                // A module import bound to an alias.
-                const import = body.node.Import;
-                const alias_name = try self.paths.insert(self.strings, name_ident.name);
-                const selector = if (import.selector) |s|
-                    try self.paths.insert(self.strings, s)
-                else
-                    null;
-                try self.ast.imports.append(self.alloc(), .{
-                    .path = importPath(import.path),
-                    .target = .{ .alias = .{ .name = alias_name, .selector = selector } },
-                    .region = root.region,
-                });
-                return;
+                return self.addImportAlias(name_ident, head.region, body.node.Import.*, root.region);
             }
             if (name_ident.kind == .Parser) {
                 try self.addParserDeclaration(name_ident, head.region, &.{}, body, root.region);
@@ -117,20 +125,66 @@ fn convertRoot(self: *Goal, root: *ParsedAst.RNode) Error!void {
         self.current_parent_function_name = name;
         self.ast.main = try self.convertParser(root);
         self.ast.main_name = name;
+    } else {
+        try self.printError(root.region, "Only one main parser expression is allowed per module", .{});
+        return Error.MultipleMainParsers;
     }
-    // A second bare expression is rejected by the canonicalizer.
 }
 
 // The declared name for a function head, synthesizing an identifier for
-// the reserved-word declarations `false`, `true`, and `null`.
-fn declName(name_node: *ParsedAst.RNode) Error!ParsedAst.IdentifierNode {
-    return switch (name_node.node) {
+// the reserved-word declarations `false`, `true`, and `null`, and
+// rejecting `@`-prefixed builtin names.
+fn declName(self: *Goal, name_node: *ParsedAst.RNode, comptime invalid_message: []const u8) Error!ParsedAst.IdentifierNode {
+    const name_ident: ParsedAst.IdentifierNode = switch (name_node.node) {
         .Identifier => |ident| ident,
         .False => .{ .name = "false", .builtin = false, .underscored = false, .kind = .Parser },
         .True => .{ .name = "true", .builtin = false, .underscored = false, .kind = .Parser },
         .Null => .{ .name = "null", .builtin = false, .underscored = false, .kind = .Parser },
-        else => Error.InvalidAst,
+        else => {
+            try self.printError(name_node.region, invalid_message, .{});
+            return Error.InvalidAst;
+        },
     };
+    if (name_ident.builtin) {
+        try self.printError(name_node.region, "Unable to declare '{s}', '@' is reserved for builtins", .{name_ident.name});
+        return Error.ReservedBuiltinName;
+    }
+    return name_ident;
+}
+
+fn addImportAlias(
+    self: *Goal,
+    name_ident: ParsedAst.IdentifierNode,
+    name_region: Region,
+    import: ParsedAst.ImportNode,
+    region: Region,
+) Error!void {
+    if (import.private) {
+        try self.printError(region, "'_!' cannot be aliased; a '_'-prefixed alias is already private: '_name = !...'", .{});
+        return Error.InvalidImport;
+    }
+
+    const alias_name = try self.paths.insert(self.strings, name_ident.name);
+    try self.checkDuplicateDeclaration(alias_name, name_region);
+
+    const selector = if (import.selector) |s|
+        try self.paths.insert(self.strings, s)
+    else
+        null;
+
+    try self.ast.imports.append(self.alloc(), .{
+        .path = importPath(import.path),
+        .target = .{ .alias = .{ .name = alias_name, .selector = selector } },
+        .region = region,
+    });
+}
+
+fn checkDuplicateDeclaration(self: *Goal, name: PathTable.Id, region: Region) Error!void {
+    const gop = try self.declared_names.getOrPut(self.alloc(), name);
+    if (gop.found_existing) {
+        try self.printError(region, "'{s}' is already declared in this module", .{self.strings.get(self.paths.flat(name))});
+        return Error.DuplicateDeclaration;
+    }
 }
 
 fn addParserDeclaration(
@@ -148,20 +202,50 @@ fn addParserDeclaration(
     try param_ids.ensureTotalCapacity(self.alloc(), params.len);
     var param_types: u32 = 0;
     for (params, 0..) |param, i| {
-        const pident = param.node.Identifier;
-        param_ids.appendAssumeCapacity(try self.paths.insert(self.strings, pident.name));
+        const pident = try self.appendParam(param, &param_ids);
         if (pident.kind == .Value and i < 32) param_types |= @as(u32, 1) << @intCast(i);
     }
+
+    const body_id = try self.convertParser(body);
+    try self.checkDuplicateDeclaration(name, name_region);
 
     try self.ast.declarations.append(self.alloc(), .{
         .name = name,
         .underscored = name_ident.underscored,
         .params = param_ids,
         .param_types = param_types,
-        .body = try self.convertParser(body),
+        .body = body_id,
         .region = region,
         .ident_region = name_region,
     });
+}
+
+// Validate one declaration parameter and append its interned name. A
+// parameter must be a bare, non-builtin, non-namespaced identifier, unique
+// within the parameter list.
+fn appendParam(self: *Goal, param: *ParsedAst.RNode, param_ids: *ArrayList(PathTable.Id)) Error!ParsedAst.IdentifierNode {
+    if (param.node != .Identifier) {
+        try self.printError(param.region, "Invalid function parameter", .{});
+        return Error.InvalidFunctionArgument;
+    }
+    const pident = param.node.Identifier;
+    if (pident.builtin) {
+        try self.printError(param.region, "Invalid function param, '@' is reserved for builtins", .{});
+        return Error.ReservedBuiltinName;
+    }
+    if (std.mem.indexOfScalar(u8, pident.name, '.') != null) {
+        try self.printError(param.region, "Invalid function param, '.' is reserved for namespaces", .{});
+        return Error.NamespacedParameterName;
+    }
+    const id = try self.paths.insert(self.strings, pident.name);
+    for (param_ids.items) |existing| {
+        if (existing == id) {
+            try self.printError(param.region, "Duplicate parameter '{s}'", .{pident.name});
+            return Error.DuplicateParameterName;
+        }
+    }
+    try param_ids.append(self.alloc(), id);
+    return pident;
 }
 
 fn addValueDeclaration(
@@ -178,17 +262,19 @@ fn addValueDeclaration(
     try param_ids.ensureTotalCapacity(self.alloc(), params.len);
     var param_types: u32 = 0;
     for (params, 0..) |param, i| {
-        const pident = param.node.Identifier;
-        param_ids.appendAssumeCapacity(try self.paths.insert(self.strings, pident.name));
+        _ = try self.appendParam(param, &param_ids);
         if (i < 32) param_types |= @as(u32, 1) << @intCast(i);
     }
+
+    const body_id = try self.convertValue(body);
+    try self.checkDuplicateDeclaration(name, name_region);
 
     try self.ast.declarations.append(self.alloc(), .{
         .name = name,
         .underscored = name_ident.underscored,
         .params = param_ids,
         .param_types = param_types,
-        .body = try self.convertValue(body),
+        .body = body_id,
         .region = region,
         .ident_region = name_region,
     });
@@ -214,6 +300,10 @@ fn nextAnonymousFunctionName(self: *Goal) Error!PathTable.Id {
 // the referencing ident matches the dependency graph, and the import is
 // recorded so the resolver mounts the alias.
 fn importExpressionAlias(self: *Goal, import: ParsedAst.ImportNode, kind: enum { parser, value }, region: Region) Error!PathTable.Id {
+    if (import.private) {
+        try self.printError(region, "'_!' is not an expression; an import expression is already private: '!...'", .{});
+        return Error.InvalidImport;
+    }
     const alias_str = switch (kind) {
         .parser => try std.fmt.allocPrint(self.alloc(), "_@import{d}", .{self.import_alias_count}),
         .value => try std.fmt.allocPrint(self.alloc(), "_@Import{d}", .{self.import_alias_count}),
@@ -294,7 +384,9 @@ fn convertParser(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
             .Or => self.convertParserAlt(rnode),
             .Repeat => blk: {
                 const body = try self.convertParser(infix.left);
-                const count = try self.foldPattern(try self.convertPattern(infix.right));
+                const count_pattern = try self.convertPattern(infix.right);
+                try self.validateRepeatCountPattern(count_pattern);
+                const count = try self.foldPattern(count_pattern);
                 break :blk self.addGoal(.{ .repeat = .{
                     .body = body,
                     .cap = try self.repeatCap(count),
@@ -319,7 +411,10 @@ fn convertParser(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
                 1,
                 region,
             ),
-            .NumberSubtract => Error.InvalidAst,
+            .NumberSubtract => {
+                try self.printError(region, "Number subtraction is not valid in parser context", .{});
+                return Error.InvalidAst;
+            },
         },
         .Range => |r| self.invoked(try self.addGoal(.{ .range = .{
             .lower = if (r.lower) |lower| try self.convertParserValue(lower) else null,
@@ -328,7 +423,22 @@ fn convertParser(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
         .Negation => self.invoked(try self.addGoal(.{
             .number_string = try self.parserNumberFields(rnode),
         }, region), region),
-        .ValueLabel, .Array, .Object, .DeclareGlobal => Error.InvalidAst,
+        .ValueLabel => {
+            try self.printError(region, "Value label '$' is not valid in parser context", .{});
+            return Error.InvalidAst;
+        },
+        .Array => {
+            try self.printError(region, "Array literal is not valid in parser context", .{});
+            return Error.InvalidAst;
+        },
+        .Object => {
+            try self.printError(region, "Object literal is not valid in parser context", .{});
+            return Error.InvalidAst;
+        },
+        .DeclareGlobal => {
+            try self.printError(region, "Global declaration is not valid in expression context", .{});
+            return Error.InvalidAst;
+        },
         .StringTemplate => |parts| self.convertParserTemplate(parts, region),
         .Conditional => self.convertParserAlt(rnode),
         .Function => |func| self.convertParserCall(func, region),
@@ -339,12 +449,19 @@ fn convertParser(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
             .number_string = try self.parserNumberFields(rnode),
         }, region), region),
         .String => |s| self.invoked(try self.addGoal(.{ .string = try self.alloc().dupe(u8, s) }, region), region),
-        .Identifier => |ident| if (ident.kind != .Parser)
-            Error.InvalidAst
-        else
-            self.invoked(try self.parsedIdentGoal(ident, .parser, region), region),
+        .Identifier => |ident| if (ident.kind != .Parser) {
+            try self.printError(region, "Value identifier '{s}' is not valid in parser context", .{ident.name});
+            return Error.InvalidGlobalParser;
+        } else self.invoked(try self.parsedIdentGoal(ident, .parser, region), region),
         .Import => |import| blk: {
-            _ = import.selector orelse break :blk Error.InvalidAst;
+            const selector = import.selector orelse {
+                try self.printError(region, "A module import is not an expression; bind it with 'name = !...' first", .{});
+                return Error.InvalidImport;
+            };
+            if (importSelectorKind(selector) != .parser) {
+                try self.printError(region, "Value member '{s}' is not valid in parser context", .{selector});
+                return Error.InvalidImport;
+            }
             const name = try self.importExpressionAlias(import.*, .parser, region);
             break :blk self.invoked(try self.nameIdentGoal(name, .parser, region), region);
         },
@@ -442,7 +559,14 @@ fn convertParserValue(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
             .number_string = try self.parserNumberFields(rnode),
         }, region),
         .Import => |import| blk: {
-            _ = import.selector orelse break :blk Error.InvalidAst;
+            const selector = import.selector orelse {
+                try self.printError(region, "A module import is not an expression; bind it with 'name = !...' first", .{});
+                return Error.InvalidImport;
+            };
+            if (importSelectorKind(selector) != .parser) {
+                try self.printError(region, "Value member '{s}' is not valid in parser context", .{selector});
+                return Error.InvalidImport;
+            }
             const name = try self.importExpressionAlias(import.*, .parser, region);
             break :blk self.nameIdentGoal(name, .parser, region);
         },
@@ -532,14 +656,26 @@ fn convertLabeledValue(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
         .Identifier,
         .Import,
         => self.convertValue(rnode),
-        .False,
-        .True,
-        .Null,
-        .NumberFloat,
-        .NumberString,
-        .String,
-        .StringTemplate,
-        => Error.InvalidAst,
+        .False => {
+            try self.printError(rnode.region, "false must be labeled with $ to be treated as a value", .{});
+            return Error.InvalidAst;
+        },
+        .True => {
+            try self.printError(rnode.region, "true must be labeled with $ to be treated as a value", .{});
+            return Error.InvalidAst;
+        },
+        .Null => {
+            try self.printError(rnode.region, "null must be labeled with $ to be treated as a value", .{});
+            return Error.InvalidAst;
+        },
+        .NumberFloat, .NumberString => {
+            try self.printError(rnode.region, "number must be labeled with $ to be treated as a value", .{});
+            return Error.InvalidAst;
+        },
+        .String, .StringTemplate => {
+            try self.printError(rnode.region, "string must be labeled with $ to be treated as a value", .{});
+            return Error.InvalidAst;
+        },
     };
 }
 
@@ -560,10 +696,12 @@ fn convertValue(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
                 .right = try self.convertValue(infix.right),
             } }, region),
             .Or => self.convertValueAlt(rnode),
-            .Repeat => self.addGoal(.{ .mult = .{
-                .left = try self.convertValue(infix.left),
-                .right = try self.convertValue(infix.right),
-            } }, region),
+            .Repeat => blk: {
+                const left = try self.convertValue(infix.left);
+                const right = try self.convertValue(infix.right);
+                try self.validateRepeatCountValue(infix.right);
+                break :blk self.addGoal(.{ .mult = .{ .left = left, .right = right } }, region);
+            },
             .Return => self.seqPair(
                 try self.convertValue(infix.left),
                 try self.convertValue(infix.right),
@@ -589,7 +727,10 @@ fn convertValue(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
                 }, infix.right.region),
             } }, region),
         },
-        .Range => Error.InvalidAst,
+        .Range => {
+            try self.printError(region, "Range is not valid in value context", .{});
+            return Error.RangeNotValidInValueContext;
+        },
         .Negation => |inner| self.addGoal(.{ .neg = try self.convertValue(inner) }, region),
         .ValueLabel => |inner| self.convertValue(inner),
         .Array => |elems| blk: {
@@ -610,7 +751,10 @@ fn convertValue(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
         .StringTemplate => |parts| self.convertValueTemplate(parts, region),
         .Conditional => self.convertValueAlt(rnode),
         .Function => |func| self.convertValueCall(func, region),
-        .DeclareGlobal => Error.InvalidAst,
+        .DeclareGlobal => {
+            try self.printError(region, "Global declaration is not valid in expression context", .{});
+            return Error.InvalidAst;
+        },
         .False => self.addGoal(.false, region),
         .True => self.addGoal(.true, region),
         .Null => self.addGoal(.null, region),
@@ -623,13 +767,19 @@ fn convertValue(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
                 .negated = ns.negated,
             } }, region),
         .String => |s| self.addGoal(.{ .string = try self.alloc().dupe(u8, s) }, region),
-        .Identifier => |ident| if (ident.kind == .Parser)
-            Error.InvalidAst
-        else
-            self.parsedIdentGoal(ident, .value, region),
+        .Identifier => |ident| if (ident.kind == .Parser) {
+            try self.printError(region, "Parser identifier '{s}' is not valid in value context", .{ident.name});
+            return Error.InvalidAst;
+        } else self.parsedIdentGoal(ident, .value, region),
         .Import => |import| blk: {
-            const selector = import.selector orelse break :blk Error.InvalidAst;
-            if (importSelectorKind(selector) != .value) break :blk Error.InvalidAst;
+            const selector = import.selector orelse {
+                try self.printError(region, "A module import is not an expression; bind it with 'Name = !...' first", .{});
+                return Error.InvalidImport;
+            };
+            if (importSelectorKind(selector) != .value) {
+                try self.printError(region, "Parser member '{s}' is not valid in value context", .{selector});
+                return Error.InvalidImport;
+            }
             const name = try self.importExpressionAlias(import.*, .value, region);
             break :blk self.nameIdentGoal(name, .value, region);
         },
@@ -728,14 +878,28 @@ fn convertPattern(self: *Goal, rnode: *ParsedAst.RNode) Error!*Pattern.RNode {
                     infix.right.region,
                 ),
             } },
-            else => return Error.InvalidAst,
+            else => {
+                try self.printError(region, "Invalid operation in pattern context", .{});
+                return Error.InvalidPatternNode;
+            },
         },
         .Range => |range| .{ .range = .{
             .lower = if (range.lower) |l| try self.convertPattern(l) else null,
             .upper = if (range.upper) |u| try self.convertPattern(u) else null,
         } },
         .Negation => |inner| .{ .negation = try self.convertPattern(inner) },
-        .ValueLabel, .Conditional, .DeclareGlobal => return Error.InvalidAst,
+        .ValueLabel => {
+            try self.printError(region, "Value label '$' is not valid in pattern context", .{});
+            return Error.InvalidPatternNode;
+        },
+        .Conditional => {
+            try self.printError(region, "Conditional is not valid in pattern context", .{});
+            return Error.InvalidPatternNode;
+        },
+        .DeclareGlobal => {
+            try self.printError(region, "Global declaration is not valid in pattern context", .{});
+            return Error.InvalidPatternNode;
+        },
         .Array => |elems| blk: {
             var converted = ArrayList(*Pattern.RNode){};
             try converted.ensureTotalCapacity(self.alloc(), elems.items.len);
@@ -770,17 +934,23 @@ fn convertPattern(self: *Goal, rnode: *ParsedAst.RNode) Error!*Pattern.RNode {
                 .negated = ns.negated,
             } },
         .String => |s| .{ .string = try self.alloc().dupe(u8, s) },
-        .Identifier => |ident| if (ident.kind == .Parser)
-            return Error.InvalidAst
-        else
-            .{ .identifier = .{
-                .name = try self.paths.insert(self.strings, ident.name),
-                .builtin = ident.builtin,
-                .underscored = ident.underscored,
-            } },
+        .Identifier => |ident| if (ident.kind == .Parser) {
+            try self.printError(region, "Parser variable not allowed in pattern", .{});
+            return Error.InvalidPatternNode;
+        } else .{ .identifier = .{
+            .name = try self.paths.insert(self.strings, ident.name),
+            .builtin = ident.builtin,
+            .underscored = ident.underscored,
+        } },
         .Import => |import| blk: {
-            const selector = import.selector orelse return Error.InvalidAst;
-            if (importSelectorKind(selector) != .value) return Error.InvalidAst;
+            const selector = import.selector orelse {
+                try self.printError(region, "A module import is not an expression", .{});
+                return Error.InvalidImport;
+            };
+            if (importSelectorKind(selector) != .value) {
+                try self.printError(region, "Parser member '{s}' not allowed in pattern", .{selector});
+                return Error.InvalidPatternNode;
+            }
             break :blk .{ .identifier = .{
                 .name = try self.importExpressionAlias(import.*, .value, region),
                 .builtin = false,
@@ -789,6 +959,53 @@ fn convertPattern(self: *Goal, rnode: *ParsedAst.RNode) Error!*Pattern.RNode {
         },
     };
     return Pattern.create(self.alloc(), node, region);
+}
+
+// A repeat count must be numeric at runtime, so its expression is
+// restricted to shapes that can produce a number: numbers, variables,
+// function calls, ranges of those (pattern counts only), and merges,
+// negations, and repeats of those.
+fn validateRepeatCountPattern(self: *Goal, pattern: *Pattern.RNode) Error!void {
+    switch (pattern.node) {
+        .number_float, .number_string, .identifier, .function_call => {},
+        .merge => |m| {
+            try self.validateRepeatCountPattern(m.left);
+            try self.validateRepeatCountPattern(m.right);
+        },
+        .repeat => |r| {
+            try self.validateRepeatCountPattern(r.left);
+            try self.validateRepeatCountPattern(r.right);
+        },
+        .negation => |inner| try self.validateRepeatCountPattern(inner),
+        .range => |range| {
+            if (range.lower) |lower| try self.validateRepeatCountPattern(lower);
+            if (range.upper) |upper| try self.validateRepeatCountPattern(upper);
+        },
+        .array, .object, .string, .string_template, .true, .false, .null => try self.repeatCountInvalid(pattern.region),
+    }
+}
+
+// A value-context repeat count, checked on the parsed node. Value context
+// admits no range, so a range count falls through to the error.
+fn validateRepeatCountValue(self: *Goal, rnode: *ParsedAst.RNode) Error!void {
+    switch (rnode.node) {
+        .NumberFloat, .NumberString, .Identifier, .Function => {},
+        .Negation => |inner| try self.validateRepeatCountValue(inner),
+        .ValueLabel => |inner| try self.validateRepeatCountValue(inner),
+        .InfixNode => |infix| switch (infix.infixType) {
+            .Merge, .NumberSubtract, .Repeat => {
+                try self.validateRepeatCountValue(infix.left);
+                try self.validateRepeatCountValue(infix.right);
+            },
+            else => try self.repeatCountInvalid(rnode.region),
+        },
+        else => try self.repeatCountInvalid(rnode.region),
+    }
+}
+
+fn repeatCountInvalid(self: *Goal, region: Region) Error!void {
+    try self.printError(region, "Repeat count must be a number, variable, function call, or a compound of those", .{});
+    return Error.InvalidAst;
 }
 
 fn parsedIdentGoal(self: *Goal, ident: ParsedAst.IdentifierNode, kind: Ast.Ident.Kind, region: Region) Error!NodeId {
