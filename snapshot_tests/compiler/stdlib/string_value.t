@@ -8,9 +8,9 @@
   0000    | PushVar L
   0002    | GetLocalMove l0
   0004    | JumpIfFailure 4 -> 30
-  0007    | MatchWindowEnter 3
-  0009    | MatchScrutinee r0
-  0011    | MatchRepeatRange r0 r2 _0_.. -> 28
+  0007    | MatchWindowEnter 3 fail->28
+  0011    | MatchScrutinee r0
+  0013    | MatchRepeatRange r0 r2 _0_..
   0022    | MatchBind l1 r2
   0025    | Jump 25 -> 29
   0028    | MatchFail

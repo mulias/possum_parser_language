@@ -276,26 +276,26 @@
   0000    | PushVar K
   0002    | PushVar V
   0004    | CallFunctionLocal l0
-  0006    | JumpIfFailure 6 -> 17
-  0009    | MatchWindowEnter 2
-  0011    | MatchScrutinee r0
-  0013    | MatchBind l3 r0
-  0016    | MatchWindowExit
-  0017    | TakeRight 17 -> 22
-  0020    | CallFunctionLocal l1
-  0022    | TakeRight 22 -> 49
-  0025    | CallFunctionLocal l2
-  0027    | JumpIfFailure 27 -> 38
-  0030    | MatchWindowEnter 2
-  0032    | MatchScrutinee r0
-  0034    | MatchBind l4 r0
-  0037    | MatchWindowExit
-  0038    | TakeRight 38 -> 49
-  0041    | GetConstantMutable 1: {_0_}
-  0043    | GetLocalMove l3
-  0045    | GetLocalMove l4
-  0047    | InsertKeyVal 0
-  0049    | End
+  0006    | JumpIfFailure 6 -> 19
+  0009    | MatchWindowEnter 2 fail->18
+  0013    | MatchScrutinee r0
+  0015    | MatchBind l3 r0
+  0018    | MatchWindowExit
+  0019    | TakeRight 19 -> 24
+  0022    | CallFunctionLocal l1
+  0024    | TakeRight 24 -> 53
+  0027    | CallFunctionLocal l2
+  0029    | JumpIfFailure 29 -> 42
+  0032    | MatchWindowEnter 2 fail->41
+  0036    | MatchScrutinee r0
+  0038    | MatchBind l4 r0
+  0041    | MatchWindowExit
+  0042    | TakeRight 42 -> 53
+  0045    | GetConstantMutable 1: {_0_}
+  0047    | GetLocalMove l3
+  0049    | GetLocalMove l4
+  0051    | InsertKeyVal 0
+  0053    | End
   ========================================
   
   ===============2:passport===============
@@ -318,22 +318,22 @@
     }
   ========================================
   0000    | CallFunctionConstant 6: passport
-  0002    | JumpIfFailure 2 -> 74
-  0005    | MatchWindowEnter 2
-  0007    | MatchScrutinee r0
-  0009    | MatchType r0 object -> 72
-  0014    | MatchCount r0 >=7 -> 72
-  0020    | MatchKey r1 r0["byr"] -> 72
-  0027    | MatchKey r1 r0["iyr"] -> 72
-  0034    | MatchKey r1 r0["eyr"] -> 72
-  0041    | MatchKey r1 r0["hgt"] -> 72
-  0048    | MatchKey r1 r0["hcl"] -> 72
-  0055    | MatchKey r1 r0["ecl"] -> 72
-  0062    | MatchKey r1 r0["pid"] -> 72
-  0069    | Jump 69 -> 73
-  0072    | MatchFail
-  0073    | MatchWindowExit
-  0074    | End
+  0002    | JumpIfFailure 2 -> 58
+  0005    | MatchWindowEnter 2 fail->56
+  0009    | MatchScrutinee r0
+  0011    | MatchType r0 object
+  0014    | MatchCount r0 >=7
+  0018    | MatchKey r1 r0["byr"]
+  0023    | MatchKey r1 r0["iyr"]
+  0028    | MatchKey r1 r0["eyr"]
+  0033    | MatchKey r1 r0["hgt"]
+  0038    | MatchKey r1 r0["hcl"]
+  0043    | MatchKey r1 r0["ecl"]
+  0048    | MatchKey r1 r0["pid"]
+  0053    | Jump 53 -> 57
+  0056    | MatchFail
+  0057    | MatchWindowExit
+  0058    | End
   ========================================
   
   =========2:count_valid_passport=========

@@ -11,15 +11,15 @@
   Is.String(V) = V -> ("" + _)
   ========================================
   0000    | GetLocalMove l0
-  0002    | JumpIfFailure 2 -> 25
-  0005    | MatchWindowEnter 2
-  0007    | MatchScrutinee r0
-  0009    | MatchType r0 string -> 23
-  0014    | MatchCount r0 >=0 -> 23
-  0020    | Jump 20 -> 24
-  0023    | MatchFail
-  0024    | MatchWindowExit
-  0025    | End
+  0002    | JumpIfFailure 2 -> 23
+  0005    | MatchWindowEnter 2 fail->21
+  0009    | MatchScrutinee r0
+  0011    | MatchType r0 string
+  0014    | MatchCount r0 >=0
+  0018    | Jump 18 -> 22
+  0021    | MatchFail
+  0022    | MatchWindowExit
+  0023    | End
   ========================================
   
   ==============1:Is.Number===============
@@ -27,9 +27,9 @@
   ========================================
   0000    | GetLocalMove l0
   0002    | JumpIfFailure 2 -> 22
-  0005    | MatchWindowEnter 2
-  0007    | MatchScrutinee r0
-  0009    | MatchMergeNum r1 r0 - 0 -> 20
+  0005    | MatchWindowEnter 2 fail->20
+  0009    | MatchScrutinee r0
+  0011    | MatchMergeNum r1 r0 - 0
   0017    | Jump 17 -> 21
   0020    | MatchFail
   0021    | MatchWindowExit
@@ -41,9 +41,9 @@
   ========================================
   0000    | GetLocalMove l0
   0002    | JumpIfFailure 2 -> 21
-  0005    | MatchWindowEnter 2
-  0007    | MatchScrutinee r0
-  0009    | MatchMergeBool r1 r0 claim false -> 19
+  0005    | MatchWindowEnter 2 fail->19
+  0009    | MatchScrutinee r0
+  0011    | MatchMergeBool r1 r0 claim false
   0016    | Jump 16 -> 20
   0019    | MatchFail
   0020    | MatchWindowExit
@@ -55,9 +55,9 @@
   ========================================
   0000    | GetLocalMove l0
   0002    | JumpIfFailure 2 -> 21
-  0005    | MatchWindowEnter 2
-  0007    | MatchScrutinee r0
-  0009    | MatchCmp r0 == null -> 19
+  0005    | MatchWindowEnter 2 fail->19
+  0009    | MatchScrutinee r0
+  0011    | MatchCmp r0 == null
   0016    | Jump 16 -> 20
   0019    | MatchFail
   0020    | MatchWindowExit
@@ -68,15 +68,15 @@
   Is.Array(V) = V -> [..._]
   ========================================
   0000    | GetLocalMove l0
-  0002    | JumpIfFailure 2 -> 25
-  0005    | MatchWindowEnter 2
-  0007    | MatchScrutinee r0
-  0009    | MatchType r0 array -> 23
-  0014    | MatchCount r0 >=0 -> 23
-  0020    | Jump 20 -> 24
-  0023    | MatchFail
-  0024    | MatchWindowExit
-  0025    | End
+  0002    | JumpIfFailure 2 -> 23
+  0005    | MatchWindowEnter 2 fail->21
+  0009    | MatchScrutinee r0
+  0011    | MatchType r0 array
+  0014    | MatchCount r0 >=0
+  0018    | Jump 18 -> 22
+  0021    | MatchFail
+  0022    | MatchWindowExit
+  0023    | End
   ========================================
   
   ==============1:Is.Object===============
@@ -84,9 +84,9 @@
   ========================================
   0000    | GetLocalMove l0
   0002    | JumpIfFailure 2 -> 19
-  0005    | MatchWindowEnter 2
-  0007    | MatchScrutinee r0
-  0009    | MatchType r0 object -> 17
+  0005    | MatchWindowEnter 2 fail->17
+  0009    | MatchScrutinee r0
+  0011    | MatchType r0 object
   0014    | Jump 14 -> 18
   0017    | MatchFail
   0018    | MatchWindowExit
@@ -98,9 +98,9 @@
   ========================================
   0000    | GetLocalMove l0
   0002    | JumpIfFailure 2 -> 21
-  0005    | MatchWindowEnter 2
-  0007    | MatchScrutinee r0
-  0009    | MatchCmp r0 == l1 -> 19
+  0005    | MatchWindowEnter 2 fail->19
+  0009    | MatchScrutinee r0
+  0011    | MatchCmp r0 == l1
   0016    | Jump 16 -> 20
   0019    | MatchFail
   0020    | MatchWindowExit
@@ -113,40 +113,40 @@
   0000    | SetInputMark
   0001    | GetLocal l0
   0003    | JumpIfFailure 3 -> 22
-  0006    | MatchWindowEnter 2
-  0008    | MatchScrutinee r0
-  0010    | MatchCmp r0 == l1 -> 20
+  0006    | MatchWindowEnter 2 fail->20
+  0010    | MatchScrutinee r0
+  0012    | MatchCmp r0 == l1
   0017    | Jump 17 -> 21
   0020    | MatchFail
   0021    | MatchWindowExit
   0022    | ConditionalThen 22 -> 30
   0025    | CallTailFunctionConstant 3: @Fail
-  0027    | Jump 27 -> 57
+  0027    | Jump 27 -> 55
   0030    | GetLocalMove l0
-  0032    | JumpIfFailure 32 -> 57
-  0035    | MatchWindowEnter 2
-  0037    | MatchScrutinee r0
-  0039    | MatchType r0 num_or_codepoint -> 55
-  0044    | MatchBound r0 hi s1 -> 55
-  0052    | Jump 52 -> 56
-  0055    | MatchFail
-  0056    | MatchWindowExit
-  0057    | End
+  0032    | JumpIfFailure 32 -> 55
+  0035    | MatchWindowEnter 2 fail->53
+  0039    | MatchScrutinee r0
+  0041    | MatchType r0 num_or_codepoint
+  0044    | MatchBound r0 hi s1
+  0050    | Jump 50 -> 54
+  0053    | MatchFail
+  0054    | MatchWindowExit
+  0055    | End
   ========================================
   
   ==========1:Is.LessThanOrEqual==========
   Is.LessThanOrEqual(A, B) = A -> ..B
   ========================================
   0000    | GetLocalMove l0
-  0002    | JumpIfFailure 2 -> 27
-  0005    | MatchWindowEnter 2
-  0007    | MatchScrutinee r0
-  0009    | MatchType r0 num_or_codepoint -> 25
-  0014    | MatchBound r0 hi s1 -> 25
-  0022    | Jump 22 -> 26
-  0025    | MatchFail
-  0026    | MatchWindowExit
-  0027    | End
+  0002    | JumpIfFailure 2 -> 25
+  0005    | MatchWindowEnter 2 fail->23
+  0009    | MatchScrutinee r0
+  0011    | MatchType r0 num_or_codepoint
+  0014    | MatchBound r0 hi s1
+  0020    | Jump 20 -> 24
+  0023    | MatchFail
+  0024    | MatchWindowExit
+  0025    | End
   ========================================
   
   ============1:Is.GreaterThan============
@@ -155,38 +155,38 @@
   0000    | SetInputMark
   0001    | GetLocal l0
   0003    | JumpIfFailure 3 -> 22
-  0006    | MatchWindowEnter 2
-  0008    | MatchScrutinee r0
-  0010    | MatchCmp r0 == l1 -> 20
+  0006    | MatchWindowEnter 2 fail->20
+  0010    | MatchScrutinee r0
+  0012    | MatchCmp r0 == l1
   0017    | Jump 17 -> 21
   0020    | MatchFail
   0021    | MatchWindowExit
   0022    | ConditionalThen 22 -> 30
   0025    | CallTailFunctionConstant 3: @Fail
-  0027    | Jump 27 -> 57
+  0027    | Jump 27 -> 55
   0030    | GetLocalMove l0
-  0032    | JumpIfFailure 32 -> 57
-  0035    | MatchWindowEnter 2
-  0037    | MatchScrutinee r0
-  0039    | MatchType r0 num_or_codepoint -> 55
-  0044    | MatchBound r0 lo s1 -> 55
-  0052    | Jump 52 -> 56
-  0055    | MatchFail
-  0056    | MatchWindowExit
-  0057    | End
+  0032    | JumpIfFailure 32 -> 55
+  0035    | MatchWindowEnter 2 fail->53
+  0039    | MatchScrutinee r0
+  0041    | MatchType r0 num_or_codepoint
+  0044    | MatchBound r0 lo s1
+  0050    | Jump 50 -> 54
+  0053    | MatchFail
+  0054    | MatchWindowExit
+  0055    | End
   ========================================
   
   ========1:Is.GreaterThanOrEqual=========
   Is.GreaterThanOrEqual(A, B) = A -> B..
   ========================================
   0000    | GetLocalMove l0
-  0002    | JumpIfFailure 2 -> 27
-  0005    | MatchWindowEnter 2
-  0007    | MatchScrutinee r0
-  0009    | MatchType r0 num_or_codepoint -> 25
-  0014    | MatchBound r0 lo s1 -> 25
-  0022    | Jump 22 -> 26
-  0025    | MatchFail
-  0026    | MatchWindowExit
-  0027    | End
+  0002    | JumpIfFailure 2 -> 25
+  0005    | MatchWindowEnter 2 fail->23
+  0009    | MatchScrutinee r0
+  0011    | MatchType r0 num_or_codepoint
+  0014    | MatchBound r0 lo s1
+  0020    | Jump 20 -> 24
+  0023    | MatchFail
+  0024    | MatchWindowExit
+  0025    | End
   ========================================

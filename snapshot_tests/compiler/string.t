@@ -418,17 +418,17 @@
   ========================================
   0000    | PushVar Str
   0002    | PushEmptyString
-  0003    | JumpIfFailure 3 -> 34
-  0006    | MatchWindowEnter 2
-  0008    | MatchScrutinee r0
-  0010    | MatchType r0 string -> 32
-  0015    | MatchCount r0 >=0 -> 32
-  0021    | MatchSlice r1 r0[0..^0]
-  0026    | MatchBind l0 r1
-  0029    | Jump 29 -> 33
-  0032    | MatchFail
-  0033    | MatchWindowExit
-  0034    | End
+  0003    | JumpIfFailure 3 -> 32
+  0006    | MatchWindowEnter 2 fail->30
+  0010    | MatchScrutinee r0
+  0012    | MatchType r0 string
+  0015    | MatchCount r0 >=0
+  0019    | MatchSlice r1 r0[0..^0]
+  0024    | MatchBind l0 r1
+  0027    | Jump 27 -> 31
+  0030    | MatchFail
+  0031    | MatchWindowExit
+  0032    | End
   ========================================
 
   $ possum -p '"Hello %(int + word)"' -i ''
@@ -551,18 +551,18 @@
   ========================================
   0000    | PushVar N
   0002    | CallFunctionLocal l0
-  0004    | JumpIfFailure 4 -> 30
-  0007    | MatchWindowEnter 6
-  0009    | MatchScrutinee r0
-  0011    | MatchType r0 string -> 28
-  0016    | MatchCast r4 <- num r0 -> 28
-  0022    | MatchBind l1 r4
-  0025    | Jump 25 -> 29
-  0028    | MatchFail
-  0029    | MatchWindowExit
-  0030    | TakeRight 30 -> 35
-  0033    | GetLocalMove l1
-  0035    | End
+  0004    | JumpIfFailure 4 -> 28
+  0007    | MatchWindowEnter 6 fail->26
+  0011    | MatchScrutinee r0
+  0013    | MatchType r0 string
+  0016    | MatchCast r4 <- num r0
+  0020    | MatchBind l1 r4
+  0023    | Jump 23 -> 27
+  0026    | MatchFail
+  0027    | MatchWindowExit
+  0028    | TakeRight 28 -> 33
+  0031    | GetLocalMove l1
+  0033    | End
   ========================================
   
   ===============6:integer================

@@ -18,14 +18,14 @@
   ========================================
   0000    | PushVar A
   0002    | ParseNumberStringChar 1
-  0004    | JumpIfFailure 4 -> 15
-  0007    | MatchWindowEnter 2
-  0009    | MatchScrutinee r0
-  0011    | MatchBind l0 r0
-  0014    | MatchWindowExit
-  0015    | TakeRight 15 -> 20
-  0018    | GetLocalMove l0
-  0020    | End
+  0004    | JumpIfFailure 4 -> 17
+  0007    | MatchWindowEnter 2 fail->16
+  0011    | MatchScrutinee r0
+  0013    | MatchBind l0 r0
+  0016    | MatchWindowExit
+  0017    | TakeRight 17 -> 22
+  0020    | GetLocalMove l0
+  0022    | End
   ========================================
 
   $ possum -p '1 -> A $ [A]' -i ''
@@ -35,16 +35,16 @@
   ========================================
   0000    | PushVar A
   0002    | ParseNumberStringChar 1
-  0004    | JumpIfFailure 4 -> 15
-  0007    | MatchWindowEnter 2
-  0009    | MatchScrutinee r0
-  0011    | MatchBind l0 r0
-  0014    | MatchWindowExit
-  0015    | TakeRight 15 -> 24
-  0018    | GetConstantMutable 0: [_]
-  0020    | GetLocalMove l0
-  0022    | InsertAtIndex 0
-  0024    | End
+  0004    | JumpIfFailure 4 -> 17
+  0007    | MatchWindowEnter 2 fail->16
+  0011    | MatchScrutinee r0
+  0013    | MatchBind l0 r0
+  0016    | MatchWindowExit
+  0017    | TakeRight 17 -> 26
+  0020    | GetConstantMutable 0: [_]
+  0022    | GetLocalMove l0
+  0024    | InsertAtIndex 0
+  0026    | End
   ========================================
 
   $ possum -p '2 -> A $ [1, [2]]' -i ''
@@ -54,16 +54,16 @@
   ========================================
   0000    | PushVar A
   0002    | ParseNumberStringChar 2
-  0004    | JumpIfFailure 4 -> 15
-  0007    | MatchWindowEnter 2
-  0009    | MatchScrutinee r0
-  0011    | MatchBind l0 r0
-  0014    | MatchWindowExit
-  0015    | TakeRight 15 -> 24
-  0018    | GetConstantMutable 0: [1, _]
-  0020    | GetConstant 1: [2]
-  0022    | InsertAtIndex 1
-  0024    | End
+  0004    | JumpIfFailure 4 -> 17
+  0007    | MatchWindowEnter 2 fail->16
+  0011    | MatchScrutinee r0
+  0013    | MatchBind l0 r0
+  0016    | MatchWindowExit
+  0017    | TakeRight 17 -> 26
+  0020    | GetConstantMutable 0: [1, _]
+  0022    | GetConstant 1: [2]
+  0024    | InsertAtIndex 1
+  0026    | End
   ========================================
 
   $ possum -p 'Foo = 1 + 1 ; "" $ [Foo]' -i ''
@@ -82,18 +82,18 @@
   ========================================
   0000    | PushVar A
   0002    | ParseNumberStringChar 1
-  0004    | JumpIfFailure 4 -> 15
-  0007    | MatchWindowEnter 2
-  0009    | MatchScrutinee r0
-  0011    | MatchBind l0 r0
-  0014    | MatchWindowExit
-  0015    | TakeRight 15 -> 28
-  0018    | GetConstantMutable 0: [_]
-  0020    | GetConstantMutable 1: [_]
-  0022    | GetLocalMove l0
-  0024    | InsertAtIndex 0
+  0004    | JumpIfFailure 4 -> 17
+  0007    | MatchWindowEnter 2 fail->16
+  0011    | MatchScrutinee r0
+  0013    | MatchBind l0 r0
+  0016    | MatchWindowExit
+  0017    | TakeRight 17 -> 30
+  0020    | GetConstantMutable 0: [_]
+  0022    | GetConstantMutable 1: [_]
+  0024    | GetLocalMove l0
   0026    | InsertAtIndex 0
-  0028    | End
+  0028    | InsertAtIndex 0
+  0030    | End
   ========================================
 
   $ possum -p 'Foo = 1 -> A & A + A ; "" $ [Foo]' -i ''
@@ -103,17 +103,17 @@
   ========================================
   0000    | PushVar A
   0002    | PushInteger 1
-  0004    | JumpIfFailure 4 -> 15
-  0007    | MatchWindowEnter 2
-  0009    | MatchScrutinee r0
-  0011    | MatchBind l0 r0
-  0014    | MatchWindowExit
-  0015    | TakeRight 15 -> 26
-  0018    | GetLocal l0
-  0020    | JumpIfFailure 20 -> 26
-  0023    | GetLocalMove l0
-  0025    | Merge
-  0026    | End
+  0004    | JumpIfFailure 4 -> 17
+  0007    | MatchWindowEnter 2 fail->16
+  0011    | MatchScrutinee r0
+  0013    | MatchBind l0 r0
+  0016    | MatchWindowExit
+  0017    | TakeRight 17 -> 28
+  0020    | GetLocal l0
+  0022    | JumpIfFailure 22 -> 28
+  0025    | GetLocalMove l0
+  0027    | Merge
+  0028    | End
   ========================================
   
   ================2:@main=================
@@ -164,27 +164,27 @@
   0000    | PushVar A
   0002    | PushVar B
   0004    | ParseNumberStringChar 1
-  0006    | JumpIfFailure 6 -> 17
-  0009    | MatchWindowEnter 2
-  0011    | MatchScrutinee r0
-  0013    | MatchBind l0 r0
-  0016    | MatchWindowExit
-  0017    | TakeRight 17 -> 50
-  0020    | ParseNumberStringChar 2
-  0022    | JumpIfFailure 22 -> 33
-  0025    | MatchWindowEnter 2
-  0027    | MatchScrutinee r0
-  0029    | MatchBind l1 r0
-  0032    | MatchWindowExit
-  0033    | TakeRight 33 -> 50
-  0036    | GetConstantMutable 0: {_0_, _1_}
-  0038    | PushString "a"
-  0040    | GetLocalMove l0
-  0042    | InsertKeyVal 0
-  0044    | PushString "b"
-  0046    | GetLocalMove l1
-  0048    | InsertKeyVal 1
-  0050    | End
+  0006    | JumpIfFailure 6 -> 19
+  0009    | MatchWindowEnter 2 fail->18
+  0013    | MatchScrutinee r0
+  0015    | MatchBind l0 r0
+  0018    | MatchWindowExit
+  0019    | TakeRight 19 -> 54
+  0022    | ParseNumberStringChar 2
+  0024    | JumpIfFailure 24 -> 37
+  0027    | MatchWindowEnter 2 fail->36
+  0031    | MatchScrutinee r0
+  0033    | MatchBind l1 r0
+  0036    | MatchWindowExit
+  0037    | TakeRight 37 -> 54
+  0040    | GetConstantMutable 0: {_0_, _1_}
+  0042    | PushString "a"
+  0044    | GetLocalMove l0
+  0046    | InsertKeyVal 0
+  0048    | PushString "b"
+  0050    | GetLocalMove l1
+  0052    | InsertKeyVal 1
+  0054    | End
   ========================================
 
   $ possum -p 'const({"a": 1 + 2 + 3})' -i '12'

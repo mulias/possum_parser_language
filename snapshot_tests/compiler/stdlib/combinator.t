@@ -175,17 +175,17 @@
   ========================================
   0000    | PushVar Pos
   0002    | CallFunctionConstant 3: @input.offset
-  0004    | JumpIfFailure 4 -> 15
-  0007    | MatchWindowEnter 2
-  0009    | MatchScrutinee r0
-  0011    | MatchBind l1 r0
-  0014    | MatchWindowExit
-  0015    | TakeRight 15 -> 26
-  0018    | GetConstant 4: @at
-  0020    | GetLocalMove l1
-  0022    | GetLocalMove l0
-  0024    | CallTailFunction 2
-  0026    | End
+  0004    | JumpIfFailure 4 -> 17
+  0007    | MatchWindowEnter 2 fail->16
+  0011    | MatchScrutinee r0
+  0013    | MatchBind l1 r0
+  0016    | MatchWindowExit
+  0017    | TakeRight 17 -> 28
+  0020    | GetConstant 4: @at
+  0022    | GetLocalMove l1
+  0024    | GetLocalMove l0
+  0026    | CallTailFunction 2
+  0028    | End
   ========================================
   
   ================1:maybe=================
@@ -321,18 +321,18 @@
   ========================================
   0000    | PushVar2 N
   0003    | CallFunctionLocal l0
-  0005    | JumpIfFailure 5 -> 31
-  0008    | MatchWindowEnter 6
-  0010    | MatchScrutinee r0
-  0012    | MatchType r0 string -> 29
-  0017    | MatchCast r4 <- num r0 -> 29
-  0023    | MatchBind l1 r4
-  0026    | Jump 26 -> 30
-  0029    | MatchFail
-  0030    | MatchWindowExit
-  0031    | TakeRight 31 -> 36
-  0034    | GetLocalMove l1
-  0036    | End
+  0005    | JumpIfFailure 5 -> 29
+  0008    | MatchWindowEnter 6 fail->27
+  0012    | MatchScrutinee r0
+  0014    | MatchType r0 string
+  0017    | MatchCast r4 <- num r0
+  0021    | MatchBind l1 r4
+  0024    | Jump 24 -> 28
+  0027    | MatchFail
+  0028    | MatchWindowExit
+  0029    | TakeRight 29 -> 34
+  0032    | GetLocalMove l1
+  0034    | End
   ========================================
   
   ==============1:as_string===============
@@ -626,17 +626,17 @@
   ========================================
   0000    | PushVar Pos
   0002    | CallFunctionConstant 3: @input.offset
-  0004    | JumpIfFailure 4 -> 15
-  0007    | MatchWindowEnter 2
-  0009    | MatchScrutinee r0
-  0011    | MatchBind l1 r0
-  0014    | MatchWindowExit
-  0015    | TakeRight 15 -> 26
-  0018    | GetConstant 4: @at
-  0020    | GetLocalMove l1
-  0022    | GetLocalMove l0
-  0024    | CallTailFunction 2
-  0026    | End
+  0004    | JumpIfFailure 4 -> 17
+  0007    | MatchWindowEnter 2 fail->16
+  0011    | MatchScrutinee r0
+  0013    | MatchBind l1 r0
+  0016    | MatchWindowExit
+  0017    | TakeRight 17 -> 28
+  0020    | GetConstant 4: @at
+  0022    | GetLocalMove l1
+  0024    | GetLocalMove l0
+  0026    | CallTailFunction 2
+  0028    | End
   ========================================
   
   ================3:unless================
@@ -698,14 +698,14 @@
   ========================================
   0000    | PushVar Elem
   0002    | CallFunctionLocal l0
-  0004    | JumpIfFailure 4 -> 15
-  0007    | MatchWindowEnter 2
-  0009    | MatchScrutinee r0
-  0011    | MatchBind l1 r0
-  0014    | MatchWindowExit
-  0015    | TakeRight 15 -> 24
-  0018    | GetConstantMutable 1: [_]
-  0020    | GetLocalMove l1
-  0022    | InsertAtIndex 0
-  0024    | End
+  0004    | JumpIfFailure 4 -> 17
+  0007    | MatchWindowEnter 2 fail->16
+  0011    | MatchScrutinee r0
+  0013    | MatchBind l1 r0
+  0016    | MatchWindowExit
+  0017    | TakeRight 17 -> 26
+  0020    | GetConstantMutable 1: [_]
+  0022    | GetLocalMove l1
+  0024    | InsertAtIndex 0
+  0026    | End
   ========================================

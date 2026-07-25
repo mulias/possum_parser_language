@@ -218,6 +218,11 @@ pub const VM = struct {
     match_regs: ArrayList(Elem),
     window_bases: ArrayList(usize),
     current_window_base: usize,
+    // Parallel to window_bases: the saved fail_ip of enclosing windows.
+    // current_window_fail is the innermost open window's shared fail block,
+    // where every semidet step and MatchRefail jumps on failure.
+    window_fails: ArrayList(usize),
+    current_window_fail: usize,
     cur_frame: *CallFrame,
     cur_code: []const u8,
     temp_dyns: ArrayList(*Elem.DynElem),
@@ -263,6 +268,7 @@ pub const VM = struct {
         // that errors mid-match cannot corrupt a caller's open window.
         match_regs_base: usize,
         saved_window_base: usize,
+        saved_window_fail: usize,
     };
 
     pub const Error = error{
@@ -295,6 +301,8 @@ pub const VM = struct {
             .match_regs = undefined,
             .window_bases = undefined,
             .current_window_base = undefined,
+            .window_fails = undefined,
+            .current_window_fail = undefined,
             .cur_frame = undefined,
             .cur_code = undefined,
             .temp_dyns = undefined,
@@ -340,6 +348,8 @@ pub const VM = struct {
         self.match_regs = ArrayList(Elem){};
         self.window_bases = ArrayList(usize){};
         self.current_window_base = 0;
+        self.window_fails = ArrayList(usize){};
+        self.current_window_fail = 0;
         self.cur_frame = undefined;
         self.cur_code = undefined;
         self.temp_dyns = ArrayList(*Elem.DynElem){};
@@ -380,6 +390,7 @@ pub const VM = struct {
         self.frames.deinit(self.allocator);
         self.match_regs.deinit(self.allocator);
         self.window_bases.deinit(self.allocator);
+        self.window_fails.deinit(self.allocator);
         self.temp_dyns.deinit(self.allocator);
         self.inputMarks.deinit(self.allocator);
         self.explain_events.deinit(self.allocator);
@@ -714,6 +725,7 @@ pub const VM = struct {
                 }
                 self.match_regs.shrinkRetainingCapacity(prevFrame.match_regs_base);
                 self.current_window_base = prevFrame.saved_window_base;
+                self.current_window_fail = prevFrame.saved_window_fail;
 
                 try self.pushTransferred(.End, result);
             },
@@ -904,7 +916,6 @@ pub const VM = struct {
             .MatchType => {
                 const slot = self.readByte();
                 const ty = self.readByte();
-                const offset = self.readShort();
                 const value = self.getScratch(slot);
                 const matches = switch (ty) {
                     0 => value.isDynType(.Array),
@@ -916,7 +927,7 @@ pub const VM = struct {
                     3 => value.isRangeValue(self.*),
                     else => @panic("Internal Error: unsupported MatchType operand"),
                 };
-                if (!matches) self.cur_frame.ip += offset;
+                if (!matches) self.cur_frame.ip = self.current_window_fail;
             },
             .MatchCount => {
                 // Count by runtime type — array elements, object members,
@@ -927,7 +938,6 @@ pub const VM = struct {
                 const slot = self.readByte();
                 const n = self.readByte();
                 const mode = self.readByte();
-                const offset = self.readShort();
                 const value = self.getScratch(slot);
                 const count: ?usize = if (value.isDynType(.Array))
                     value.asDyn().asArray().elems.items.len
@@ -941,7 +951,7 @@ pub const VM = struct {
                     (if (mode != 0) c >= n else c == n)
                 else
                     false;
-                if (!ok) self.cur_frame.ip += offset;
+                if (!ok) self.cur_frame.ip = self.current_window_fail;
             },
             .MatchElem => {
                 const dst = self.readByte();
@@ -965,16 +975,15 @@ pub const VM = struct {
                 const len: f64 = @floatFromInt(self.readByte());
                 const count_dst = self.readByte();
                 const base = self.readByte();
-                const offset = self.readShort();
                 const value = self.getScratch(src);
                 if (!value.isDynType(.Array)) {
-                    self.cur_frame.ip += offset;
+                    self.cur_frame.ip = self.current_window_fail;
                     return;
                 }
                 const elems_len = value.asDyn().asArray().elems.items.len;
                 const chunk_len: usize = @intFromFloat(len);
                 if (elems_len % chunk_len != 0) {
-                    self.cur_frame.ip += offset;
+                    self.cur_frame.ip = self.current_window_fail;
                     return;
                 }
                 const prev_count = self.getScratch(count_dst);
@@ -1097,7 +1106,6 @@ pub const VM = struct {
                 const cursor = self.readByte();
                 const claim_count = self.readByte();
                 const constant_idx = self.readShort();
-                const offset = self.readShort();
                 const static_keys = self.getConstant(constant_idx).asDyn().asArray().elems.items;
                 const object = self.getScratch(src).asDyn().asObject();
                 const member_keys = object.members.keys();
@@ -1129,7 +1137,7 @@ pub const VM = struct {
                     self.setScratch(cursor, Elem.numberFloat(@floatFromInt(idx + 1)));
                     break;
                 } else {
-                    self.cur_frame.ip += offset;
+                    self.cur_frame.ip = self.current_window_fail;
                 }
             },
             .MatchStrEnd => {
@@ -1139,13 +1147,12 @@ pub const VM = struct {
                 const slot = self.readByte();
                 const back = self.readByte() != 0;
                 const constant_idx = self.readShort();
-                const offset = self.readShort();
                 const value = self.getScratch(slot);
                 const literal = self.strings.get(self.getConstant(constant_idx).asString());
                 const bytes = (try value.stringBytes(self)).?;
                 const end = if (back) bytes[bytes.len -| literal.len ..] else bytes[0..@min(literal.len, bytes.len)];
                 if (bytes.len < literal.len or !std.mem.eql(u8, end, literal)) {
-                    self.cur_frame.ip += offset;
+                    self.cur_frame.ip = self.current_window_fail;
                 }
             },
             .MatchStrInit => {
@@ -1171,13 +1178,12 @@ pub const VM = struct {
                 const opp = self.readByte();
                 const back = self.readByte() != 0;
                 const constant_idx = self.readShort();
-                const offset = self.readShort();
                 const literal = self.strings.get(self.getConstant(constant_idx).asString());
                 const bytes = (try self.getScratch(src).stringBytes(self)).?;
                 const cur: usize = @intFromFloat(self.getScratch(cursor).asFloat());
                 const opp_v: usize = @intFromFloat(self.getScratch(opp).asFloat());
                 const new_cursor = matchStrChomp(bytes, cur, opp_v, back, literal) orelse {
-                    self.cur_frame.ip += offset;
+                    self.cur_frame.ip = self.current_window_fail;
                     return;
                 };
                 const prev = self.getScratch(cursor);
@@ -1193,7 +1199,6 @@ pub const VM = struct {
                 const cursor = self.readByte();
                 const opp = self.readByte();
                 const back = self.readByte() != 0;
-                const offset = self.readShort();
                 const evaluated = self.pop();
                 const str_elem = try evaluated.toString(self);
                 var rooted = false;
@@ -1213,7 +1218,7 @@ pub const VM = struct {
                 }
                 if (rooted) self.dropTempDyn();
                 self.reclaimElem(evaluated);
-                if (new_cursor == null) self.cur_frame.ip += offset;
+                if (new_cursor == null) self.cur_frame.ip = self.current_window_fail;
             },
             .MatchStrChar => {
                 // Decode one codepoint at the cursor — forward by lead-byte
@@ -1226,12 +1231,11 @@ pub const VM = struct {
                 const cursor = self.readByte();
                 const opp = self.readByte();
                 const back = self.readByte() != 0;
-                const offset = self.readShort();
                 const bytes = (try self.getScratch(src).stringBytes(self)).?;
                 const cur: usize = @intFromFloat(self.getScratch(cursor).asFloat());
                 const opp_v: usize = @intFromFloat(self.getScratch(opp).asFloat());
                 const span = matchStrChar(bytes, cur, opp_v, back) orelse {
-                    self.cur_frame.ip += offset;
+                    self.cur_frame.ip = self.current_window_fail;
                     return;
                 };
                 var buf: [4]u8 = undefined;
@@ -1279,14 +1283,13 @@ pub const VM = struct {
                 const reg = self.readByte();
                 const kind = self.readByte();
                 const arg = self.readShort();
-                const offset = self.readShort();
                 const value = self.getScratch(reg);
                 const other = switch (@as(MatchCmpKind, @enumFromInt(kind))) {
                     .constant => self.getConstant(arg),
                     .slot => try self.getBoundLocal(arg),
                     .reg => self.getScratch(@intCast(arg)),
                 };
-                if (!value.isEql(other, self.*)) self.cur_frame.ip += offset;
+                if (!value.isEql(other, self.*)) self.cur_frame.ip = self.current_window_fail;
             },
             .MatchCast => {
                 // Parse src's string bytes into dst as the target type — a
@@ -1299,7 +1302,6 @@ pub const VM = struct {
                 const dst = self.readByte();
                 const src = self.readByte();
                 const ty: MatchCastKind = @enumFromInt(self.readByte());
-                const offset = self.readShort();
                 const bytes = (try self.getScratch(src).stringBytes(self)).?;
                 const cast: ?Elem = switch (ty) {
                     .number => if (bytes.len == 0 or !parsing.isValidNumberString(bytes))
@@ -1321,14 +1323,13 @@ pub const VM = struct {
                     self.setScratch(dst, elem);
                     previous.release();
                 } else {
-                    self.cur_frame.ip += offset;
+                    self.cur_frame.ip = self.current_window_fail;
                 }
             },
             .MatchKey => {
                 const dst = self.readByte();
                 const src = self.readByte();
                 const constant_idx = self.readShort();
-                const offset = self.readShort();
                 const sid = self.getConstant(constant_idx).asString();
                 const container = self.getScratch(src);
                 if (container.isDynType(.Object)) {
@@ -1340,7 +1341,7 @@ pub const VM = struct {
                         return;
                     }
                 }
-                self.cur_frame.ip += offset;
+                self.cur_frame.ip = self.current_window_fail;
             },
             .MatchKeyBound => {
                 // Probe the object for the member keyed by the bound
@@ -1355,7 +1356,6 @@ pub const VM = struct {
                 const slot = self.readByte();
                 const claim_count = self.readByte();
                 const constant_idx = self.readShort();
-                const offset = self.readShort();
                 const bound = try self.getBoundLocal(slot);
                 const sid = (try bound.getOrPutSid(self)) orelse
                     return self.runtimeError("Object key must be a string", .{});
@@ -1369,7 +1369,7 @@ pub const VM = struct {
                 } else false;
                 const member = self.getScratch(src).asDyn().asObject().members.get(sid);
                 if (claimed_static or claimed_search or member == null) {
-                    self.cur_frame.ip += offset;
+                    self.cur_frame.ip = self.current_window_fail;
                     return;
                 }
                 const key_elem = Elem.string(sid);
@@ -1393,7 +1393,6 @@ pub const VM = struct {
                 const src = self.readByte();
                 const constant_idx = self.readShort();
                 const negate = self.readByte() != 0;
-                const offset = self.readShort();
                 const value = self.getScratch(src);
                 var src_float: f64 = undefined;
                 if (value.isFloat()) {
@@ -1401,7 +1400,7 @@ pub const VM = struct {
                 } else if (value.isType(.NumberString)) {
                     src_float = value.asNumberString().toNumberFloat(self.strings).asFloat();
                 } else {
-                    self.cur_frame.ip += offset;
+                    self.cur_frame.ip = self.current_window_fail;
                     return;
                 }
                 const sum = self.getConstant(constant_idx).asFloat();
@@ -1418,7 +1417,6 @@ pub const VM = struct {
                 // Fails when src or the popped part isn't a number.
                 const dst = self.readByte();
                 const src = self.readByte();
-                const offset = self.readShort();
                 const part = self.pop();
                 const src_value = self.getScratch(src);
                 if (numberFloatOf(src_value, self.strings)) |src_float| {
@@ -1429,11 +1427,11 @@ pub const VM = struct {
                         part.release();
                     } else {
                         part.release();
-                        self.cur_frame.ip += offset;
+                        self.cur_frame.ip = self.current_window_fail;
                     }
                 } else {
                     part.release();
-                    self.cur_frame.ip += offset;
+                    self.cur_frame.ip = self.current_window_fail;
                 }
             },
             .MatchMergeBool => {
@@ -1445,16 +1443,15 @@ pub const VM = struct {
                 const dst = self.readByte();
                 const src = self.readByte();
                 const constant_idx = self.readShort();
-                const offset = self.readShort();
                 const value = self.getScratch(src);
                 const value_true = value.isConst(.True);
                 if (!value_true and !value.isConst(.False)) {
-                    self.cur_frame.ip += offset;
+                    self.cur_frame.ip = self.current_window_fail;
                     return;
                 }
                 const static_true = self.getConstant(constant_idx).isConst(.True);
                 if (static_true and !value_true) {
-                    self.cur_frame.ip += offset;
+                    self.cur_frame.ip = self.current_window_fail;
                     return;
                 }
                 const previous = self.getScratch(dst);
@@ -1468,7 +1465,6 @@ pub const VM = struct {
                 // like MatchGlobal.
                 const register = self.readByte();
                 _ = self.readByte();
-                const offset = self.readShort();
                 const evaluated = self.pop();
                 var rooted = false;
                 if (evaluated.isType(.Dyn)) {
@@ -1478,7 +1474,7 @@ pub const VM = struct {
                 const value = self.getScratch(register);
                 const matched = value.isEql(evaluated, self.*);
                 if (rooted) self.dropTempDyn();
-                if (!matched) self.cur_frame.ip += offset;
+                if (!matched) self.cur_frame.ip = self.current_window_fail;
             },
             .MatchBind => {
                 const local = self.readByte();
@@ -1499,7 +1495,6 @@ pub const VM = struct {
                 const is_upper = self.readByte() != 0;
                 const kind: RangeLimitKind = @enumFromInt(self.readByte());
                 const arg = self.readShort();
-                const offset = self.readShort();
                 const limit = switch (kind) {
                     .const_elem => self.getConstant(arg),
                     .read => try self.getBoundLocal(arg),
@@ -1507,7 +1502,7 @@ pub const VM = struct {
                 };
                 const value = self.getScratch(reg);
                 const matched = try self.compareRangeBound(limit, value, is_upper);
-                if (!matched) self.cur_frame.ip += offset;
+                if (!matched) self.cur_frame.ip = self.current_window_fail;
             },
             .MatchRangeBound => {
                 // The preceding expression left the evaluated bound on the
@@ -1516,7 +1511,6 @@ pub const VM = struct {
                 // MatchEval.
                 const slot = self.readByte();
                 const is_upper = self.readByte() != 0;
-                const offset = self.readShort();
                 const evaluated = self.pop();
                 var rooted = false;
                 if (evaluated.isType(.Dyn)) {
@@ -1526,7 +1520,7 @@ pub const VM = struct {
                 const value = self.getScratch(slot);
                 const matched = try self.compareRangeBound(evaluated, value, is_upper);
                 if (rooted) self.dropTempDyn();
-                if (!matched) self.cur_frame.ip += offset;
+                if (!matched) self.cur_frame.ip = self.current_window_fail;
             },
             .MatchRepeatValue => {
                 // The preceding expression left the repeat's pattern value
@@ -1536,7 +1530,6 @@ pub const VM = struct {
                 // scan the value in place — nothing is materialized.
                 const src = self.readByte();
                 const count_dst = self.readByte();
-                const offset = self.readShort();
                 const pattern_value = self.pop();
                 var rooted = false;
                 if (pattern_value.isType(.Dyn)) {
@@ -1552,7 +1545,7 @@ pub const VM = struct {
                     self.setScratch(count_dst, Elem.numberFloat(count));
                     previous.release();
                 } else {
-                    self.cur_frame.ip += offset;
+                    self.cur_frame.ip = self.current_window_fail;
                 }
             },
             .MatchRepeatChunk => {
@@ -1565,7 +1558,6 @@ pub const VM = struct {
                 // the representative.
                 const src = self.readByte();
                 const chunk_dst = self.readByte();
-                const offset = self.readShort();
                 const count_elem = self.pop();
                 if (!count_elem.isNumber()) {
                     return self.runtimeError("Repeat count must be a number", .{});
@@ -1576,7 +1568,7 @@ pub const VM = struct {
                     count_elem.asNumberString().toNumberFloat(self.strings).asFloat();
                 self.reclaimElem(count_elem);
                 if (count_float < 0 or @trunc(count_float) != count_float) {
-                    self.cur_frame.ip += offset;
+                    self.cur_frame.ip = self.current_window_fail;
                     return;
                 }
                 const count: usize = @intFromFloat(count_float);
@@ -1585,19 +1577,19 @@ pub const VM = struct {
                     const chunk_len = if (count == 0) 0 else bytes.len / count;
                     if (count == 0) {
                         if (bytes.len != 0) {
-                            self.cur_frame.ip += offset;
+                            self.cur_frame.ip = self.current_window_fail;
                             return;
                         }
                     } else {
                         if (bytes.len % count != 0) {
-                            self.cur_frame.ip += offset;
+                            self.cur_frame.ip = self.current_window_fail;
                             return;
                         }
                         var i: usize = 1;
                         while (i < count) : (i += 1) {
                             const start = i * chunk_len;
                             if (!std.mem.eql(u8, bytes[0..chunk_len], bytes[start .. start + chunk_len])) {
-                                self.cur_frame.ip += offset;
+                                self.cur_frame.ip = self.current_window_fail;
                                 return;
                             }
                         }
@@ -1615,12 +1607,12 @@ pub const VM = struct {
                     const chunk_len = if (count == 0) 0 else elems.len / count;
                     if (count == 0) {
                         if (elems.len != 0) {
-                            self.cur_frame.ip += offset;
+                            self.cur_frame.ip = self.current_window_fail;
                             return;
                         }
                     } else {
                         if (elems.len % count != 0) {
-                            self.cur_frame.ip += offset;
+                            self.cur_frame.ip = self.current_window_fail;
                             return;
                         }
                         var i: usize = 1;
@@ -1628,7 +1620,7 @@ pub const VM = struct {
                             const start = i * chunk_len;
                             for (0..chunk_len) |j| {
                                 if (!elems[start + j].isEql(elems[j], self.*)) {
-                                    self.cur_frame.ip += offset;
+                                    self.cur_frame.ip = self.current_window_fail;
                                     return;
                                 }
                             }
@@ -1642,7 +1634,7 @@ pub const VM = struct {
                     break :blk array.dyn.elem();
                 } else if (value.isNumber()) blk: {
                     if (count == 0) {
-                        self.cur_frame.ip += offset;
+                        self.cur_frame.ip = self.current_window_fail;
                         return;
                     }
                     const value_float = if (value.isFloat())
@@ -1651,7 +1643,7 @@ pub const VM = struct {
                         value.asNumberString().toNumberFloat(self.strings).asFloat();
                     break :blk Elem.numberFloat(value_float / count_float);
                 } else {
-                    self.cur_frame.ip += offset;
+                    self.cur_frame.ip = self.current_window_fail;
                     return;
                 };
                 const previous = self.getScratch(chunk_dst);
@@ -1671,7 +1663,6 @@ pub const VM = struct {
                 const lower_arg = self.readShort();
                 const upper_kind: RangeLimitKind = @enumFromInt(self.readByte());
                 const upper_arg = self.readShort();
-                const offset = self.readShort();
                 const value = self.getScratch(src);
                 const scanned: ?usize = blk: {
                     const bytes = (try value.stringBytes(self)) orelse break :blk null;
@@ -1695,7 +1686,7 @@ pub const VM = struct {
                     self.setScratch(dst, Elem.numberFloat(@floatFromInt(count)));
                     previous.release();
                 } else {
-                    self.cur_frame.ip += offset;
+                    self.cur_frame.ip = self.current_window_fail;
                 }
             },
             .MatchFail => {
@@ -1705,22 +1696,33 @@ pub const VM = struct {
                 try self.pushFailure();
             },
             .MatchWindowEnter => {
-                // Open a fresh window: save the enclosing base, then append
+                // Open a fresh window: save the enclosing base and fail_ip,
+                // record this window's shared fail block, then append
                 // `width` placeholders (singleton underscore var, no
                 // retain) for this match's places and scratch pool.
                 const width = self.readByte();
+                const fail_offset = self.readShort();
+                const fail_ip = self.cur_frame.ip + fail_offset;
                 try self.window_bases.append(self.allocator, self.current_window_base);
+                try self.window_fails.append(self.allocator, self.current_window_fail);
                 self.current_window_base = self.match_regs.items.len;
+                self.current_window_fail = fail_ip;
                 try self.match_regs.appendNTimes(self.allocator, self.singleton_underscore_var, width);
             },
             .MatchWindowExit => {
                 // Close the innermost window: release its live handles, drop
-                // its registers, and restore the enclosing base.
+                // its registers, and restore the enclosing base and fail_ip.
                 for (self.match_regs.items[self.current_window_base..]) |reg| {
                     self.reclaimElem(reg);
                 }
                 self.match_regs.shrinkRetainingCapacity(self.current_window_base);
                 self.current_window_base = self.window_bases.pop().?;
+                self.current_window_fail = self.window_fails.pop().?;
+            },
+            .MatchRefail => {
+                // Cascade a just-closed child window's failure outward to
+                // the enclosing window's shared fail block.
+                self.cur_frame.ip = self.current_window_fail;
             },
             .GetConstant, .GetConstant2, .GetConstant3 => {
                 const idx = self.readIndex(opCode);
@@ -2421,6 +2423,7 @@ pub const VM = struct {
             .elemsOffset = self.stack.items.len - function.arity - 1,
             .match_regs_base = self.match_regs.items.len,
             .saved_window_base = self.current_window_base,
+            .saved_window_fail = self.current_window_fail,
         });
         self.syncCurrentFrame();
     }

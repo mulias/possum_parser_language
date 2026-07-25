@@ -537,17 +537,13 @@ pub const Compiler = struct {
             return try self.ir().push(self.vm.allocator, .{ .match_test = .{
                 .op = .MatchEval,
                 .byte1 = reg,
-                .byte2 = 0,
-                .target = Ir.unpatched_jump,
-            } }, region);
+                .byte2 = 0,            } }, region);
         }
         const constant = try self.makeConstantU16(module_id, global, region);
         return try self.ir().push(self.vm.allocator, .{ .match_cmp = .{
             .reg = reg,
             .kind = .constant,
-            .arg = constant,
-            .target = Ir.unpatched_jump,
-        } }, region);
+            .arg = constant,        } }, region);
     }
 
     fn numberStringNodeToElem(self: *Compiler, number: []const u8, negated: bool) !Elem {
@@ -2584,8 +2580,9 @@ pub const Compiler = struct {
         // Exit the window and loop back to a search's retry point to try
         // the next candidate.
         retry: Ir.Index,
-        // Exit the window and fail the whole match: a forward jump is
-        // appended to the arm's fail-jump list so it lands on MatchFail.
+        // Exit the window and cascade failure to the enclosing window via
+        // MatchRefail. The index of that op is appended to the parent's
+        // fail-marker list so the parent window is emitted as fallible.
         arm: *ArrayList(Ir.Index),
     };
 
@@ -2669,6 +2666,11 @@ pub const Compiler = struct {
         const template_rest = template_front + 2;
         const template_char = template_front + 3;
 
+        // Fallibility markers: each semidet step (and each child window that
+        // cascades failure here) appends an index. A non-empty list means
+        // this window needs a shared fail block, which the MatchWindowEnter
+        // fail target points at. The indices are never patched — every step
+        // fails to the window's fail_ip at runtime, not a per-op target.
         var fail_jumps = ArrayList(Ir.Index){};
         defer fail_jumps.deinit(allocator);
 
@@ -2693,7 +2695,9 @@ pub const Compiler = struct {
                 },
                 .sub => |s| switch (s.on_fail) {
                     .retry => |target| try self.emitJumpBack(.JumpBack, target, region),
-                    .arm => |arm_fails| try arm_fails.append(allocator, try self.emitJump(.Jump, region)),
+                    // Cascade to the enclosing (still-open) window's fail
+                    // block; the appended index marks the parent fallible.
+                    .arm => |arm_fails| try arm_fails.append(allocator, try self.ir().push(allocator, .{ .none = .MatchRefail }, region)),
                 },
             }
             return;
@@ -2708,7 +2712,11 @@ pub const Compiler = struct {
             try self.printError(module_id, region, "Pattern too large to compile.", .{});
             return Error.MaxFunctionLocals;
         }
-        try self.emitUnaryOp(.MatchWindowEnter, @intCast(width), region);
+        const enter_idx = try self.ir().push(allocator, .{ .w_enter = .{
+            .op = .MatchWindowEnter,
+            .width = @intCast(width),
+            .target = Ir.unpatched_jump,
+        } }, region);
 
         switch (scrutinee) {
             .input => try self.emitUnaryOp(.MatchScrutinee, scratch_base, region),
@@ -2741,27 +2749,21 @@ pub const Compiler = struct {
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
                         .op = .MatchType,
                         .byte1 = scratch_base + @as(u8, @intCast(c.place)),
-                        .byte2 = ty,
-                        .target = Ir.unpatched_jump,
-                    } }, step_region));
+                        .byte2 = ty,                    } }, step_region));
                 },
                 .len_eq => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
                         .reg = scratch_base + @as(u8, @intCast(c.place)),
                         .n = @intCast(c.len),
-                        .mode = 0,
-                        .target = Ir.unpatched_jump,
-                    } }, step_region));
+                        .mode = 0,                    } }, step_region));
                 },
                 .len_min => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
                         .reg = scratch_base + @as(u8, @intCast(c.place)),
                         .n = @intCast(c.len),
-                        .mode = 1,
-                        .target = Ir.unpatched_jump,
-                    } }, step_region));
+                        .mode = 1,                    } }, step_region));
                 },
                 .str_prefix => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
@@ -2771,9 +2773,7 @@ pub const Compiler = struct {
                         .op = .MatchStrEnd,
                         .byte1 = scratch_base + @as(u8, @intCast(c.place)),
                         .byte2 = 0,
-                        .constant = constant,
-                        .target = Ir.unpatched_jump,
-                    } }, step_region));
+                        .constant = constant,                    } }, step_region));
                 },
                 .str_suffix => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
@@ -2783,27 +2783,21 @@ pub const Compiler = struct {
                         .op = .MatchStrEnd,
                         .byte1 = scratch_base + @as(u8, @intCast(c.place)),
                         .byte2 = 1,
-                        .constant = constant,
-                        .target = Ir.unpatched_jump,
-                    } }, step_region));
+                        .constant = constant,                    } }, step_region));
                 },
                 .keys_exact => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
                         .reg = scratch_base + @as(u8, @intCast(c.place)),
                         .n = @intCast(c.count),
-                        .mode = 0,
-                        .target = Ir.unpatched_jump,
-                    } }, step_region));
+                        .mode = 0,                    } }, step_region));
                 },
                 .keys_min => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
                         .reg = scratch_base + @as(u8, @intCast(c.place)),
                         .n = @intCast(c.count),
-                        .mode = 1,
-                        .target = Ir.unpatched_jump,
-                    } }, step_region));
+                        .mode = 1,                    } }, step_region));
                 },
                 .has_key => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
@@ -2821,9 +2815,7 @@ pub const Compiler = struct {
                         .op = .MatchKey,
                         .byte1 = dst,
                         .byte2 = scratch_base + @as(u8, @intCast(c.place)),
-                        .constant = constant,
-                        .target = Ir.unpatched_jump,
-                    } }, step_region));
+                        .constant = constant,                    } }, step_region));
                 },
                 .eq_const => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
@@ -2832,9 +2824,7 @@ pub const Compiler = struct {
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
                         .reg = scratch_base + @as(u8, @intCast(c.place)),
                         .kind = .constant,
-                        .arg = constant,
-                        .target = Ir.unpatched_jump,
-                    } }, step_region));
+                        .arg = constant,                    } }, step_region));
                 },
                 .eq_global => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
@@ -2853,9 +2843,7 @@ pub const Compiler = struct {
                         .compare => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
                             .reg = scratch_base + @as(u8, @intCast(c.place)),
                             .kind = .slot,
-                            .arg = c.slot,
-                            .target = Ir.unpatched_jump,
-                        } }, step_region)),
+                            .arg = c.slot,                        } }, step_region)),
                     }
                 },
                 .eq_slot => |c| {
@@ -2863,9 +2851,7 @@ pub const Compiler = struct {
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
                         .reg = scratch_base + @as(u8, @intCast(c.place)),
                         .kind = .slot,
-                        .arg = c.slot,
-                        .target = Ir.unpatched_jump,
-                    } }, step_region));
+                        .arg = c.slot,                    } }, step_region));
                 },
                 // Evaluate the expression (a call, mirroring the plan's
                 // eval_eq) and compare its result against the place. Every
@@ -2877,9 +2863,7 @@ pub const Compiler = struct {
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
                         .op = .MatchEval,
                         .byte1 = scratch_base + @as(u8, @intCast(c.place)),
-                        .byte2 = 0,
-                        .target = Ir.unpatched_jump,
-                    } }, step_region));
+                        .byte2 = 0,                    } }, step_region));
                 },
                 .in_range => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
@@ -2944,9 +2928,7 @@ pub const Compiler = struct {
                             .src = src_reg,
                             .slot = slot,
                             .claim_count = my_index,
-                            .constant = constant,
-                            .target = Ir.unpatched_jump,
-                        } }, step_region));
+                            .constant = constant,                        } }, step_region));
                         try self.writeMatchSteps(module_id, ast, value_set.places.items, value_set.constraints.items, .{ .sub = .{ .src_reg = value_reg, .on_fail = .{ .arm = &fail_jumps } } }, step_region);
                         continue;
                     }
@@ -2965,9 +2947,7 @@ pub const Compiler = struct {
                         .src = src_reg,
                         .cursor = cursor_reg,
                         .claim_count = my_index,
-                        .constant = constant,
-                        .target = Ir.unpatched_jump,
-                    } }, step_region));
+                        .constant = constant,                    } }, step_region));
                     try self.writeMatchSteps(module_id, ast, value_set.places.items, value_set.constraints.items, .{ .sub = .{ .src_reg = value_reg, .on_fail = .{ .retry = loop } } }, step_region);
                     if (singleSetConstraint(ast, c.key)) |kc| switch (kc.kind) {
                         .bind => |b| _ = try self.ir().push(allocator, .{ .match_bytes = .{
@@ -2991,7 +2971,6 @@ pub const Compiler = struct {
                                 .op = .MatchRepeatValue,
                                 .byte1 = src_reg,
                                 .byte2 = repeat_reg,
-                                .target = Ir.unpatched_jump,
                             } }, step_region));
                             try self.emitRepeatCountSteps(module_id, ast, c.count, repeat_reg, &fail_jumps, step_region);
                         },
@@ -3014,7 +2993,6 @@ pub const Compiler = struct {
                                 .lower_arg = lower_desc.arg,
                                 .upper_kind = upper_desc.kind,
                                 .upper_arg = upper_desc.arg,
-                                .target = Ir.unpatched_jump,
                             } }, step_region));
                             try self.emitRepeatCountSteps(module_id, ast, c.count, repeat_reg, &fail_jumps, step_region);
                         },
@@ -3036,7 +3014,6 @@ pub const Compiler = struct {
                                 .len = @intCast(sub_len),
                                 .count_dst = repeat_reg,
                                 .base = repeat_base_reg,
-                                .target = Ir.unpatched_jump,
                             } }, step_region));
                             try self.emitRepeatCountSteps(module_id, ast, c.count, repeat_reg, &fail_jumps, step_region);
 
@@ -3079,7 +3056,6 @@ pub const Compiler = struct {
                                 .op = .MatchRepeatChunk,
                                 .byte1 = src_reg,
                                 .byte2 = repeat_reg,
-                                .target = Ir.unpatched_jump,
                             } }, step_region));
                             switch (c.pattern) {
                                 .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
@@ -3098,14 +3074,18 @@ pub const Compiler = struct {
         }
 
         if (fail_jumps.items.len == 0) {
-            // Every step was deterministic; there is no failure path.
-            // Success falls through to the window exit.
+            // Every step was deterministic; there is no failure path. Point
+            // the window's (unused) fail target at the exit to keep it in
+            // range, then close. Success falls through to the exit.
+            self.patchJump(enter_idx);
             try self.emitOp(.MatchWindowExit, region);
             if (skipJump) |j| self.patchJump(j);
             return;
         }
         const okJump = try self.emitJump(.Jump, region);
-        for (fail_jumps.items) |jumpIndex| self.patchJump(jumpIndex);
+        // The window's shared fail block begins here; every semidet step
+        // inside jumped to it via the window's fail_ip.
+        self.patchJump(enter_idx);
         switch (scrutinee) {
             .input => {
                 try self.emitOp(.MatchFail, region);
@@ -3125,9 +3105,10 @@ pub const Compiler = struct {
                     // A rejected search candidate loops back for the next
                     // member.
                     .retry => |target| try self.emitJumpBack(.JumpBack, target, region),
-                    // A rejected chunk fails the whole match: jump to the
-                    // arm's shared fail tail.
-                    .arm => |arm_fails| try arm_fails.append(allocator, try self.emitJump(.Jump, region)),
+                    // A rejected chunk cascades to the enclosing window's
+                    // fail block; the appended index marks the parent
+                    // fallible.
+                    .arm => |arm_fails| try arm_fails.append(allocator, try self.ir().push(allocator, .{ .none = .MatchRefail }, region)),
                 }
                 self.patchJump(okJump);
                 try self.emitOp(.MatchWindowExit, region);
@@ -3222,9 +3203,7 @@ pub const Compiler = struct {
             .read => |ls| try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
                 .reg = reg,
                 .kind = .slot,
-                .arg = ls.slot,
-                .target = Ir.unpatched_jump,
-            } }, region)),
+                .arg = ls.slot,            } }, region)),
             .expr => |id| try self.emitRepeatCountConst(module_id, ast, id, reg, fail_jumps, region),
             .sub => |set_id| {
                 const set = &ast.constraint_sets.items[set_id];
@@ -3238,9 +3217,7 @@ pub const Compiler = struct {
                     .eq_slot => |c| try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
                         .reg = reg,
                         .kind = .slot,
-                        .arg = c.slot,
-                        .target = Ir.unpatched_jump,
-                    } }, region)),
+                        .arg = c.slot,                    } }, region)),
                     .in_range => |c| try self.emitInRangeStep(module_id, ast, reg, c.lower, c.upper, fail_jumps, region),
                     else => unreachable,
                 };
@@ -3263,9 +3240,7 @@ pub const Compiler = struct {
         try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_cmp = .{
             .reg = reg,
             .kind = .constant,
-            .arg = constant,
-            .target = Ir.unpatched_jump,
-        } }, region));
+            .arg = constant,        } }, region));
     }
 
     // Emit the residual steps of a number or boolean merge rooted at
@@ -3294,9 +3269,7 @@ pub const Compiler = struct {
                 .op = .MatchMergeBool,
                 .byte1 = dead_reg,
                 .byte2 = src_reg,
-                .constant = constant,
-                .target = Ir.unpatched_jump,
-            } }, region));
+                .constant = constant,            } }, region));
             switch (step.kind) {
                 .bind => _ = try self.ir().push(allocator, .{ .match_bytes = .{
                     .op = .MatchBind,
@@ -3311,9 +3284,7 @@ pub const Compiler = struct {
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
                         .reg = dead_reg,
                         .kind = .slot,
-                        .arg = step.slot,
-                        .target = Ir.unpatched_jump,
-                    } }, region));
+                        .arg = step.slot,                    } }, region));
                 },
                 .placeholder => {},
             }
@@ -3344,9 +3315,7 @@ pub const Compiler = struct {
                 .read => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
                     .reg = src_reg,
                     .kind = .slot,
-                    .arg = step.slot,
-                    .target = Ir.unpatched_jump,
-                } }, region)),
+                    .arg = step.slot,                } }, region)),
                 .placeholder => {},
             }
             return;
@@ -3356,9 +3325,7 @@ pub const Compiler = struct {
             .dst = dead_reg,
             .src = src_reg,
             .constant = constant,
-            .negate = step.negate,
-            .target = Ir.unpatched_jump,
-        } }, region));
+            .negate = step.negate,        } }, region));
         switch (step.kind) {
             .bind => _ = try self.ir().push(allocator, .{ .match_bytes = .{
                 .op = .MatchBind,
@@ -3368,9 +3335,7 @@ pub const Compiler = struct {
             .read => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
                 .reg = dead_reg,
                 .kind = .slot,
-                .arg = step.slot,
-                .target = Ir.unpatched_jump,
-            } }, region)),
+                .arg = step.slot,            } }, region)),
             .placeholder => {},
         }
     }
@@ -3408,9 +3373,7 @@ pub const Compiler = struct {
             .dst = dead_reg,
             .src = src_reg,
             .constant = constant,
-            .negate = false,
-            .target = Ir.unpatched_jump,
-        } }, region));
+            .negate = false,        } }, region));
         for (parts, 0..) |part, i| {
             if (i == step.part_index) continue;
             const is_const = switch (part) {
@@ -3422,9 +3385,7 @@ pub const Compiler = struct {
             try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
                 .op = .MatchSubtractEval,
                 .byte1 = dead_reg,
-                .byte2 = dead_reg,
-                .target = Ir.unpatched_jump,
-            } }, region));
+                .byte2 = dead_reg,            } }, region));
         }
         switch (step.kind) {
             .bind => _ = try self.ir().push(allocator, .{ .match_bytes = .{
@@ -3435,9 +3396,7 @@ pub const Compiler = struct {
             .read => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
                 .reg = dead_reg,
                 .kind = .slot,
-                .arg = step.slot,
-                .target = Ir.unpatched_jump,
-            } }, region)),
+                .arg = step.slot,            } }, region)),
             .placeholder => {},
         }
     }
@@ -3472,15 +3431,11 @@ pub const Compiler = struct {
         try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
             .op = .MatchType,
             .byte1 = reg,
-            .byte2 = 2,
-            .target = Ir.unpatched_jump,
-        } }, region));
+            .byte2 = 2,        } }, region));
         try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
             .reg = reg,
             .n = @intCast(prefix.items.len + suffix.items.len),
-            .mode = 1,
-            .target = Ir.unpatched_jump,
-        } }, region));
+            .mode = 1,        } }, region));
         if (prefix.items.len > 0) {
             const sid = try self.vm.strings.insert(prefix.items);
             const constant = try self.makeConstantU16(module_id, Elem.string(sid), region);
@@ -3488,9 +3443,7 @@ pub const Compiler = struct {
                 .op = .MatchStrEnd,
                 .byte1 = reg,
                 .byte2 = 0,
-                .constant = constant,
-                .target = Ir.unpatched_jump,
-            } }, region));
+                .constant = constant,            } }, region));
         }
         if (suffix.items.len > 0) {
             const sid = try self.vm.strings.insert(suffix.items);
@@ -3499,9 +3452,7 @@ pub const Compiler = struct {
                 .op = .MatchStrEnd,
                 .byte1 = reg,
                 .byte2 = 1,
-                .constant = constant,
-                .target = Ir.unpatched_jump,
-            } }, region));
+                .constant = constant,            } }, region));
         }
         if (special.? == .bind) {
             _ = try self.ir().push(allocator, .{ .match_bytes = .{
@@ -3552,9 +3503,7 @@ pub const Compiler = struct {
         try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
             .op = .MatchType,
             .byte1 = reg,
-            .byte2 = 2,
-            .target = Ir.unpatched_jump,
-        } }, region));
+            .byte2 = 2,        } }, region));
 
         // Normalize segments: fold constants into adjacent literal runs
         // (interned eagerly) and classify the rest.
@@ -3658,9 +3607,7 @@ pub const Compiler = struct {
             try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
                 .reg = regs.front,
                 .kind = .reg,
-                .arg = regs.end,
-                .target = Ir.unpatched_jump,
-            } }, region));
+                .arg = regs.end,            } }, region));
         }
     }
 
@@ -3705,9 +3652,7 @@ pub const Compiler = struct {
         try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_cast = .{
             .dst = cast_dst,
             .src = cast_src,
-            .ty = .number,
-            .target = Ir.unpatched_jump,
-        } }, region));
+            .ty = .number,        } }, region));
         const limits = templateRangeLimits(ast, set_id).?;
         try self.emitInRangeStep(module_id, ast, cast_dst, limits.lower, limits.upper, fail_jumps, region);
     }
@@ -3731,9 +3676,7 @@ pub const Compiler = struct {
         try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_cast = .{
             .dst = cast_dst,
             .src = cast_src,
-            .ty = .json,
-            .target = Ir.unpatched_jump,
-        } }, region));
+            .ty = .json,        } }, region));
         const set = &ast.constraint_sets.items[set_id];
         try self.writeMatchSteps(module_id, ast, set.places.items, set.constraints.items, .{ .sub = .{
             .src_reg = cast_dst,
@@ -3767,9 +3710,7 @@ pub const Compiler = struct {
         try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cast = .{
             .dst = cast_dst,
             .src = cast_src,
-            .ty = cast_ty,
-            .target = Ir.unpatched_jump,
-        } }, region));
+            .ty = cast_ty,        } }, region));
         try self.emitMergeSolve(module_id, ast, merge.ty, merge.parts.items, cast_dst, dead_reg, cast_ty == .number, fail_jumps, region);
     }
 
@@ -3822,9 +3763,7 @@ pub const Compiler = struct {
                 .cursor = cursor,
                 .opp = opp,
                 .back = back_byte,
-                .constant = constant,
-                .target = Ir.unpatched_jump,
-            } }, region)),
+                .constant = constant,            } }, region)),
             .value => |part| {
                 try self.emitEvaluablePartValue(module_id, ast, part, region);
                 try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_str_val = .{
@@ -3832,9 +3771,7 @@ pub const Compiler = struct {
                     .src = reg,
                     .cursor = cursor,
                     .opp = opp,
-                    .back = back_byte,
-                    .target = Ir.unpatched_jump,
-                } }, region));
+                    .back = back_byte,                } }, region));
             },
             .char_range => |set_id| {
                 try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_str_char = .{
@@ -3843,9 +3780,7 @@ pub const Compiler = struct {
                     .src = reg,
                     .cursor = cursor,
                     .opp = opp,
-                    .back = back_byte,
-                    .target = Ir.unpatched_jump,
-                } }, region));
+                    .back = back_byte,                } }, region));
                 // A codepoint range compares the decoded character directly;
                 // numeric ranges take the whole-substring cast path
                 // (emitTemplateRangeCast), not this per-codepoint one.
@@ -3876,9 +3811,7 @@ pub const Compiler = struct {
         try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
             .op = .MatchType,
             .byte1 = reg,
-            .byte2 = 3,
-            .target = Ir.unpatched_jump,
-        } }, region));
+            .byte2 = 3,        } }, region));
         try self.emitRangeBound(module_id, ast, lower, reg, false, fail_jumps, region);
         try self.emitRangeBound(module_id, ast, upper, reg, true, fail_jumps, region);
     }
@@ -3954,9 +3887,7 @@ pub const Compiler = struct {
             .reg = reg,
             .is_upper = @intFromBool(is_upper),
             .kind = @intFromEnum(kind),
-            .arg = arg,
-            .target = Ir.unpatched_jump,
-        } }, region));
+            .arg = arg,        } }, region));
     }
 
     fn emitRangeBoundEval(
@@ -3970,9 +3901,7 @@ pub const Compiler = struct {
         try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
             .op = .MatchRangeBound,
             .byte1 = reg,
-            .byte2 = @intFromBool(is_upper),
-            .target = Ir.unpatched_jump,
-        } }, region));
+            .byte2 = @intFromBool(is_upper),        } }, region));
     }
 
     // A bare negation composes with any stepable inner. An evaluable
@@ -4014,9 +3943,7 @@ pub const Compiler = struct {
                 try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
                     .op = .MatchEval,
                     .byte1 = reg,
-                    .byte2 = 0,
-                    .target = Ir.unpatched_jump,
-                } }, region));
+                    .byte2 = 0,                } }, region));
             },
             .bind, .placeholder, .sub => {
                 const constant = try self.makeConstantU16(module_id, Elem.numberFloat(0), region);
@@ -4024,9 +3951,7 @@ pub const Compiler = struct {
                     .dst = dead_reg,
                     .src = reg,
                     .constant = constant,
-                    .negate = count % 2 == 1,
-                    .target = Ir.unpatched_jump,
-                } }, region));
+                    .negate = count % 2 == 1,                } }, region));
                 switch (part) {
                     .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
                         .op = .MatchBind,

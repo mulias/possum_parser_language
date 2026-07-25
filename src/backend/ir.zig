@@ -47,8 +47,9 @@ pub const Ir = struct {
         destructure_plan: u24,
         jump: struct { op: OpCode, target: Index },
         jump_back: struct { op: OpCode, target: Index },
-        // Match step operands. Registers are frame slots; semidet steps
-        // carry a fail-jump target patched like other jumps.
+        // Match step operands. Registers are frame slots. Semidet steps
+        // carry no fail target: on failure they jump to the innermost open
+        // window's shared fail block, recorded on MatchWindowEnter (w_enter).
         // MatchBind (local, src), MatchElem (dst, src, index, dir), and
         // MatchSlice (dst, src, front, back).
         match_bytes: struct { op: OpCode, byte1: u8, byte2: u8, byte3: u8 = 0, byte4: u8 = 0 },
@@ -56,30 +57,35 @@ pub const Ir = struct {
         // MatchRepeatValue/MatchRepeatChunk (src register, destination
         // register) which pop their evaluated repeat operand from the
         // stack.
-        match_test: struct { op: OpCode, byte1: u8, byte2: u8, target: Index },
+        match_test: struct { op: OpCode, byte1: u8, byte2: u8 },
+        // MatchWindowEnter (width, fail target): open a match register
+        // window sized to width; the target is the window's shared fail
+        // block, where every semidet step inside the window jumps on
+        // failure (§ per-window failure continuation).
+        w_enter: struct { op: OpCode, width: u8, target: Index },
         // MatchCount (register, immediate count, mode): semidet size test.
         // Counts array elements, object members, or string bytes and
         // compares against the immediate; mode 0 is equal, mode 1 at
         // least. Carries a forward fail-jump target.
-        match_count: struct { reg: u8, n: u8, mode: u8, target: Index },
+        match_count: struct { reg: u8, n: u8, mode: u8 },
         // MatchCmp (register, comparand kind, arg): semidet equality test.
         // kind selects the comparand — constant (arg = constant index),
         // slot (arg = bound local slot), or reg (arg = another scratch
         // register). Carries a forward fail-jump target.
-        match_cmp: struct { reg: u8, kind: MatchCmpKind, arg: u16, target: Index },
+        match_cmp: struct { reg: u8, kind: MatchCmpKind, arg: u16 },
         // MatchCast (dst, src, target type): semidet parse of src's string
         // bytes into dst as a number, boolean, or JSON document. Carries a
         // forward fail-jump target.
-        match_cast: struct { dst: u8, src: u8, ty: MatchCastKind, target: Index },
+        match_cast: struct { dst: u8, src: u8, ty: MatchCastKind },
         // MatchKey/MatchMergeBool (dst, src, constant) and MatchStrEnd
         // (slot, direction, constant). byte2 is the src register or the
         // direction flag; it is omitted for ops that carry neither.
-        match_const: struct { op: OpCode, byte1: u8, byte2: u8 = 0, constant: u16, target: Index },
+        match_const: struct { op: OpCode, byte1: u8, byte2: u8 = 0, constant: u16 },
         // MatchMergeNum (dst, src, folded-constant sum, negate): the
         // residual of a number merge. negate flips src − sum to sum − src
         // for a leftover under an odd negation count. Carries a forward
         // fail-jump target.
-        match_merge_num: struct { dst: u8, src: u8, constant: u16, negate: bool, target: Index },
+        match_merge_num: struct { dst: u8, src: u8, constant: u16, negate: bool },
         // MatchObjectRest (dst, src, key-list constant, claim register
         // range): det, no jump. Subtracts the constant const-key list and
         // the claim_count claimed search-key registers; claim_count 0 is
@@ -90,30 +96,30 @@ pub const Ir = struct {
         // the claim_count registers below key_dst; the constant lists the
         // const-key pairs' keys, claimed whichever order the pairs run.
         // Carries a forward fail-jump target taken when the scan exhausts.
-        match_search: struct { op: OpCode, key_dst: u8, val_dst: u8, src: u8, cursor: u8, claim_count: u8, constant: u16, target: Index },
+        match_search: struct { op: OpCode, key_dst: u8, val_dst: u8, src: u8, cursor: u8, claim_count: u8, constant: u16 },
         // MatchKeyBound (key_dst, val_dst, src, slot, claim_count,
         // key-list constant): semidet member probe by the bound local's
         // key, which must be a string (runtime error otherwise). Fails
         // when the member is absent or already claimed; on success the
         // key is claimed into key_dst like a search pair's.
-        match_key_bound: struct { op: OpCode, key_dst: u8, val_dst: u8, src: u8, slot: u8, claim_count: u8, constant: u16, target: Index },
+        match_key_bound: struct { op: OpCode, key_dst: u8, val_dst: u8, src: u8, slot: u8, claim_count: u8, constant: u16 },
         // MatchBound (reg, is_upper, kind, arg): semidet one-ended range
         // test. is_upper selects value<=bound (1) vs bound<=value (0);
         // kind is const=1 (arg a constant index) or read=3 (arg a bound
         // local slot). The range-value gate is carried by the comparison;
         // bind/global/eval bounds are split at compile time into MatchBind
         // / a constant / a call + MatchRangeBound, so none reach here.
-        match_bound: struct { op: OpCode, reg: u8, is_upper: u8, kind: u8, arg: u16, target: Index },
+        match_bound: struct { op: OpCode, reg: u8, is_upper: u8, kind: u8, arg: u16 },
         // MatchRepeatRange (src, count dst, lower kind+arg, upper
         // kind+arg): semidet codepoint scan of src's string against the
         // range bounds, writing the codepoint count into dst. Bound kinds
         // are the non-evaluated range-bound subset (none/const/read).
-        match_repeat_range: struct { op: OpCode, src: u8, dst: u8, lower_kind: u8, lower_arg: u16, upper_kind: u8, upper_arg: u16, target: Index },
+        match_repeat_range: struct { op: OpCode, src: u8, dst: u8, lower_kind: u8, lower_arg: u16, upper_kind: u8, upper_arg: u16 },
         // MatchRepeatInit (src, chunk element length, count dst, base):
         // semidet array-repeat loop entry — array check and divisibility,
         // count = len / L into count_dst, base primed to -L so the first
         // MatchRepeatNext advances it to 0.
-        match_repeat_init: struct { op: OpCode, src: u8, len: u8, count_dst: u8, base: u8, target: Index },
+        match_repeat_init: struct { op: OpCode, src: u8, len: u8, count_dst: u8, base: u8 },
         // MatchRepeatNext (src, base, chunk element length, chunk_dst):
         // loop head — advance base by L and jump to the done target when
         // the array is exhausted; otherwise materialize the chunk slice
@@ -132,17 +138,17 @@ pub const Ir = struct {
         // (forward [front..front+len) when back=0, else [end-len..end)),
         // failing if they don't fit before the opposite cursor or differ,
         // then advance/retreat the cursor.
-        match_str_lit: struct { op: OpCode, src: u8, cursor: u8, opp: u8, back: u8, constant: u16, target: Index },
+        match_str_lit: struct { op: OpCode, src: u8, cursor: u8, opp: u8, back: u8, constant: u16 },
         // MatchStrVal (src, cursor, opposite cursor, back flag): semidet —
         // pop the evaluated segment value off the stack, stringify it, and
         // compare/advance like MatchStrLit with the runtime length.
-        match_str_val: struct { op: OpCode, src: u8, cursor: u8, opp: u8, back: u8, target: Index },
+        match_str_val: struct { op: OpCode, src: u8, cursor: u8, opp: u8, back: u8 },
         // MatchStrChar (dst, src, cursor, opposite cursor, back flag):
         // semidet — decode one codepoint at the cursor (forward lead-byte
         // length; back continuation walk landing exactly), materialize it
         // as a string into dst, and advance/retreat. The range test
         // follows against dst.
-        match_str_char: struct { op: OpCode, dst: u8, src: u8, cursor: u8, opp: u8, back: u8, target: Index },
+        match_str_char: struct { op: OpCode, dst: u8, src: u8, cursor: u8, opp: u8, back: u8 },
     };
 
     pub fn deinit(self: *Ir, allocator: Allocator) void {
@@ -217,21 +223,8 @@ pub const Ir = struct {
         const insn = &self.instructions.items[index];
         const target = switch (insn.operand) {
             .jump => |*j| &j.target,
-            .match_test => |*m| &m.target,
-            .match_count => |*m| &m.target,
-            .match_cmp => |*m| &m.target,
-            .match_cast => |*m| &m.target,
-            .match_const => |*m| &m.target,
-            .match_merge_num => |*m| &m.target,
-            .match_search => |*m| &m.target,
-            .match_key_bound => |*m| &m.target,
-            .match_bound => |*m| &m.target,
-            .match_repeat_range => |*m| &m.target,
-            .match_repeat_init => |*m| &m.target,
+            .w_enter => |*m| &m.target,
             .match_repeat_next => |*m| &m.target,
-            .match_str_lit => |*m| &m.target,
-            .match_str_val => |*m| &m.target,
-            .match_str_char => |*m| &m.target,
             else => unreachable,
         };
         std.debug.assert(target.* == unpatched_jump);
@@ -303,71 +296,50 @@ pub const Ir = struct {
                         try chunk.write(allocator, m.byte4, region);
                     }
                 },
-                .match_test => |m| {
+                .w_enter => |m| {
                     std.debug.assert(m.target != unpatched_jump);
                     std.debug.assert(m.target > i);
                     try chunk.writeOp(allocator, m.op, region);
-                    try chunk.write(allocator, m.byte1, region);
-                    try chunk.write(allocator, m.byte2, region);
+                    try chunk.write(allocator, m.width, region);
                     const insn_len = byteLength(insn.operand);
                     const distance = offsets[m.target] - (offsets[i] + insn_len);
                     try self.writeShortDistance(chunk, allocator, distance, region);
                 },
+                .match_test => |m| {
+                    try chunk.writeOp(allocator, m.op, region);
+                    try chunk.write(allocator, m.byte1, region);
+                    try chunk.write(allocator, m.byte2, region);
+                },
                 .match_count => |m| {
-                    std.debug.assert(m.target != unpatched_jump);
-                    std.debug.assert(m.target > i);
                     try chunk.writeOp(allocator, .MatchCount, region);
                     try chunk.write(allocator, m.reg, region);
                     try chunk.write(allocator, m.n, region);
                     try chunk.write(allocator, m.mode, region);
-                    const insn_len = byteLength(insn.operand);
-                    const distance = offsets[m.target] - (offsets[i] + insn_len);
-                    try self.writeShortDistance(chunk, allocator, distance, region);
                 },
                 .match_cmp => |m| {
-                    std.debug.assert(m.target != unpatched_jump);
-                    std.debug.assert(m.target > i);
                     try chunk.writeOp(allocator, .MatchCmp, region);
                     try chunk.write(allocator, m.reg, region);
                     try chunk.write(allocator, @intFromEnum(m.kind), region);
                     try chunk.writeShort(allocator, m.arg, region);
-                    const insn_len = byteLength(insn.operand);
-                    const distance = offsets[m.target] - (offsets[i] + insn_len);
-                    try self.writeShortDistance(chunk, allocator, distance, region);
                 },
                 .match_cast => |m| {
-                    std.debug.assert(m.target != unpatched_jump);
-                    std.debug.assert(m.target > i);
                     try chunk.writeOp(allocator, .MatchCast, region);
                     try chunk.write(allocator, m.dst, region);
                     try chunk.write(allocator, m.src, region);
                     try chunk.write(allocator, @intFromEnum(m.ty), region);
-                    const insn_len = byteLength(insn.operand);
-                    const distance = offsets[m.target] - (offsets[i] + insn_len);
-                    try self.writeShortDistance(chunk, allocator, distance, region);
                 },
                 .match_const => |m| {
-                    std.debug.assert(m.target != unpatched_jump);
-                    std.debug.assert(m.target > i);
                     try chunk.writeOp(allocator, m.op, region);
                     try chunk.write(allocator, m.byte1, region);
                     if (matchConstHasSrcReg(m.op)) try chunk.write(allocator, m.byte2, region);
                     try chunk.writeShort(allocator, m.constant, region);
-                    const insn_len = byteLength(insn.operand);
-                    const distance = offsets[m.target] - (offsets[i] + insn_len);
-                    try self.writeShortDistance(chunk, allocator, distance, region);
                 },
                 .match_merge_num => |m| {
-                    std.debug.assert(m.target != unpatched_jump);
-                    std.debug.assert(m.target > i);
                     try chunk.writeOp(allocator, .MatchMergeNum, region);
                     try chunk.write(allocator, m.dst, region);
                     try chunk.write(allocator, m.src, region);
                     try chunk.writeShort(allocator, m.constant, region);
                     try chunk.write(allocator, @intFromBool(m.negate), region);
-                    const insn_len = byteLength(insn.operand);
-                    const distance = offsets[m.target] - (offsets[i] + insn_len);
-                    try self.writeShortDistance(chunk, allocator, distance, region);
                 },
                 .match_rest => |m| {
                     try chunk.writeOp(allocator, m.op, region);
@@ -378,8 +350,6 @@ pub const Ir = struct {
                     try chunk.write(allocator, m.claim_count, region);
                 },
                 .match_search => |m| {
-                    std.debug.assert(m.target != unpatched_jump);
-                    std.debug.assert(m.target > i);
                     try chunk.writeOp(allocator, m.op, region);
                     try chunk.write(allocator, m.key_dst, region);
                     try chunk.write(allocator, m.val_dst, region);
@@ -387,13 +357,8 @@ pub const Ir = struct {
                     try chunk.write(allocator, m.cursor, region);
                     try chunk.write(allocator, m.claim_count, region);
                     try chunk.writeShort(allocator, m.constant, region);
-                    const insn_len = byteLength(insn.operand);
-                    const distance = offsets[m.target] - (offsets[i] + insn_len);
-                    try self.writeShortDistance(chunk, allocator, distance, region);
                 },
                 .match_key_bound => |m| {
-                    std.debug.assert(m.target != unpatched_jump);
-                    std.debug.assert(m.target > i);
                     try chunk.writeOp(allocator, m.op, region);
                     try chunk.write(allocator, m.key_dst, region);
                     try chunk.write(allocator, m.val_dst, region);
@@ -401,25 +366,15 @@ pub const Ir = struct {
                     try chunk.write(allocator, m.slot, region);
                     try chunk.write(allocator, m.claim_count, region);
                     try chunk.writeShort(allocator, m.constant, region);
-                    const insn_len = byteLength(insn.operand);
-                    const distance = offsets[m.target] - (offsets[i] + insn_len);
-                    try self.writeShortDistance(chunk, allocator, distance, region);
                 },
                 .match_bound => |m| {
-                    std.debug.assert(m.target != unpatched_jump);
-                    std.debug.assert(m.target > i);
                     try chunk.writeOp(allocator, m.op, region);
                     try chunk.write(allocator, m.reg, region);
                     try chunk.write(allocator, m.is_upper, region);
                     try chunk.write(allocator, m.kind, region);
                     try chunk.writeShort(allocator, m.arg, region);
-                    const insn_len = byteLength(insn.operand);
-                    const distance = offsets[m.target] - (offsets[i] + insn_len);
-                    try self.writeShortDistance(chunk, allocator, distance, region);
                 },
                 .match_repeat_range => |m| {
-                    std.debug.assert(m.target != unpatched_jump);
-                    std.debug.assert(m.target > i);
                     try chunk.writeOp(allocator, m.op, region);
                     try chunk.write(allocator, m.src, region);
                     try chunk.write(allocator, m.dst, region);
@@ -427,21 +382,13 @@ pub const Ir = struct {
                     try chunk.writeShort(allocator, m.lower_arg, region);
                     try chunk.write(allocator, m.upper_kind, region);
                     try chunk.writeShort(allocator, m.upper_arg, region);
-                    const insn_len = byteLength(insn.operand);
-                    const distance = offsets[m.target] - (offsets[i] + insn_len);
-                    try self.writeShortDistance(chunk, allocator, distance, region);
                 },
                 .match_repeat_init => |m| {
-                    std.debug.assert(m.target != unpatched_jump);
-                    std.debug.assert(m.target > i);
                     try chunk.writeOp(allocator, m.op, region);
                     try chunk.write(allocator, m.src, region);
                     try chunk.write(allocator, m.len, region);
                     try chunk.write(allocator, m.count_dst, region);
                     try chunk.write(allocator, m.base, region);
-                    const insn_len = byteLength(insn.operand);
-                    const distance = offsets[m.target] - (offsets[i] + insn_len);
-                    try self.writeShortDistance(chunk, allocator, distance, region);
                 },
                 .match_repeat_next => |m| {
                     std.debug.assert(m.target != unpatched_jump);
@@ -469,42 +416,27 @@ pub const Ir = struct {
                     try chunk.write(allocator, m.end, region);
                 },
                 .match_str_lit => |m| {
-                    std.debug.assert(m.target != unpatched_jump);
-                    std.debug.assert(m.target > i);
                     try chunk.writeOp(allocator, m.op, region);
                     try chunk.write(allocator, m.src, region);
                     try chunk.write(allocator, m.cursor, region);
                     try chunk.write(allocator, m.opp, region);
                     try chunk.write(allocator, m.back, region);
                     try chunk.writeShort(allocator, m.constant, region);
-                    const insn_len = byteLength(insn.operand);
-                    const distance = offsets[m.target] - (offsets[i] + insn_len);
-                    try self.writeShortDistance(chunk, allocator, distance, region);
                 },
                 .match_str_val => |m| {
-                    std.debug.assert(m.target != unpatched_jump);
-                    std.debug.assert(m.target > i);
                     try chunk.writeOp(allocator, m.op, region);
                     try chunk.write(allocator, m.src, region);
                     try chunk.write(allocator, m.cursor, region);
                     try chunk.write(allocator, m.opp, region);
                     try chunk.write(allocator, m.back, region);
-                    const insn_len = byteLength(insn.operand);
-                    const distance = offsets[m.target] - (offsets[i] + insn_len);
-                    try self.writeShortDistance(chunk, allocator, distance, region);
                 },
                 .match_str_char => |m| {
-                    std.debug.assert(m.target != unpatched_jump);
-                    std.debug.assert(m.target > i);
                     try chunk.writeOp(allocator, m.op, region);
                     try chunk.write(allocator, m.dst, region);
                     try chunk.write(allocator, m.src, region);
                     try chunk.write(allocator, m.cursor, region);
                     try chunk.write(allocator, m.opp, region);
                     try chunk.write(allocator, m.back, region);
-                    const insn_len = byteLength(insn.operand);
-                    const distance = offsets[m.target] - (offsets[i] + insn_len);
-                    try self.writeShortDistance(chunk, allocator, distance, region);
                 },
             }
         }
@@ -575,24 +507,25 @@ pub const Ir = struct {
                 .MatchElem, .MatchSlice => @as(u32, 5),
                 else => 3,
             },
-            .match_test => 5,
-            .match_count => 6,
-            .match_cmp => 7,
-            .match_cast => 6,
-            .match_const => |m| if (matchConstHasSrcReg(m.op)) @as(u32, 7) else 6,
-            .match_merge_num => 8,
+            .w_enter => 4,
+            .match_test => 3,
+            .match_count => 4,
+            .match_cmp => 5,
+            .match_cast => 4,
+            .match_const => |m| if (matchConstHasSrcReg(m.op)) @as(u32, 5) else 4,
+            .match_merge_num => 6,
             .match_rest => 7,
-            .match_search => 10,
-            .match_key_bound => 10,
-            .match_bound => 8,
-            .match_repeat_range => 11,
-            .match_repeat_init => 7,
+            .match_search => 8,
+            .match_key_bound => 8,
+            .match_bound => 6,
+            .match_repeat_range => 9,
+            .match_repeat_init => 5,
             .match_repeat_next => 7,
             .match_str_init => 4,
             .match_str_rest => 5,
-            .match_str_lit => 9,
-            .match_str_val => 7,
-            .match_str_char => 8,
+            .match_str_lit => 7,
+            .match_str_val => 5,
+            .match_str_char => 6,
         };
     }
 
@@ -678,21 +611,8 @@ pub const Ir = struct {
                 .branch => |branch| {
                     const forward_target: ?Index = switch (insn.operand) {
                         .jump => |j| j.target,
-                        .match_test => |m| m.target,
-                        .match_count => |m| m.target,
-                        .match_cmp => |m| m.target,
-                        .match_cast => |m| m.target,
-                        .match_const => |m| m.target,
-                        .match_merge_num => |m| m.target,
-                        .match_search => |m| m.target,
-                        .match_key_bound => |m| m.target,
-                        .match_bound => |m| m.target,
-                        .match_repeat_range => |m| m.target,
-                        .match_repeat_init => |m| m.target,
+                        .w_enter => |m| m.target,
                         .match_repeat_next => |m| m.target,
-                        .match_str_lit => |m| m.target,
-                        .match_str_val => |m| m.target,
-                        .match_str_char => |m| m.target,
                         .jump_back => null,
                         else => return self.verifyFail(index, VerifyError.OperandKindMismatch),
                     };
@@ -754,6 +674,7 @@ pub const Ir = struct {
             .destructure_plan => .DestructurePlan,
             .jump => |j| j.op,
             .jump_back => |j| j.op,
+            .w_enter => |m| m.op,
             .match_bytes => |m| m.op,
             .match_test => |m| m.op,
             .match_count => .MatchCount,
@@ -802,6 +723,64 @@ pub const Ir = struct {
             },
             else => null,
         };
+    }
+
+    // Whether a match op jumps to the innermost open window's shared fail
+    // block when it fails: every semidet match op and MatchRefail.
+    // MatchRepeatNext is excluded — its branch operand is a success
+    // (loop-done) exit, not a failure.
+    pub fn opFailsToWindow(op: OpCode) bool {
+        return switch (op) {
+            .MatchType,
+            .MatchCount,
+            .MatchCmp,
+            .MatchCast,
+            .MatchKey,
+            .MatchMergeBool,
+            .MatchStrEnd,
+            .MatchMergeNum,
+            .MatchNextUnclaimed,
+            .MatchKeyBound,
+            .MatchBound,
+            .MatchRepeatRange,
+            .MatchRepeatInit,
+            .MatchStrLit,
+            .MatchStrVal,
+            .MatchStrChar,
+            .MatchEval,
+            .MatchRangeBound,
+            .MatchRepeatValue,
+            .MatchRepeatChunk,
+            .MatchSubtractEval,
+            .MatchRefail,
+            => true,
+            else => false,
+        };
+    }
+
+    // For each instruction, the IR index of the fail block it jumps to on
+    // failure, or unpatched_jump for instructions that don't fail to a
+    // window. A forward walk tracks open windows: MatchWindowEnter pushes
+    // its fail target and it is popped once the walk reaches that fail
+    // block, so a window-failing op (and a MatchRefail cascading out of a
+    // just-closed child) resolves to the innermost still-open window.
+    pub fn matchFailTargets(self: *const Ir, allocator: Allocator) Allocator.Error![]Index {
+        const insns = self.instructions.items;
+        const targets = try allocator.alloc(Index, insns.len);
+        @memset(targets, unpatched_jump);
+        var stack = ArrayList(Index){};
+        defer stack.deinit(allocator);
+        for (insns, 0..) |insn, i| {
+            const index: Index = @intCast(i);
+            while (stack.items.len > 0 and stack.getLast() == index) _ = stack.pop();
+            const op = operandOp(insn.operand);
+            if (op == .MatchWindowEnter) {
+                try stack.append(allocator, insn.operand.w_enter.target);
+            } else if (opFailsToWindow(op) and stack.items.len > 0) {
+                targets[i] = stack.getLast();
+            }
+        }
+        return targets;
     }
 };
 

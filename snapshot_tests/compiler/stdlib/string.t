@@ -431,17 +431,17 @@
   ========================================
   0000    | PushVar2 Pos
   0003    | CallFunctionConstant 3: @input.offset
-  0005    | JumpIfFailure 5 -> 16
-  0008    | MatchWindowEnter 2
-  0010    | MatchScrutinee r0
-  0012    | MatchBind l1 r0
-  0015    | MatchWindowExit
-  0016    | TakeRight 16 -> 27
-  0019    | GetConstant 4: @at
-  0021    | GetLocalMove l1
-  0023    | GetLocalMove l0
-  0025    | CallTailFunction 2
-  0027    | End
+  0005    | JumpIfFailure 5 -> 18
+  0008    | MatchWindowEnter 2 fail->17
+  0012    | MatchScrutinee r0
+  0014    | MatchBind l1 r0
+  0017    | MatchWindowExit
+  0018    | TakeRight 18 -> 29
+  0021    | GetConstant 4: @at
+  0023    | GetLocalMove l1
+  0025    | GetLocalMove l0
+  0027    | CallTailFunction 2
+  0029    | End
   ========================================
   
   ================2:unless================

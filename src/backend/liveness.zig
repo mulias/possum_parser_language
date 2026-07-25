@@ -49,6 +49,12 @@ pub const Liveness = struct {
     pub fn analyze(allocator: Allocator, ir: *const Ir, plan_slots: []const PlanSlots) Allocator.Error!Liveness {
         const insns = ir.instructions.items;
 
+        // Semidet match ops carry no fail target in their operand: they
+        // jump to the innermost open window's shared fail block. Recover
+        // that successor for the control-flow walk below.
+        const fail_targets = try ir.matchFailTargets(allocator);
+        defer allocator.free(fail_targets);
+
         const reads = try allocator.alloc(SlotSet, insns.len);
         defer allocator.free(reads);
         const defs = try allocator.alloc(SlotSet, insns.len);
@@ -72,7 +78,7 @@ pub const Liveness = struct {
             var i = insns.len;
             while (i > 0) {
                 i -= 1;
-                const in = liveOut(insns, live_in, i).differenceWith(defs[i]).unionWith(reads[i]);
+                const in = liveOut(insns, live_in, fail_targets, i).differenceWith(defs[i]).unionWith(reads[i]);
                 if (!in.eql(live_in[i])) {
                     live_in[i] = in;
                     changed = true;
@@ -83,7 +89,7 @@ pub const Liveness = struct {
         const deaths = try allocator.alloc(SlotSet, insns.len);
         errdefer allocator.free(deaths);
         for (insns, 0..) |_, i| {
-            deaths[i] = reads[i].differenceWith(liveOut(insns, live_in, i));
+            deaths[i] = reads[i].differenceWith(liveOut(insns, live_in, fail_targets, i));
         }
 
         return .{ .deaths = deaths };
@@ -148,33 +154,32 @@ fn instructionDefs(operand: Ir.Operand, plan_slots: []const PlanSlots) SlotSet {
 // clean panic: without the guarantees this would index past the end, read
 // an unpatched target, or hit an unreachable below, producing garbage death
 // sets instead.
-fn liveOut(insns: []const Ir.Insn, live_in: []const SlotSet, i: usize) SlotSet {
+fn liveOut(insns: []const Ir.Insn, live_in: []const SlotSet, fail_targets: []const Ir.Index, i: usize) SlotSet {
     const operand = insns[i].operand;
-    switch (Ir.operandOp(operand).stackEffect()) {
+    const op = Ir.operandOp(operand);
+    // Semidet match ops fail to the innermost window's shared fail block.
+    // Their fallthrough successor is `i + 1`; MatchRefail has no
+    // fallthrough — it always cascades to the enclosing window.
+    if (Ir.opFailsToWindow(op)) {
+        const target = fail_targets[i];
+        std.debug.assert(target != Ir.unpatched_jump);
+        var out = live_in[target];
+        if (op != .MatchRefail) out.setUnion(live_in[i + 1]);
+        return out;
+    }
+    switch (op.stackEffect()) {
         // Invariant: a fixed/call op is never the last instruction — a
         // terminal always follows on this path — so `i + 1` is in bounds.
         .fixed, .call => return live_in[i + 1],
         .branch => |branch| {
-            // Invariant: only jump/jump_back operands carry a .branch stack
-            // effect, so no other operand reaches this switch.
+            // Invariant: after the window-failing ops above, only
+            // jump/jump_back, MatchWindowEnter, and MatchRepeatNext carry a
+            // .branch stack effect, so no other operand reaches this switch.
             const target = switch (operand) {
                 .jump => |j| j.target,
                 .jump_back => |j| j.target,
-                .match_test => |m| m.target,
-                .match_count => |m| m.target,
-                .match_cmp => |m| m.target,
-                .match_cast => |m| m.target,
-                .match_const => |m| m.target,
-                .match_merge_num => |m| m.target,
-                .match_search => |m| m.target,
-                .match_key_bound => |m| m.target,
-                .match_bound => |m| m.target,
-                .match_repeat_range => |m| m.target,
-                .match_repeat_init => |m| m.target,
+                .w_enter => |m| m.target,
                 .match_repeat_next => |m| m.target,
-                .match_str_lit => |m| m.target,
-                .match_str_val => |m| m.target,
-                .match_str_char => |m| m.target,
                 else => unreachable,
             };
             // Invariant: every jump is patched before liveness runs, so its

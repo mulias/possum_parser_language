@@ -6,19 +6,19 @@
   Obj.Has(O, K) = O -> {K: _, ..._}
   ========================================
   0000    | GetLocalMove l0
-  0002    | JumpIfFailure 2 -> 41
-  0005    | MatchWindowEnter 5
-  0007    | MatchScrutinee r0
-  0009    | MatchType r0 object -> 39
-  0014    | MatchCount r0 >=1 -> 39
-  0020    | MatchKeyBound key=r2 val=r3 src=r0[l1] keys=r2..r2 \ [] -> 39
-  0030    | MatchWindowEnter 2
-  0032    | MatchSubScrutinee r0 ^r3
-  0035    | MatchWindowExit
-  0036    | Jump 36 -> 40
-  0039    | MatchFail
-  0040    | MatchWindowExit
-  0041    | End
+  0002    | JumpIfFailure 2 -> 39
+  0005    | MatchWindowEnter 5 fail->37
+  0009    | MatchScrutinee r0
+  0011    | MatchType r0 object
+  0014    | MatchCount r0 >=1
+  0018    | MatchKeyBound key=r2 val=r3 src=r0[l1] keys=r2..r2 \ []
+  0026    | MatchWindowEnter 2 fail->33
+  0030    | MatchSubScrutinee r0 ^r3
+  0033    | MatchWindowExit
+  0034    | Jump 34 -> 38
+  0037    | MatchFail
+  0038    | MatchWindowExit
+  0039    | End
   ========================================
   
   ===============1:Obj.Get================
@@ -26,22 +26,22 @@
   ========================================
   0000    | PushVar V
   0002    | GetLocalMove l0
-  0004    | JumpIfFailure 4 -> 46
-  0007    | MatchWindowEnter 5
-  0009    | MatchScrutinee r0
-  0011    | MatchType r0 object -> 44
-  0016    | MatchCount r0 >=1 -> 44
-  0022    | MatchKeyBound key=r2 val=r3 src=r0[l1] keys=r2..r2 \ [] -> 44
-  0032    | MatchWindowEnter 2
-  0034    | MatchSubScrutinee r0 ^r3
-  0037    | MatchBind l2 r0
-  0040    | MatchWindowExit
-  0041    | Jump 41 -> 45
-  0044    | MatchFail
-  0045    | MatchWindowExit
-  0046    | TakeRight 46 -> 51
-  0049    | GetLocalMove l2
-  0051    | End
+  0004    | JumpIfFailure 4 -> 44
+  0007    | MatchWindowEnter 5 fail->42
+  0011    | MatchScrutinee r0
+  0013    | MatchType r0 object
+  0016    | MatchCount r0 >=1
+  0020    | MatchKeyBound key=r2 val=r3 src=r0[l1] keys=r2..r2 \ []
+  0028    | MatchWindowEnter 2 fail->38
+  0032    | MatchSubScrutinee r0 ^r3
+  0035    | MatchBind l2 r0
+  0038    | MatchWindowExit
+  0039    | Jump 39 -> 43
+  0042    | MatchFail
+  0043    | MatchWindowExit
+  0044    | TakeRight 44 -> 49
+  0047    | GetLocalMove l2
+  0049    | End
   ========================================
   
   ===============1:Obj.Put================
@@ -88,38 +88,38 @@
   0002    | PushVar Rest
   0004    | SetInputMark
   0005    | GetLocalMove l0
-  0007    | JumpIfFailure 7 -> 61
-  0010    | MatchWindowEnter 6
-  0012    | MatchScrutinee r0
-  0014    | MatchType r0 object -> 59
-  0019    | MatchCount r0 >=1 -> 59
-  0025    | MatchSearchInit r5
-  0027    | MatchNextUnclaimed key=r3 val=r4 src=r0 cursor=r5 keys=r3..r3 \ [] loop->59
-  0037    | MatchWindowEnter 2
-  0039    | MatchSubScrutinee r0 ^r4
-  0042    | MatchWindowExit
-  0043    | MatchBind l2 r3
-  0046    | MatchObjectRest r1 r0 \ [] r3..r4
-  0053    | MatchBind l3 r1
-  0056    | Jump 56 -> 60
-  0059    | MatchFail
-  0060    | MatchWindowExit
-  0061    | ConditionalThen 61 -> 90
-  0064    | GetConstant 3: _Obj.Keys
-  0066    | GetLocalMove l3
-  0068    | PushEmptyArray
-  0069    | JumpIfFailure 69 -> 75
-  0072    | GetLocalMove l1
-  0074    | Merge
-  0075    | JumpIfFailure 75 -> 85
-  0078    | GetConstantMutable 6: [_]
-  0080    | GetLocalMove l2
-  0082    | InsertAtIndex 0
-  0084    | Merge
-  0085    | CallTailFunction 2
-  0087    | Jump 87 -> 92
-  0090    | GetLocalMove l1
-  0092    | End
+  0007    | JumpIfFailure 7 -> 59
+  0010    | MatchWindowEnter 6 fail->57
+  0014    | MatchScrutinee r0
+  0016    | MatchType r0 object
+  0019    | MatchCount r0 >=1
+  0023    | MatchSearchInit r5
+  0025    | MatchNextUnclaimed key=r3 val=r4 src=r0 cursor=r5 keys=r3..r3 \ []
+  0033    | MatchWindowEnter 2 fail->40
+  0037    | MatchSubScrutinee r0 ^r4
+  0040    | MatchWindowExit
+  0041    | MatchBind l2 r3
+  0044    | MatchObjectRest r1 r0 \ [] r3..r4
+  0051    | MatchBind l3 r1
+  0054    | Jump 54 -> 58
+  0057    | MatchFail
+  0058    | MatchWindowExit
+  0059    | ConditionalThen 59 -> 88
+  0062    | GetConstant 3: _Obj.Keys
+  0064    | GetLocalMove l3
+  0066    | PushEmptyArray
+  0067    | JumpIfFailure 67 -> 73
+  0070    | GetLocalMove l1
+  0072    | Merge
+  0073    | JumpIfFailure 73 -> 83
+  0076    | GetConstantMutable 6: [_]
+  0078    | GetLocalMove l2
+  0080    | InsertAtIndex 0
+  0082    | Merge
+  0083    | CallTailFunction 2
+  0085    | Jump 85 -> 90
+  0088    | GetLocalMove l1
+  0090    | End
   ========================================
   
   ==============1:Obj.Values==============
@@ -139,36 +139,36 @@
   0002    | PushVar Rest
   0004    | SetInputMark
   0005    | GetLocalMove l0
-  0007    | JumpIfFailure 7 -> 61
-  0010    | MatchWindowEnter 6
-  0012    | MatchScrutinee r0
-  0014    | MatchType r0 object -> 59
-  0019    | MatchCount r0 >=1 -> 59
-  0025    | MatchSearchInit r5
-  0027    | MatchNextUnclaimed key=r3 val=r4 src=r0 cursor=r5 keys=r3..r3 \ [] loop->59
-  0037    | MatchWindowEnter 2
-  0039    | MatchSubScrutinee r0 ^r4
-  0042    | MatchBind l2 r0
-  0045    | MatchWindowExit
-  0046    | MatchObjectRest r1 r0 \ [] r3..r4
-  0053    | MatchBind l3 r1
-  0056    | Jump 56 -> 60
-  0059    | MatchFail
-  0060    | MatchWindowExit
-  0061    | ConditionalThen 61 -> 90
-  0064    | GetConstant 7: _Obj.Values
-  0066    | GetLocalMove l3
-  0068    | PushEmptyArray
-  0069    | JumpIfFailure 69 -> 75
-  0072    | GetLocalMove l1
-  0074    | Merge
-  0075    | JumpIfFailure 75 -> 85
-  0078    | GetConstantMutable 10: [_]
-  0080    | GetLocalMove l2
-  0082    | InsertAtIndex 0
-  0084    | Merge
-  0085    | CallTailFunction 2
-  0087    | Jump 87 -> 92
-  0090    | GetLocalMove l1
-  0092    | End
+  0007    | JumpIfFailure 7 -> 59
+  0010    | MatchWindowEnter 6 fail->57
+  0014    | MatchScrutinee r0
+  0016    | MatchType r0 object
+  0019    | MatchCount r0 >=1
+  0023    | MatchSearchInit r5
+  0025    | MatchNextUnclaimed key=r3 val=r4 src=r0 cursor=r5 keys=r3..r3 \ []
+  0033    | MatchWindowEnter 2 fail->43
+  0037    | MatchSubScrutinee r0 ^r4
+  0040    | MatchBind l2 r0
+  0043    | MatchWindowExit
+  0044    | MatchObjectRest r1 r0 \ [] r3..r4
+  0051    | MatchBind l3 r1
+  0054    | Jump 54 -> 58
+  0057    | MatchFail
+  0058    | MatchWindowExit
+  0059    | ConditionalThen 59 -> 88
+  0062    | GetConstant 7: _Obj.Values
+  0064    | GetLocalMove l3
+  0066    | PushEmptyArray
+  0067    | JumpIfFailure 67 -> 73
+  0070    | GetLocalMove l1
+  0072    | Merge
+  0073    | JumpIfFailure 73 -> 83
+  0076    | GetConstantMutable 10: [_]
+  0078    | GetLocalMove l2
+  0080    | InsertAtIndex 0
+  0082    | Merge
+  0083    | CallTailFunction 2
+  0085    | Jump 85 -> 90
+  0088    | GetLocalMove l1
+  0090    | End
   ========================================
