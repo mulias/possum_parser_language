@@ -1156,17 +1156,22 @@ pub const VM = struct {
                 }
             },
             .MatchSpanInit => {
-                // String-template loop entry: front = 0, end = byte length.
-                // The preceding MatchType guarantees src is string-typed.
+                // Span-cursor loop entry: front = 0, end = the span length —
+                // byte length for a string, element count for an array. The
+                // preceding MatchType fixes src's type.
                 const src = self.readByte();
                 const front = self.readByte();
                 const end = self.readByte();
-                const bytes = (try self.getScratch(src).stringBytes(self)).?;
+                const value = self.getScratch(src);
+                const len: usize = if (value.isDynType(.Array))
+                    value.asDyn().asArray().elems.items.len
+                else
+                    (try value.stringBytes(self)).?.len;
                 const prev_front = self.getScratch(front);
                 self.setScratch(front, Elem.numberFloat(0));
                 prev_front.release();
                 const prev_end = self.getScratch(end);
-                self.setScratch(end, Elem.numberFloat(@floatFromInt(bytes.len)));
+                self.setScratch(end, Elem.numberFloat(@floatFromInt(len)));
                 prev_end.release();
             },
             .MatchStrLit => {
@@ -1192,14 +1197,36 @@ pub const VM = struct {
             },
             .MatchSpanVal => {
                 // The preceding expression left the segment value on the
-                // stack; stringify it (identity on strings) and compare its
-                // bytes at the cursor like MatchStrLit with the runtime
-                // length.
+                // stack; compare it at the cursor by the span's runtime type:
+                // a string chomp of its stringified bytes (like MatchStrLit),
+                // or an element-wise array compare, advancing the cursor by
+                // the segment's length.
                 const src = self.readByte();
                 const cursor = self.readByte();
                 const opp = self.readByte();
                 const back = self.readByte() != 0;
                 const evaluated = self.pop();
+                const span = self.getScratch(src);
+                if (span.isDynType(.Array)) {
+                    const src_elems = span.asDyn().asArray().elems.items;
+                    const seg: ?[]const Elem = if (evaluated.isDynType(.Array))
+                        evaluated.asDyn().asArray().elems.items
+                    else if (evaluated.isConst(.Null))
+                        &[_]Elem{}
+                    else
+                        null;
+                    const cur: usize = @intFromFloat(self.getScratch(cursor).asFloat());
+                    const opp_v: usize = @intFromFloat(self.getScratch(opp).asFloat());
+                    const new_cursor = if (seg) |s| matchArrayChomp(self.*, src_elems, cur, opp_v, back, s) else null;
+                    if (new_cursor) |nc| {
+                        const prev = self.getScratch(cursor);
+                        self.setScratch(cursor, Elem.numberFloat(@floatFromInt(nc)));
+                        prev.release();
+                    }
+                    self.reclaimElem(evaluated);
+                    if (new_cursor == null) self.cur_frame.ip = self.current_window_fail;
+                    return;
+                }
                 const str_elem = try evaluated.toString(self);
                 var rooted = false;
                 if (str_elem.isType(.Dyn)) {
@@ -1250,18 +1277,23 @@ pub const VM = struct {
                 prev_cursor.release();
             },
             .MatchSpanRest => {
-                // The substring [front..end) — the solvable's raw byte
-                // range — into dst: an InputSubstring range when the source
-                // is one, else a fresh copy.
+                // The span [front..end) — the solvable's raw range — into
+                // dst: a fresh array slice when src is an array, else the
+                // string substring (an InputSubstring range when the source
+                // is one, else a fresh copy).
                 const dst = self.readByte();
                 const src = self.readByte();
                 const front = self.readByte();
                 const end = self.readByte();
                 const value = self.getScratch(src);
-                const bytes = (try value.stringBytes(self)).?;
                 const start: usize = @intFromFloat(self.getScratch(front).asFloat());
                 const stop: usize = @intFromFloat(self.getScratch(end).asFloat());
                 const rest: Elem = blk: {
+                    if (value.isDynType(.Array)) {
+                        const slice = try Elem.DynElem.Array.copy(self, value.asDyn().asArray().elems.items[start..stop]);
+                        break :blk slice.dyn.elem();
+                    }
+                    const bytes = (try value.stringBytes(self)).?;
                     if (value.isType(.InputSubstring)) {
                         const base = value.asInputSubstring().start;
                         if (try Elem.inputSubstringFromRange(base + start, base + stop)) |elem| break :blk elem;
@@ -2635,6 +2667,25 @@ pub const VM = struct {
     // the advanced cursor, or null when it doesn't fit before the opposite
     // cursor or the bytes differ. Forward (back=false) chomps from `cur`
     // toward higher indices; backward chomps toward lower indices.
+    // Element-wise array analogue of matchStrChomp: compare the segment's
+    // elements against src at the cursor (forward from `cur`, or backward
+    // ending at `cur`), bounded by the opposite cursor, and return the
+    // advanced cursor or null on a misfit or element mismatch.
+    fn matchArrayChomp(vm: VM, src: []const Elem, cur: usize, opp: usize, back: bool, seg: []const Elem) ?usize {
+        if (back) {
+            if (cur < opp + seg.len) return null;
+            for (seg, 0..) |elem, i| {
+                if (!src[cur - seg.len + i].isEql(elem, vm)) return null;
+            }
+            return cur - seg.len;
+        }
+        if (cur + seg.len > opp) return null;
+        for (seg, 0..) |elem, i| {
+            if (!src[cur + i].isEql(elem, vm)) return null;
+        }
+        return cur + seg.len;
+    }
+
     fn matchStrChomp(bytes: []const u8, cur: usize, opp: usize, back: bool, literal: []const u8) ?usize {
         if (back) {
             if (cur < opp + literal.len) return null;

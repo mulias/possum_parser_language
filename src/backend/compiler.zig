@@ -900,7 +900,11 @@ pub const Compiler = struct {
     fn armStepScratchWidth(self: *Compiler, ast: *const Ast, places: []const Ast.PlaceDef, constraints: []const Ast.Constraint) u32 {
         var searches: u32 = 0;
         var repeats: u32 = 0;
-        var templates: u32 = 0;
+        // The span-cursor block (front/end cursors, rest destination, and a
+        // character register for template range segments), shared by cursor
+        // templates and array merges: a template needs all four, an array
+        // merge only the first three.
+        var spans: u32 = 0;
         for (constraints) |constraint| switch (constraint.kind) {
             .search_key => searches += 1,
             .solve_repeat => |c| {
@@ -908,12 +912,15 @@ pub const Compiler = struct {
                 repeats = @max(repeats, @as(u32, if (shape == .array) 3 else 1));
             },
             .match_template => |c| {
-                if (self.templateStepable(ast, c.segments.items) == .cursor) templates = 4;
+                if (self.templateStepable(ast, c.segments.items) == .cursor) spans = @max(spans, 4);
+            },
+            .solve_merge => |c| {
+                if (self.arrayMergeStepable(ast, c.ty, c.parts.items, c.solvable_index)) spans = @max(spans, 3);
             },
             else => {},
         };
         const extra: u32 = if (searches > 0) searches + 2 else 0;
-        return @as(u32, @intCast(places.len + 1)) + extra + repeats + templates;
+        return @as(u32, @intCast(places.len + 1)) + extra + repeats + spans;
     }
 
     fn writeGoal(self: *Compiler, module_id: Module.Id, ast: *const Ast, id: Ast.NodeId) Error!void {
@@ -1910,7 +1917,8 @@ pub const Compiler = struct {
             .solve_merge => |c| {
                 if (self.classifyNumMergeStep(ast, c.ty, c.parts.items) == null and
                     self.classifyBoolMergeStep(ast, c.ty, c.parts.items) == null and
-                    !self.mergeNegatedNonNumber(ast, c.ty, c.parts.items)) return false;
+                    !self.mergeNegatedNonNumber(ast, c.ty, c.parts.items) and
+                    !self.arrayMergeStepable(ast, c.ty, c.parts.items, c.solvable_index)) return false;
             },
             .solve_repeat => |c| {
                 if (self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index) == null) return false;
@@ -2338,6 +2346,54 @@ pub const Compiler = struct {
         return false;
     }
 
+    // Whether an array merge lowers to the span-cursor scheduler: every
+    // non-solvable part is a runtime array value (a bound read or an
+    // evaluable expression, compared element-wise by MatchSpanVal) or the
+    // empty structural base (absorbed by chomping nothing), and the single
+    // solvable part is a bind or placeholder taking the residual span.
+    // Non-empty structural parts and untyped merges keep the plan path.
+    fn arrayMergeStepable(self: *Compiler, ast: *const Ast, ty: ?Ast.ValueType, parts: []const Ast.Part, solvable_index: ?u32) bool {
+        if ((ty orelse return false) != .array) return false;
+        for (parts, 0..) |part, i| {
+            if (solvable_index != null and solvable_index.? == i) {
+                switch (part) {
+                    .bind, .placeholder => {},
+                    else => return false,
+                }
+                continue;
+            }
+            switch (part) {
+                .read => {},
+                .expr => |id| if (!self.constPatternNode(ast, id) and !self.evalExprStepable(ast, id)) return false,
+                .sub => |set_id| if (!arrayMergePartEmpty(ast, set_id)) return false,
+                else => return false,
+            }
+        }
+        return true;
+    }
+
+    // A structural merge part that constrains its span to the empty array:
+    // the fixed-element base of an all-rest array pattern. The cursor
+    // scheduler skips it (chomps nothing).
+    fn arrayMergePartEmpty(ast: *const Ast, set_id: Ast.SetId) bool {
+        const set = &ast.constraint_sets.items[set_id];
+        if (set.places.items.len != 1) return false;
+        var typed = false;
+        var empty = false;
+        for (set.constraints.items) |constraint| switch (constraint.kind) {
+            .is_type => |c| {
+                if (c.place != 0 or c.ty != .array) return false;
+                typed = true;
+            },
+            .len_eq => |c| {
+                if (c.place != 0 or c.len != 0) return false;
+                empty = true;
+            },
+            else => return false,
+        };
+        return typed and empty;
+    }
+
     // A pattern constant folded for step comparison: numbers fold to
     // floats the way the can plan lowering folds them.
     fn goalPatternConstElem(self: *Compiler, ast: *const Ast, id: Ast.NodeId) Error!Elem {
@@ -2687,9 +2743,10 @@ pub const Compiler = struct {
         self.arm_search_groups = search_groups.items;
         defer self.arm_search_groups = prev_search_groups;
 
-        // The template block sits above the repeat block: front and end
+        // The span-cursor block sits above the repeat block: front and end
         // cursors, the rest destination, and a character register for
-        // range segments. Its size mirrors armStepScratchWidth's accounting.
+        // template range segments. Cursor templates and array merges share
+        // it; its size mirrors armStepScratchWidth's accounting.
         var repeat_block: u8 = 0;
         for (constraints) |constraint| switch (constraint.kind) {
             .solve_repeat => |c| {
@@ -2698,10 +2755,10 @@ pub const Compiler = struct {
             },
             else => {},
         };
-        const template_front = repeat_reg + repeat_block;
-        const template_end = template_front + 1;
-        const template_rest = template_front + 2;
-        const template_char = template_front + 3;
+        const span_front = repeat_reg + repeat_block;
+        const span_end = span_front + 1;
+        const span_rest = span_front + 2;
+        const span_char = span_front + 3;
 
         // Fallibility markers: each semidet step (and each child window that
         // cascades failure here) appends an index. A non-empty list means
@@ -2934,7 +2991,7 @@ pub const Compiler = struct {
                             ast,
                             c.segments.items,
                             reg,
-                            .{ .front = template_front, .end = template_end, .rest = template_rest, .char = template_char },
+                            .{ .front = span_front, .end = span_end, .rest = span_rest, .char = span_char },
                             dead_reg,
                             &fail_jumps,
                             step_region,
@@ -2943,7 +3000,21 @@ pub const Compiler = struct {
                 },
                 .solve_merge => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
-                    try self.emitMergeSolve(module_id, ast, c.ty, c.parts.items, scratch_base + @as(u8, @intCast(c.place)), dead_reg, false, &fail_jumps, step_region);
+                    const reg = scratch_base + @as(u8, @intCast(c.place));
+                    if (c.ty == .array) {
+                        try self.emitArrayMergeSolve(
+                            module_id,
+                            ast,
+                            c.parts.items,
+                            c.solvable_index,
+                            reg,
+                            .{ .front = span_front, .end = span_end, .rest = span_rest },
+                            &fail_jumps,
+                            step_region,
+                        );
+                    } else {
+                        try self.emitMergeSolve(module_id, ast, c.ty, c.parts.items, reg, dead_reg, false, &fail_jumps, step_region);
+                    }
                 },
                 .search_key => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
@@ -3615,6 +3686,111 @@ pub const Compiler = struct {
                 .arg = step.slot,
             } }, region)),
             .placeholder => {},
+        }
+    }
+
+    const SpanRegs = struct { front: u8, end: u8, rest: u8 };
+
+    // An array merge solved through the span-cursor scheduler, mirroring the
+    // string template cursor path (emitTemplateCursor). The before-parts
+    // chomp the front cursor forward in source order, the after-parts chomp
+    // the end cursor backward in reverse order, and the single solvable part
+    // takes the residual span [front..end). With no solvable, the fixed
+    // parts must cover the array exactly (front meets end).
+    fn emitArrayMergeSolve(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        parts: []const Ast.Part,
+        solvable_index: ?u32,
+        reg: u8,
+        regs: SpanRegs,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        // The merge asserts its place is an array (the plan checks isDynType
+        // before slicing); MatchSpanInit then reads the element count.
+        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+            .op = .MatchType,
+            .byte1 = reg,
+            .byte2 = 0,
+        } }, region));
+        _ = try self.ir().push(allocator, .{ .match_span_init = .{
+            .op = .MatchSpanInit,
+            .src = reg,
+            .front = regs.front,
+            .end = regs.end,
+        } }, region);
+
+        const before_end = solvable_index orelse parts.len;
+        for (parts[0..before_end]) |part| {
+            try self.emitArrayMergeSegment(module_id, ast, part, reg, regs, false, fail_jumps, region);
+        }
+
+        if (solvable_index) |si| {
+            var i = parts.len;
+            while (i > si + 1) {
+                i -= 1;
+                try self.emitArrayMergeSegment(module_id, ast, parts[i], reg, regs, true, fail_jumps, region);
+            }
+            switch (parts[si]) {
+                .bind => |ls| {
+                    _ = try self.ir().push(allocator, .{ .match_span_rest = .{
+                        .op = .MatchSpanRest,
+                        .dst = regs.rest,
+                        .src = reg,
+                        .front = regs.front,
+                        .end = regs.end,
+                    } }, region);
+                    _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                        .op = .MatchBind,
+                        .byte1 = ls.slot,
+                        .byte2 = regs.rest,
+                    } }, region);
+                },
+                // A `_` rest absorbs the gap between the cursors; no step.
+                .placeholder => {},
+                else => unreachable,
+            }
+        } else {
+            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                .reg = regs.front,
+                .kind = .reg,
+                .arg = regs.end,
+            } }, region));
+        }
+    }
+
+    // One non-solvable array-merge part. `back` selects the end cursor
+    // (chomp backward) over the front cursor (chomp forward). An empty
+    // structural base chomps nothing; a runtime array value is compared
+    // element-wise at the cursor by MatchSpanVal.
+    fn emitArrayMergeSegment(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        part: Ast.Part,
+        reg: u8,
+        regs: SpanRegs,
+        back: bool,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        switch (part) {
+            .sub => {},
+            else => {
+                const cursor = if (back) regs.end else regs.front;
+                const opp = if (back) regs.front else regs.end;
+                try self.emitEvaluablePartValue(module_id, ast, part, region);
+                try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_span_val = .{
+                    .op = .MatchSpanVal,
+                    .src = reg,
+                    .cursor = cursor,
+                    .opp = opp,
+                    .back = if (back) 1 else 0,
+                } }, region));
+            },
         }
     }
 

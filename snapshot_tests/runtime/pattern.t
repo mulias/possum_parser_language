@@ -604,3 +604,61 @@ wins, and the quotient binds the unbound factor.
 
   $ possum -p 'I(V)=V ; array(digit) -> (I([1]) * I(2) * N * I(3)) $ N' -i '111111111111'
   2
+
+An array merge with a runtime-length part solves through the span cursor
+scheduler: the bound rest chomps and the solvable takes the residual span.
+The suffix rest B chomps backward:
+
+  $ possum -p 'json -> [[...A, ...B], [...B]] $ [A, B]' -i '[[1, 2, 3], [3]]'
+  [
+    [1, 2],
+    [3]
+  ]
+
+The prefix rest A chomps forward, leaving B the residual:
+
+  $ possum -p 'json -> [[...A, ...B], [...A]] $ [A, B]' -i '[[1, 2, 3], [1]]'
+  [
+    [1],
+    [2, 3]
+  ]
+
+An empty residual span binds an empty array:
+
+  $ possum -p 'json -> [[...A, ...B], [...B]] $ [A, B]' -i '[[5], []]'
+  [
+    [5],
+    []
+  ]
+
+With no solvable part, the fixed parts must cover the array exactly (the
+cursors must meet); `[...B, ...B]` requires the value be B twice over:
+
+  $ possum -p 'json -> [[...B, ...B], [...B]] $ B' -i '[[1, 1], [1]]'
+  [1]
+
+  $ possum -p 'json -> [[...B, ...B], [...B]] $ B' -i '[[1, 1, 1], [1]]'
+  
+  Parse Failure: value [[1, 1, 1], [1]] did not match pattern [[...B, ...B], [...B]]
+  
+  input:1:16:
+  
+  1 \xe2\x96\x8f [[1, 1, 1], [1]] (esc)
+    \xe2\x96\x8f                 ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:8-30:
+  
+  1 \xe2\x96\x8f json -> [[...B, ...B], [...B]] $ B (esc)
+    \xe2\x96\x8f         ^^^^^^^^^^^^^^^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+
+
+
+
+
+

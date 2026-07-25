@@ -1649,6 +1649,26 @@ test "('' $ [[1, 2, 3], 4, 5]) -> [[1,A,3], B, 5] $ [A, B]" {
     }
 }
 
+test "('' $ [[1, 2, 3], [3]]) -> [[...A, ...B], [...B]] $ A" {
+    // An array merge with a runtime-length suffix rest (B, bound by the
+    // second element) solves through the span-cursor scheduler: B chomps
+    // backward and A takes the residual [1, 2].
+    const parser =
+        \\('' $ [[1, 2, 3], [3]]) -> [[...A, ...B], [...B]] $ A
+    ;
+    {
+        const array = [_]Elem{ Elem.numberFloat(1), Elem.numberFloat(2) };
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            (try Elem.DynElem.Array.copy(&vm, &array)).dyn.elem(),
+            vm,
+        );
+    }
+}
+
 test "('' $ [[], 100]) -> [[], A] $ A" {
     const parser =
         \\('' $ [[], 100]) -> [[], A] $ A
