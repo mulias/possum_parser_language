@@ -114,8 +114,6 @@ fn instructionReads(operand: Ir.Operand, plan_slots: []const PlanSlots) SlotSet 
         .destructure_plan => |idx| return plan_slots[idx].reads,
         // A slot-kind MatchCmp reads the bound local it compares against.
         .match_cmp => |m| if (m.kind == .slot) reads.set(@intCast(m.arg)),
-        // MatchKeyBound reads the bound key local it matches against.
-        .match_key_bound => |m| reads.set(m.slot),
         // A read-kind MatchBound reads the bound local it compares against.
         .match_bound => |m| if (m.kind == @intFromEnum(RangeLimitKind.read)) reads.set(@intCast(m.arg)),
         // MatchRepeatRange reads any bound-local range bounds.

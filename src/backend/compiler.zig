@@ -2917,16 +2917,17 @@ pub const Compiler = struct {
                     } else null;
 
                     if (bound_key) |slot| {
-                        // A known key probes its member directly; the
-                        // value matches in a nested window, and a mismatch
-                        // fails the arm since no other member can carry
-                        // this key.
-                        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_key_bound = .{
-                            .op = .MatchKeyBound,
+                        // A known key probes its member directly: the eval
+                        // bridge pushes the bound key, MatchKeyClaim pops and
+                        // looks it up, and the value matches in a nested
+                        // window. A mismatch fails the arm since no other
+                        // member can carry this key.
+                        try self.emitUnaryOp(.GetLocal, slot, step_region);
+                        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_key_claim = .{
+                            .op = .MatchKeyClaim,
                             .key_dst = key_dst,
                             .val_dst = value_reg,
                             .src = src_reg,
-                            .slot = slot,
                             .claim_count = my_index,
                             .constant = constant,                        } }, step_region));
                         try self.writeMatchSteps(module_id, ast, value_set.places.items, value_set.constraints.items, .{ .sub = .{ .src_reg = value_reg, .on_fail = .{ .arm = &fail_jumps } } }, step_region);

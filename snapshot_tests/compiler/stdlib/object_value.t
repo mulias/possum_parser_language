@@ -6,19 +6,20 @@
   Obj.Has(O, K) = O -> {K: _, ..._}
   ========================================
   0000    | GetLocalMove l0
-  0002    | JumpIfFailure 2 -> 39
-  0005    | MatchWindowEnter 5 fail->37
+  0002    | JumpIfFailure 2 -> 40
+  0005    | MatchWindowEnter 5 fail->38
   0009    | MatchScrutinee r0
   0011    | MatchType r0 object
   0014    | MatchCount r0 >=1
-  0018    | MatchKeyBound key=r2 val=r3 src=r0[l1] keys=r2..r2 \ []
-  0026    | MatchWindowEnter 2 fail->33
-  0030    | MatchSubScrutinee r0 ^r3
-  0033    | MatchWindowExit
-  0034    | Jump 34 -> 38
-  0037    | MatchFail
-  0038    | MatchWindowExit
-  0039    | End
+  0018    | GetLocalMove l1
+  0020    | MatchKeyClaim key=r2 val=r3 src=r0 keys=r2..r2 \ []
+  0027    | MatchWindowEnter 2 fail->34
+  0031    | MatchSubScrutinee r0 ^r3
+  0034    | MatchWindowExit
+  0035    | Jump 35 -> 39
+  0038    | MatchFail
+  0039    | MatchWindowExit
+  0040    | End
   ========================================
   
   ===============1:Obj.Get================
@@ -26,22 +27,23 @@
   ========================================
   0000    | PushVar V
   0002    | GetLocalMove l0
-  0004    | JumpIfFailure 4 -> 44
-  0007    | MatchWindowEnter 5 fail->42
+  0004    | JumpIfFailure 4 -> 45
+  0007    | MatchWindowEnter 5 fail->43
   0011    | MatchScrutinee r0
   0013    | MatchType r0 object
   0016    | MatchCount r0 >=1
-  0020    | MatchKeyBound key=r2 val=r3 src=r0[l1] keys=r2..r2 \ []
-  0028    | MatchWindowEnter 2 fail->38
-  0032    | MatchSubScrutinee r0 ^r3
-  0035    | MatchBind l2 r0
-  0038    | MatchWindowExit
-  0039    | Jump 39 -> 43
-  0042    | MatchFail
-  0043    | MatchWindowExit
-  0044    | TakeRight 44 -> 49
-  0047    | GetLocalMove l2
-  0049    | End
+  0020    | GetLocalMove l1
+  0022    | MatchKeyClaim key=r2 val=r3 src=r0 keys=r2..r2 \ []
+  0029    | MatchWindowEnter 2 fail->39
+  0033    | MatchSubScrutinee r0 ^r3
+  0036    | MatchBind l2 r0
+  0039    | MatchWindowExit
+  0040    | Jump 40 -> 44
+  0043    | MatchFail
+  0044    | MatchWindowExit
+  0045    | TakeRight 45 -> 50
+  0048    | GetLocalMove l2
+  0050    | End
   ========================================
   
   ===============1:Obj.Put================

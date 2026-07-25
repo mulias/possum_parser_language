@@ -90,7 +90,7 @@ pub const OpCode = enum(u8) {
     MatchEval,
     MatchFail,
     MatchKey,
-    MatchKeyBound,
+    MatchKeyClaim,
     MatchMergeBool,
     MatchMergeNum,
     MatchNextUnclaimed,
@@ -307,7 +307,6 @@ pub const OpCode = enum(u8) {
             .MatchCmp,
             .MatchCount,
             .MatchKey,
-            .MatchKeyBound,
             .MatchMergeBool,
             .MatchMergeNum,
             .MatchNextUnclaimed,
@@ -324,8 +323,9 @@ pub const OpCode = enum(u8) {
             // pop): MatchEval (compares against the place), MatchRangeBound
             // (a range end), MatchRepeatChunk/Value (the repeat operand),
             // MatchStrVal (a template segment), MatchSubtractEval (a merge
-            // residual part).
+            // residual part), MatchKeyClaim (the probed object key).
             .MatchEval,
+            .MatchKeyClaim,
             .MatchRangeBound,
             .MatchRepeatChunk,
             .MatchRepeatValue,
@@ -573,7 +573,6 @@ pub const OpCode = enum(u8) {
             .MatchCount,
             .MatchElem,
             .MatchKey,
-            .MatchKeyBound,
             .MatchMergeBool,
             .MatchMergeNum,
             .MatchNextUnclaimed,
@@ -597,6 +596,9 @@ pub const OpCode = enum(u8) {
             // Dyn.
             .MatchFail => .{ .operands = .consumed, .result = .none },
 
+            // Pops and releases the probed object key; the projected key
+            // and value are retained into their registers in the dispatch.
+            .MatchKeyClaim,
             // Pops and discards the evaluated expression result; the
             // scrutinee below it stays untouched.
             .MatchEval,
@@ -759,7 +761,7 @@ pub const OpCode = enum(u8) {
             .MatchRangeBound => self.matchRangeBoundInstruction(chunk, writer, offset),
             .MatchStrEnd => self.matchStrEndInstruction(chunk, vm, module, writer, offset),
             .MatchKey => self.matchKeyInstruction(chunk, vm, module, writer, offset),
-            .MatchKeyBound => self.matchKeyBoundInstruction(chunk, vm, module, writer, offset),
+            .MatchKeyClaim => self.matchKeyClaimInstruction(chunk, vm, module, writer, offset),
             .MatchMergeBool => self.matchMergeBoolInstruction(chunk, vm, module, writer, offset),
             .MatchMergeNum => self.matchMergeNumInstruction(chunk, vm, module, writer, offset),
             .MatchObjectRest => self.matchObjectRestInstruction(chunk, vm, module, writer, offset),
@@ -990,20 +992,19 @@ pub const OpCode = enum(u8) {
         return offset + 8;
     }
 
-    fn matchKeyBoundInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
+    fn matchKeyClaimInstruction(self: OpCode, chunk: *Chunk, vm: VM, module: Module, writer: *Writer, offset: usize) !usize {
         const key_dst = chunk.read(offset + 1);
         const val_dst = chunk.read(offset + 2);
         const src = chunk.read(offset + 3);
-        const slot = chunk.read(offset + 4);
-        const claim_count = chunk.read(offset + 5);
-        const constantIdx = (@as(usize, @intCast(chunk.read(offset + 6))) << 8) | chunk.read(offset + 7);
+        const claim_count = chunk.read(offset + 4);
+        const constantIdx = (@as(usize, @intCast(chunk.read(offset + 5))) << 8) | chunk.read(offset + 6);
         var keys = module.getConstant(constantIdx);
-        try writer.print("{s} key=r{} val=r{} src=r{}[l{}] keys=r{}..r{} \\ ", .{
-            @tagName(self), key_dst, val_dst, src, slot, key_dst - claim_count, key_dst,
+        try writer.print("{s} key=r{} val=r{} src=r{} keys=r{}..r{} \\ ", .{
+            @tagName(self), key_dst, val_dst, src, key_dst - claim_count, key_dst,
         });
         try keys.print(vm, writer);
         try writer.print("\n", .{});
-        return offset + 8;
+        return offset + 7;
     }
 
     fn matchSliceInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {

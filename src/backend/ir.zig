@@ -97,12 +97,12 @@ pub const Ir = struct {
         // const-key pairs' keys, claimed whichever order the pairs run.
         // Carries a forward fail-jump target taken when the scan exhausts.
         match_search: struct { op: OpCode, key_dst: u8, val_dst: u8, src: u8, cursor: u8, claim_count: u8, constant: u16 },
-        // MatchKeyBound (key_dst, val_dst, src, slot, claim_count,
-        // key-list constant): semidet member probe by the bound local's
-        // key, which must be a string (runtime error otherwise). Fails
-        // when the member is absent or already claimed; on success the
-        // key is claimed into key_dst like a search pair's.
-        match_key_bound: struct { op: OpCode, key_dst: u8, val_dst: u8, src: u8, slot: u8, claim_count: u8, constant: u16 },
+        // MatchKeyClaim (key_dst, val_dst, src, claim_count, key-list
+        // constant): semidet member probe by the key the preceding
+        // expression pushed, which must be a string (runtime error
+        // otherwise). Fails when the member is absent or already claimed;
+        // on success the key is claimed into key_dst like a search pair's.
+        match_key_claim: struct { op: OpCode, key_dst: u8, val_dst: u8, src: u8, claim_count: u8, constant: u16 },
         // MatchBound (reg, is_upper, kind, arg): semidet one-ended range
         // test. is_upper selects value<=bound (1) vs bound<=value (0);
         // kind is const=1 (arg a constant index) or read=3 (arg a bound
@@ -358,12 +358,11 @@ pub const Ir = struct {
                     try chunk.write(allocator, m.claim_count, region);
                     try chunk.writeShort(allocator, m.constant, region);
                 },
-                .match_key_bound => |m| {
+                .match_key_claim => |m| {
                     try chunk.writeOp(allocator, m.op, region);
                     try chunk.write(allocator, m.key_dst, region);
                     try chunk.write(allocator, m.val_dst, region);
                     try chunk.write(allocator, m.src, region);
-                    try chunk.write(allocator, m.slot, region);
                     try chunk.write(allocator, m.claim_count, region);
                     try chunk.writeShort(allocator, m.constant, region);
                 },
@@ -516,7 +515,7 @@ pub const Ir = struct {
             .match_merge_num => 6,
             .match_rest => 7,
             .match_search => 8,
-            .match_key_bound => 8,
+            .match_key_claim => 7,
             .match_bound => 6,
             .match_repeat_range => 9,
             .match_repeat_init => 5,
@@ -684,7 +683,7 @@ pub const Ir = struct {
             .match_merge_num => .MatchMergeNum,
             .match_rest => |m| m.op,
             .match_search => |m| m.op,
-            .match_key_bound => |m| m.op,
+            .match_key_claim => |m| m.op,
             .match_bound => |m| m.op,
             .match_repeat_range => |m| m.op,
             .match_repeat_init => |m| m.op,
@@ -740,7 +739,7 @@ pub const Ir = struct {
             .MatchStrEnd,
             .MatchMergeNum,
             .MatchNextUnclaimed,
-            .MatchKeyBound,
+            .MatchKeyClaim,
             .MatchBound,
             .MatchRepeatRange,
             .MatchRepeatInit,

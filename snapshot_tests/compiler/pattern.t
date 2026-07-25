@@ -846,22 +846,23 @@
   ========================================
   0000    | PushVar V
   0002    | GetLocalMove l0
-  0004    | JumpIfFailure 4 -> 44
-  0007    | MatchWindowEnter 5 fail->42
+  0004    | JumpIfFailure 4 -> 45
+  0007    | MatchWindowEnter 5 fail->43
   0011    | MatchScrutinee r0
   0013    | MatchType r0 object
   0016    | MatchCount r0 >=1
-  0020    | MatchKeyBound key=r2 val=r3 src=r0[l1] keys=r2..r2 \ []
-  0028    | MatchWindowEnter 2 fail->38
-  0032    | MatchSubScrutinee r0 ^r3
-  0035    | MatchBind l2 r0
-  0038    | MatchWindowExit
-  0039    | Jump 39 -> 43
-  0042    | MatchFail
-  0043    | MatchWindowExit
-  0044    | TakeRight 44 -> 49
-  0047    | GetLocalMove l2
-  0049    | End
+  0020    | GetLocalMove l1
+  0022    | MatchKeyClaim key=r2 val=r3 src=r0 keys=r2..r2 \ []
+  0029    | MatchWindowEnter 2 fail->39
+  0033    | MatchSubScrutinee r0 ^r3
+  0036    | MatchBind l2 r0
+  0039    | MatchWindowExit
+  0040    | Jump 40 -> 44
+  0043    | MatchFail
+  0044    | MatchWindowExit
+  0045    | TakeRight 45 -> 50
+  0048    | GetLocalMove l2
+  0050    | End
   ========================================
   
   ================2:@main=================

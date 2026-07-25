@@ -1343,31 +1343,43 @@ pub const VM = struct {
                 }
                 self.cur_frame.ip = self.current_window_fail;
             },
-            .MatchKeyBound => {
-                // Probe the object for the member keyed by the bound
-                // local, which must be a string. Fails when the member is
-                // absent or already claimed — by a const-key pair (the
-                // key-list constant) or an earlier pair (the claim
-                // registers below key_dst). On success the key is claimed
-                // into key_dst and the value projected into val_dst.
+            .MatchKeyClaim => {
+                // The preceding expression left the probe key on the stack;
+                // pop it (it must be a string), then probe the object for
+                // that member. Fails when the member is absent or already
+                // claimed — by a const-key pair (the key-list constant) or
+                // an earlier pair (the claim registers below key_dst). On
+                // success the key is claimed into key_dst and the value
+                // projected into val_dst. Replaces the former MatchKeyBound,
+                // generalizing the key source from a bound local to any
+                // expression the eval bridge can push.
                 const key_dst = self.readByte();
                 const val_dst = self.readByte();
                 const src = self.readByte();
-                const slot = self.readByte();
                 const claim_count = self.readByte();
                 const constant_idx = self.readShort();
-                const bound = try self.getBoundLocal(slot);
-                const sid = (try bound.getOrPutSid(self)) orelse
+                const key = self.pop();
+                var rooted = false;
+                if (key.isType(.Dyn)) {
+                    try self.pushTempDyn(key.asDyn());
+                    rooted = true;
+                }
+                const sid = (try key.getOrPutSid(self)) orelse {
+                    if (rooted) self.dropTempDyn();
+                    self.reclaimElem(key);
                     return self.runtimeError("Object key must be a string", .{});
+                };
                 const static_keys = self.getConstant(constant_idx).asDyn().asArray().elems.items;
-                const claimed_static = for (static_keys) |key| {
-                    if (key.asString() == sid) break true;
+                const claimed_static = for (static_keys) |k| {
+                    if (k.asString() == sid) break true;
                 } else false;
                 const claim_base = key_dst - claim_count;
                 const claimed_search = for (0..claim_count) |i| {
                     if (self.getScratch(claim_base + @as(u8, @intCast(i))).asString() == sid) break true;
                 } else false;
                 const member = self.getScratch(src).asDyn().asObject().members.get(sid);
+                if (rooted) self.dropTempDyn();
+                self.reclaimElem(key);
                 if (claimed_static or claimed_search or member == null) {
                     self.cur_frame.ip = self.current_window_fail;
                     return;
