@@ -1881,13 +1881,12 @@ pub const Compiler = struct {
             },
             // A search pair steps when its key sub-pattern is a shallow
             // leaf (bind, ignore, or bound-local probe) and its value is
-            // either a shallow leaf or, for an unbound (scanning) key, a
-            // structural sub-pattern matched in a nested window. A
-            // structural value under a bound key keeps the plan path.
+            // either a shallow leaf or a structural sub-pattern matched in
+            // a nested window. A bound key probes its member directly; an
+            // unbound key scans; either way the value's window is the same.
             .search_key => |c| {
                 if (!self.searchSetStepable(ast, c.key, true)) return false;
                 if (self.searchSetStepable(ast, c.value, false)) continue;
-                if (self.searchKeyBound(ast, c.key)) return false;
                 if (!self.searchValueStructuralStepable(ast, c.value)) return false;
             },
             .solve_merge => |c| {
@@ -1901,15 +1900,6 @@ pub const Compiler = struct {
             else => return false,
         };
         return true;
-    }
-
-    // A search key is bound when it compares against an existing local
-    // (eq_slot) — a direct member probe rather than an unclaimed-member
-    // scan.
-    fn searchKeyBound(self: *Compiler, ast: *const Ast, set_id: Ast.SetId) bool {
-        _ = self;
-        const kc = singleSetConstraint(ast, set_id) orelse return false;
-        return kc.kind == .eq_slot;
     }
 
     // A search value that is not a shallow leaf lowers to inline steps when

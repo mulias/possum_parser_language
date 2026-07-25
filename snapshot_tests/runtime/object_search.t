@@ -68,6 +68,38 @@ pair.
   $ possum -p '"" $ Obj.Get({"a": 1, "b": 2}, "b")' -i ''
   2
 
+A bound key's value may itself be a structural pattern: the probed
+member's value matches the sub-pattern in a nested window, binding its
+variables.
+
+  $ possum -p '(("" $ "pt") -> K) & (const({"a": 1, "pt": [3, 4]}) -> {K: [X, Y], ..._}) $ [X, Y]' -i ''
+  [3, 4]
+
+  $ possum -p '(("" $ "pt") -> K) & (const({"pt": {"x": 9}}) -> {K: {"x": X}, ..._}) $ X' -i ''
+  9
+
+A bound key whose member fails the structural value fails the match; the
+probe commits to that member, so no other is tried.
+
+  $ possum -p '(("" $ "a") -> K) & (const({"a": 5}) -> {K: [X, Y]}) $ X' -i ''
+  
+  Parse Failure: value {"a": 5} did not match pattern {K: [X, Y]}
+  
+  input:1:0:
+  
+  1 \xe2\x96\x8f (esc)
+    \xe2\x96\x8f^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:40-51:
+  
+  1 \xe2\x96\x8f (("" $ "a") -> K) & (const({"a": 5}) -> {K: [X, Y]}) $ X (esc)
+    \xe2\x96\x8f                                         ^^^^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
 A bound key must be a string:
 
   $ possum -p "(('' \$ 1) -> K) & (('' \$ {\"1\": 5}) -> {K: V}) \$ V" -i ''

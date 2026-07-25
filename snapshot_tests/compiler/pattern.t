@@ -3939,3 +3939,166 @@
   0025    | MatchWindowExit
   0026    | End
   ========================================
+
+  $ possum -p '(("" $ "pt") -> K) & (const({"a": 1, "pt": [3, 4]}) -> {K: [X, Y], ..._}) $ [X, Y]' -i ''
+  
+  ================4:const=================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetLocalMove l0
+  0002    | End
+  ========================================
+  
+  ================2:@main=================
+  (("" $ "pt") -> K) & (const({"a": 1, "pt": [3, 4]}) -> {K: [X, Y], ..._}) $ [X, Y]
+  ========================================
+  0000    | PushVar K
+  0002    | PushVar X
+  0004    | PushVar Y
+  0006    | PushString "pt"
+  0008    | JumpIfFailure 8 -> 21
+  0011    | MatchWindowEnter 2 fail->20
+  0015    | MatchScrutinee r0
+  0017    | MatchBind l0 r0
+  0020    | MatchWindowExit
+  0021    | TakeRight 21 -> 115
+  0024    | GetConstant 0: const
+  0026    | GetConstantMutable 1: {"a": 1, _1_}
+  0028    | PushString "pt"
+  0030    | GetConstant 2: [3, 4]
+  0032    | InsertKeyVal 1
+  0034    | CallFunction 1
+  0036    | JumpIfFailure 36 -> 102
+  0039    | MatchWindowEnter 5 fail->100
+  0043    | MatchScrutinee r0
+  0045    | MatchType r0 object
+  0048    | MatchCount r0 >=1
+  0052    | GetLocalMove l0
+  0054    | MatchKeyClaim key=r2 val=r3 src=r0 keys=r2..r2 \ []
+  0061    | MatchWindowEnter 4 fail->94
+  0065    | MatchSubScrutinee r0 ^r3
+  0068    | MatchType r0 array
+  0071    | MatchCount r0 ==2
+  0075    | MatchElem r1 r0[0]
+  0080    | MatchBind l1 r1
+  0083    | MatchElem r2 r0[1]
+  0088    | MatchBind l2 r2
+  0091    | Jump 91 -> 96
+  0094    | MatchWindowExit
+  0095    | MatchRefail
+  0096    | MatchWindowExit
+  0097    | Jump 97 -> 101
+  0100    | MatchFail
+  0101    | MatchWindowExit
+  0102    | TakeRight 102 -> 115
+  0105    | GetConstantMutable 4: [_, _]
+  0107    | GetLocalMove l1
+  0109    | InsertAtIndex 0
+  0111    | GetLocalMove l2
+  0113    | InsertAtIndex 1
+  0115    | End
+  ========================================
+
+  $ possum -p '(("" $ "pt") -> K) & (const({"pt": {"x": 9}}) -> {K: {"x": X}, ..._}) $ X' -i ''
+  
+  ================4:const=================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetLocalMove l0
+  0002    | End
+  ========================================
+  
+  ================2:@main=================
+  (("" $ "pt") -> K) & (const({"pt": {"x": 9}}) -> {K: {"x": X}, ..._}) $ X
+  ========================================
+  0000    | PushVar K
+  0002    | PushVar X
+  0004    | PushString "pt"
+  0006    | JumpIfFailure 6 -> 19
+  0009    | MatchWindowEnter 2 fail->18
+  0013    | MatchScrutinee r0
+  0015    | MatchBind l0 r0
+  0018    | MatchWindowExit
+  0019    | TakeRight 19 -> 97
+  0022    | GetConstant 0: const
+  0024    | GetConstantMutable 1: {_0_}
+  0026    | PushString "pt"
+  0028    | GetConstant 2: {"x": 9}
+  0030    | InsertKeyVal 0
+  0032    | CallFunction 1
+  0034    | JumpIfFailure 34 -> 92
+  0037    | MatchWindowEnter 5 fail->90
+  0041    | MatchScrutinee r0
+  0043    | MatchType r0 object
+  0046    | MatchCount r0 >=1
+  0050    | GetLocalMove l0
+  0052    | MatchKeyClaim key=r2 val=r3 src=r0 keys=r2..r2 \ []
+  0059    | MatchWindowEnter 3 fail->84
+  0063    | MatchSubScrutinee r0 ^r3
+  0066    | MatchType r0 object
+  0069    | MatchCount r0 ==1
+  0073    | MatchKey r1 r0["x"]
+  0078    | MatchBind l1 r1
+  0081    | Jump 81 -> 86
+  0084    | MatchWindowExit
+  0085    | MatchRefail
+  0086    | MatchWindowExit
+  0087    | Jump 87 -> 91
+  0090    | MatchFail
+  0091    | MatchWindowExit
+  0092    | TakeRight 92 -> 97
+  0095    | GetLocalMove l1
+  0097    | End
+  ========================================
+
+  $ possum -p '(("" $ "a") -> K) & (const({"a": 5}) -> {K: [X, Y]}) $ X' -i ''
+  
+  ================4:const=================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetLocalMove l0
+  0002    | End
+  ========================================
+  
+  ================2:@main=================
+  (("" $ "a") -> K) & (const({"a": 5}) -> {K: [X, Y]}) $ X
+  ========================================
+  0000    | PushVar K
+  0002    | PushVar X
+  0004    | PushVar Y
+  0006    | PushString "a"
+  0008    | JumpIfFailure 8 -> 21
+  0011    | MatchWindowEnter 2 fail->20
+  0015    | MatchScrutinee r0
+  0017    | MatchBind l0 r0
+  0020    | MatchWindowExit
+  0021    | TakeRight 21 -> 101
+  0024    | GetConstant 0: const
+  0026    | GetConstant 1: {"a": 5}
+  0028    | CallFunction 1
+  0030    | JumpIfFailure 30 -> 96
+  0033    | MatchWindowEnter 5 fail->94
+  0037    | MatchScrutinee r0
+  0039    | MatchType r0 object
+  0042    | MatchCount r0 ==1
+  0046    | GetLocalMove l0
+  0048    | MatchKeyClaim key=r2 val=r3 src=r0 keys=r2..r2 \ []
+  0055    | MatchWindowEnter 4 fail->88
+  0059    | MatchSubScrutinee r0 ^r3
+  0062    | MatchType r0 array
+  0065    | MatchCount r0 ==2
+  0069    | MatchElem r1 r0[0]
+  0074    | MatchBind l1 r1
+  0077    | MatchElem r2 r0[1]
+  0082    | MatchBind l2 r2
+  0085    | Jump 85 -> 90
+  0088    | MatchWindowExit
+  0089    | MatchRefail
+  0090    | MatchWindowExit
+  0091    | Jump 91 -> 95
+  0094    | MatchFail
+  0095    | MatchWindowExit
+  0096    | TakeRight 96 -> 101
+  0099    | GetLocalMove l1
+  0101    | End
+  ========================================
