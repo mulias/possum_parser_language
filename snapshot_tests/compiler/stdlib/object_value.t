@@ -97,10 +97,10 @@
   0019    | MatchCount r0 >=1
   0023    | MatchSearchInit r5
   0025    | MatchNextUnclaimed key=r3 val=r4 src=r0 cursor=r5 keys=r3..r3 \ []
-  0033    | MatchWindowEnter 2 fail->40
-  0037    | MatchSubScrutinee r0 ^r4
-  0040    | MatchWindowExit
-  0041    | MatchBind l2 r3
+  0033    | MatchBind l2 r3
+  0036    | MatchWindowEnter 2 fail->43
+  0040    | MatchSubScrutinee r0 ^r4
+  0043    | MatchWindowExit
   0044    | MatchObjectRest r1 r0 \ [] r3..r4
   0051    | MatchBind l3 r1
   0054    | Jump 54 -> 58

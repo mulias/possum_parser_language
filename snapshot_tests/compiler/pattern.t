@@ -3813,19 +3813,19 @@
   0026    | MatchCount r0 ==1
   0030    | MatchSearchInit r4
   0032    | MatchNextUnclaimed key=r2 val=r3 src=r0 cursor=r4 keys=r2..r2 \ []
-  0040    | MatchWindowEnter 4 fail->73
-  0044    | MatchSubScrutinee r0 ^r3
-  0047    | MatchType r0 array
-  0050    | MatchCount r0 ==2
-  0054    | MatchElem r1 r0[0]
-  0059    | MatchBind l1 r1
-  0062    | MatchElem r2 r0[1]
-  0067    | MatchBind l2 r2
-  0070    | Jump 70 -> 77
-  0073    | MatchWindowExit
-  0074    | JumpBack 74 -> 32
-  0077    | MatchWindowExit
-  0078    | MatchBind l0 r2
+  0040    | MatchBind l0 r2
+  0043    | MatchWindowEnter 4 fail->76
+  0047    | MatchSubScrutinee r0 ^r3
+  0050    | MatchType r0 array
+  0053    | MatchCount r0 ==2
+  0057    | MatchElem r1 r0[0]
+  0062    | MatchBind l1 r1
+  0065    | MatchElem r2 r0[1]
+  0070    | MatchBind l2 r2
+  0073    | Jump 73 -> 80
+  0076    | MatchWindowExit
+  0077    | JumpBack 77 -> 32
+  0080    | MatchWindowExit
   0081    | Jump 81 -> 85
   0084    | MatchFail
   0085    | MatchWindowExit

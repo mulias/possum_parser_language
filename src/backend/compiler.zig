@@ -1922,16 +1922,13 @@ pub const Compiler = struct {
     // A search value that is not a shallow leaf lowers to inline steps when
     // it is a genuine container destructure (more than the scrutinee place)
     // whose whole ConstraintSet steps. It matches in a nested window whose
-    // scrutinee is the found member. Evaluated members are excluded: an
-    // eval in the value may read this pair's key, which the window path
-    // binds only after the value matches (the plan path binds the key
-    // first, so `{A: Id(A)}` stays there).
+    // scrutinee is the found member. The scan binds the candidate key
+    // before the value window, so the value may read it — an eval that
+    // reads the key (`{A: Id(A)}`) or an element that compares against it
+    // (`{A: [A, B]}`) both step.
     fn searchValueStructuralStepable(self: *Compiler, ast: *const Ast, set_id: Ast.SetId) bool {
         const set = &ast.constraint_sets.items[set_id];
         if (set.places.items.len < 2) return false;
-        for (set.constraints.items) |constraint| {
-            if (constraint.kind == .eval_eq) return false;
-        }
         return self.constraintsStepable(ast, set.constraints.items);
     }
 
@@ -2107,8 +2104,10 @@ pub const Compiler = struct {
     // steps: exactly one place (the found key or value) constrained by at
     // most one leaf. A key may bind, be ignored, or probe a known member
     // by a bound local or a module global (the eval bridge pushes it for
-    // MatchKeyClaim). A value may also compare against constants and
-    // globals. Const keys don't arise — a literal key is a has_key place.
+    // MatchKeyClaim). A value may also compare against a constant, a
+    // global, or an eval that reads the pair's key ({A: Id(A)}), which the
+    // scan binds before the value window. Const keys don't arise — a
+    // literal key is a has_key place.
     fn searchSetStepable(self: *Compiler, ast: *const Ast, set_id: Ast.SetId, is_key: bool) bool {
         _ = self;
         const set = &ast.constraint_sets.items[set_id];
@@ -2117,7 +2116,7 @@ pub const Compiler = struct {
         if (set.constraints.items.len == 0) return true;
         return switch (set.constraints.items[0].kind) {
             .bind, .eq_slot, .eq_global => true,
-            .eq_const => !is_key,
+            .eq_const, .eval_eq => !is_key,
             else => false,
         };
     }
@@ -2967,7 +2966,6 @@ pub const Compiler = struct {
                     // the value pattern accepts; the value matches in a
                     // nested window scrutinized by the found member, and a
                     // rejected candidate exits that window and loops back.
-                    // The key binds only once the value matched.
                     try self.emitUnaryOp(.MatchSearchInit, cursor_reg, step_region);
                     const loop = self.ir().nextIndex();
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_search = .{
@@ -2979,7 +2977,10 @@ pub const Compiler = struct {
                         .claim_count = my_index,
                         .constant = constant,
                     } }, step_region));
-                    try self.writeMatchSteps(module_id, ast, value_set.places.items, value_set.constraints.items, .{ .sub = .{ .src_reg = value_reg, .on_fail = .{ .retry = loop } } }, step_region);
+                    // Bind the candidate key before the value window so the
+                    // value may read it ({A: Id(A)}, {A: [A, B]}). A rejected
+                    // candidate's bind is overwritten when the loop advances,
+                    // and a failed arm never reads it.
                     if (singleSetConstraint(ast, c.key)) |kc| switch (kc.kind) {
                         .bind => |b| _ = try self.ir().push(allocator, .{ .match_bytes = .{
                             .op = .MatchBind,
@@ -2988,6 +2989,7 @@ pub const Compiler = struct {
                         } }, step_region),
                         else => {},
                     };
+                    try self.writeMatchSteps(module_id, ast, value_set.places.items, value_set.constraints.items, .{ .sub = .{ .src_reg = value_reg, .on_fail = .{ .retry = loop } } }, step_region);
                 },
                 .solve_repeat => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);

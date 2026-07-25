@@ -1172,9 +1172,6 @@ test "audit: pattern shapes not yet stepable compile to a match plan" {
         // solve_repeat: the pattern operand is a global
         \\G = "" $ 1 ; ("" $ [1, 1]) -> (G * N) $ N
         ,
-        // search_key: an unbound key whose value evaluates (reads the key)
-        \\Id(Z) = "" $ Z ; ("" $ {"5": 5}) -> {A: Id(A)} $ A
-        ,
         // search_key: a deep (non-leaf) key pattern
         \\"" $ {"a": 1, "123": 1} -> {"%(0 + N)": 1, ..._} $ N
         ,

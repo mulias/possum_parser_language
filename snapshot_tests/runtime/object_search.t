@@ -206,3 +206,13 @@ A structural value nests object destructures too:
 
   $ possum -p 'const({"a": 1, "pt": {"x": 3}}) -> {K: {"x": X}, ...R} $ [K, X]' -i ''
   ["pt", 3]
+
+The scan binds the candidate key before matching the value, so the value
+may read the key: an eval that computes from it, or an element that
+compares against it. The search skips members that disagree.
+
+  $ possum -p 'Id(Z) = "" $ Z ; ("" $ {"a": "x", "5": "5"}) -> {A: Id(A), ..._} $ A' -i ''
+  "5"
+
+  $ possum -p 'const({"q": [1, 2], "x": ["x", 9]}) -> {A: [A, B], ..._} $ [A, B]' -i ''
+  ["x", 9]
