@@ -125,24 +125,27 @@ pub const Ir = struct {
         // the array is exhausted; otherwise materialize the chunk slice
         // src[base..base+L] into chunk_dst for the chunk sub-pattern.
         match_repeat_next: struct { op: OpCode, src: u8, base: u8, len: u8, chunk_dst: u8, target: Index },
-        // MatchStrInit (src, front cursor, end cursor): det string-template
-        // loop entry — front = 0, end = src's byte length. src is
-        // string-typed by the preceding MatchType.
-        match_str_init: struct { op: OpCode, src: u8, front: u8, end: u8 },
-        // MatchStrRest (dst, src, front cursor, end cursor): det — the
-        // substring [front..end) into dst (InputSubstring range reuse else
-        // copy), the solvable's raw byte range.
-        match_str_rest: struct { op: OpCode, dst: u8, src: u8, front: u8, end: u8 },
+        // MatchSpanInit (src, front cursor, end cursor): det span-template
+        // loop entry — front = 0, end = src's byte length (string) or
+        // element count (array). src's type is fixed by the preceding
+        // MatchType.
+        match_span_init: struct { op: OpCode, src: u8, front: u8, end: u8 },
+        // MatchSpanRest (dst, src, front cursor, end cursor): det — the
+        // span [front..end) into dst: a string substring (InputSubstring
+        // range reuse else copy) or a fresh array slice, the solvable's raw
+        // range.
+        match_span_rest: struct { op: OpCode, dst: u8, src: u8, front: u8, end: u8 },
         // MatchStrLit (src, cursor, opposite cursor, back flag, literal
         // constant): semidet — compare the constant's bytes at the cursor
         // (forward [front..front+len) when back=0, else [end-len..end)),
         // failing if they don't fit before the opposite cursor or differ,
         // then advance/retreat the cursor.
         match_str_lit: struct { op: OpCode, src: u8, cursor: u8, opp: u8, back: u8, constant: u16 },
-        // MatchStrVal (src, cursor, opposite cursor, back flag): semidet —
-        // pop the evaluated segment value off the stack, stringify it, and
-        // compare/advance like MatchStrLit with the runtime length.
-        match_str_val: struct { op: OpCode, src: u8, cursor: u8, opp: u8, back: u8 },
+        // MatchSpanVal (src, cursor, opposite cursor, back flag): semidet —
+        // pop the evaluated segment value off the stack and compare/advance
+        // by its runtime length: a string chomp (stringified, like
+        // MatchStrLit) or an element-wise array compare at the cursor.
+        match_span_val: struct { op: OpCode, src: u8, cursor: u8, opp: u8, back: u8 },
         // MatchStrChar (dst, src, cursor, opposite cursor, back flag):
         // semidet — decode one codepoint at the cursor (forward lead-byte
         // length; back continuation walk landing exactly), materialize it
@@ -401,13 +404,13 @@ pub const Ir = struct {
                     const distance = offsets[m.target] - (offsets[i] + insn_len);
                     try self.writeShortDistance(chunk, allocator, distance, region);
                 },
-                .match_str_init => |m| {
+                .match_span_init => |m| {
                     try chunk.writeOp(allocator, m.op, region);
                     try chunk.write(allocator, m.src, region);
                     try chunk.write(allocator, m.front, region);
                     try chunk.write(allocator, m.end, region);
                 },
-                .match_str_rest => |m| {
+                .match_span_rest => |m| {
                     try chunk.writeOp(allocator, m.op, region);
                     try chunk.write(allocator, m.dst, region);
                     try chunk.write(allocator, m.src, region);
@@ -422,7 +425,7 @@ pub const Ir = struct {
                     try chunk.write(allocator, m.back, region);
                     try chunk.writeShort(allocator, m.constant, region);
                 },
-                .match_str_val => |m| {
+                .match_span_val => |m| {
                     try chunk.writeOp(allocator, m.op, region);
                     try chunk.write(allocator, m.src, region);
                     try chunk.write(allocator, m.cursor, region);
@@ -520,10 +523,10 @@ pub const Ir = struct {
             .match_repeat_range => 9,
             .match_repeat_init => 5,
             .match_repeat_next => 7,
-            .match_str_init => 4,
-            .match_str_rest => 5,
+            .match_span_init => 4,
+            .match_span_rest => 5,
             .match_str_lit => 7,
-            .match_str_val => 5,
+            .match_span_val => 5,
             .match_str_char => 6,
         };
     }
@@ -688,10 +691,10 @@ pub const Ir = struct {
             .match_repeat_range => |m| m.op,
             .match_repeat_init => |m| m.op,
             .match_repeat_next => |m| m.op,
-            .match_str_init => |m| m.op,
-            .match_str_rest => |m| m.op,
+            .match_span_init => |m| m.op,
+            .match_span_rest => |m| m.op,
             .match_str_lit => |m| m.op,
-            .match_str_val => |m| m.op,
+            .match_span_val => |m| m.op,
             .match_str_char => |m| m.op,
         };
     }
@@ -745,7 +748,7 @@ pub const Ir = struct {
             .MatchRepeatRangeDivide,
             .MatchRepeatInit,
             .MatchStrLit,
-            .MatchStrVal,
+            .MatchSpanVal,
             .MatchStrChar,
             .MatchEval,
             .MatchRangeBound,

@@ -114,12 +114,12 @@ pub const OpCode = enum(u8) {
     MatchScrutinee,
     MatchSearchInit,
     MatchSlice,
+    MatchSpanInit,
+    MatchSpanRest,
+    MatchSpanVal,
     MatchStrChar,
     MatchStrEnd,
-    MatchStrInit,
     MatchStrLit,
-    MatchStrRest,
-    MatchStrVal,
     MatchSubScrutinee,
     MatchSubtractEval,
     MatchType,
@@ -292,8 +292,8 @@ pub const OpCode = enum(u8) {
             .MatchObjectRest,
             .MatchSearchInit,
             .MatchSlice,
-            .MatchStrInit,
-            .MatchStrRest,
+            .MatchSpanInit,
+            .MatchSpanRest,
             .MatchSubScrutinee,
             => .{ .fixed = .{ .pops = 0, .pushes = 0 } },
 
@@ -329,14 +329,14 @@ pub const OpCode = enum(u8) {
             // evaluated before comparing (both paths pop, so a plain fixed
             // pop): MatchEval (compares against the place), MatchRangeBound
             // (a range end), MatchRepeatChunk/Value (the repeat operand),
-            // MatchStrVal (a template segment), MatchSubtractEval (a merge
+            // MatchSpanVal (a template segment), MatchSubtractEval (a merge
             // residual part), MatchKeyClaim (the probed object key).
             .MatchEval,
             .MatchKeyClaim,
             .MatchRangeBound,
             .MatchRepeatChunk,
             .MatchRepeatValue,
-            .MatchStrVal,
+            .MatchSpanVal,
             .MatchSubtractEval,
             .MatchDivideEval,
             => .{ .fixed = .{ .pops = 1, .pushes = 0 } },
@@ -592,11 +592,11 @@ pub const OpCode = enum(u8) {
             .MatchScrutinee,
             .MatchSearchInit,
             .MatchSlice,
+            .MatchSpanInit,
+            .MatchSpanRest,
             .MatchStrChar,
             .MatchStrEnd,
-            .MatchStrInit,
             .MatchStrLit,
-            .MatchStrRest,
             .MatchSubScrutinee,
             .MatchType,
             => .{ .operands = .borrowed, .result = .none },
@@ -621,7 +621,7 @@ pub const OpCode = enum(u8) {
             .MatchRepeatValue,
             // Pops and releases the evaluated segment value; the compare
             // reads its bytes before releasing.
-            .MatchStrVal,
+            .MatchSpanVal,
             // Pops and releases the evaluated summed part; the numeric
             // residual written into the destination is not a Dyn handle.
             .MatchSubtractEval,
@@ -754,10 +754,10 @@ pub const OpCode = enum(u8) {
             .MatchRepeatInit => self.matchRepeatInitInstruction(chunk, writer, offset),
             .MatchRepeatNext => self.matchRepeatNextInstruction(chunk, writer, offset),
             .MatchSlice => self.matchSliceInstruction(chunk, writer, offset),
-            .MatchStrInit => self.matchStrInitInstruction(chunk, writer, offset),
-            .MatchStrRest => self.matchStrRestInstruction(chunk, writer, offset),
+            .MatchSpanInit => self.matchSpanInitInstruction(chunk, writer, offset),
+            .MatchSpanRest => self.matchSpanRestInstruction(chunk, writer, offset),
             .MatchStrLit => self.matchStrLitInstruction(chunk, vm, module, writer, offset),
-            .MatchStrVal => self.matchStrValInstruction(chunk, writer, offset),
+            .MatchSpanVal => self.matchSpanValInstruction(chunk, writer, offset),
             .MatchStrChar => self.matchStrCharInstruction(chunk, writer, offset),
             .MatchCmp => self.matchCmpInstruction(chunk, vm, module, writer, offset),
             .MatchCast => self.matchCastInstruction(chunk, writer, offset),
@@ -1031,7 +1031,7 @@ pub const OpCode = enum(u8) {
         return offset + 5;
     }
 
-    fn matchStrInitInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+    fn matchSpanInitInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
         const src = chunk.read(offset + 1);
         const front = chunk.read(offset + 2);
         const end = chunk.read(offset + 3);
@@ -1039,7 +1039,7 @@ pub const OpCode = enum(u8) {
         return offset + 4;
     }
 
-    fn matchStrRestInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+    fn matchSpanRestInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
         const dst = chunk.read(offset + 1);
         const src = chunk.read(offset + 2);
         const front = chunk.read(offset + 3);
@@ -1065,7 +1065,7 @@ pub const OpCode = enum(u8) {
         return offset + 7;
     }
 
-    fn matchStrValInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+    fn matchSpanValInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
         const src = chunk.read(offset + 1);
         const cursor = chunk.read(offset + 2);
         const opp = chunk.read(offset + 3);

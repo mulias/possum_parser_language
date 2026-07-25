@@ -1052,7 +1052,7 @@ test "a template with a number-merge segment casts to cursor steps" {
             Elem.numberFloat(12),
             vm,
         );
-        // The number-merge solvable lowers to MatchStrRest + MatchCastNum +
+        // The number-merge solvable lowers to MatchSpanRest + MatchCastNum +
         // MatchMergeNum; no plan remains.
         var plan_count: usize = 0;
         for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
@@ -1073,7 +1073,7 @@ test "a template with an array segment casts to json" {
             try Elem.numberStringFromBytes("2", &vm),
             vm,
         );
-        // The structural cast solvable lowers to MatchStrRest + MatchCastJson
+        // The structural cast solvable lowers to MatchSpanRest + MatchCastJson
         // and a child window matching the parsed array; no plan remains.
         var plan_count: usize = 0;
         for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
@@ -1114,7 +1114,7 @@ test "a template with a bound local segment compiles to cursor steps" {
             (try Elem.DynElem.String.copy(&vm, "ok")).dyn.elem(),
             vm,
         );
-        // The bound-read segment lowers to MatchStrVal; no plan remains.
+        // The bound-read segment lowers to MatchSpanVal; no plan remains.
         var plan_count: usize = 0;
         for (vm.modules.items) |module| plan_count += module.match_plans.items.len;
         try std.testing.expectEqual(0, plan_count);

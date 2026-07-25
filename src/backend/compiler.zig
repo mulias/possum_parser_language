@@ -2383,7 +2383,7 @@ pub const Compiler = struct {
         // A constant expression: folds into the adjacent literal bytes.
         literal_fold,
         // A bound read or an evaluable call: evaluated, stringified, and
-        // byte-compared (MatchStrVal). Never the solvable.
+        // byte-compared (MatchSpanVal). Never the solvable.
         value,
         // A character range sub-pattern: MatchStrChar + range test. Never
         // the solvable.
@@ -3765,7 +3765,7 @@ pub const Compiler = struct {
         // Whole-string template: the solvable is the only segment, so front
         // is 0 and end is the byte length by construction. The cursors and
         // the rest substring are pure overhead — the source value is the
-        // rest — so skip MatchStrInit/MatchStrRest and act on reg directly.
+        // rest — so skip MatchSpanInit/MatchSpanRest and act on reg directly.
         if (solvable_index != null and solvable_index.? == 0 and effs.items.len == 1) {
             switch (effs.items[0].solvable) {
                 .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
@@ -3780,8 +3780,8 @@ pub const Compiler = struct {
             return;
         }
 
-        _ = try self.ir().push(allocator, .{ .match_str_init = .{
-            .op = .MatchStrInit,
+        _ = try self.ir().push(allocator, .{ .match_span_init = .{
+            .op = .MatchSpanInit,
             .src = reg,
             .front = regs.front,
             .end = regs.end,
@@ -3860,7 +3860,7 @@ pub const Compiler = struct {
 
     // Cast a numeric-range solvable's byte range (cast_src) to a number
     // into cast_dst, then range-test it. cast_src == cast_dst is the
-    // in-place form used after MatchStrRest; the whole-string path casts
+    // in-place form used after MatchSpanRest; the whole-string path casts
     // the source value directly. A non-numeric byte range fails the cast.
     fn emitTemplateRangeCast(
         self: *Compiler,
@@ -3885,7 +3885,7 @@ pub const Compiler = struct {
     // then match the parsed container against the sub-pattern in a child
     // window scrutinized by cast_dst. A parse failure or a rejected match
     // fails the whole template (a forward jump to the arm's fail tail).
-    // cast_src == cast_dst is the in-place form used after MatchStrRest;
+    // cast_src == cast_dst is the in-place form used after MatchSpanRest;
     // the whole-string path casts the source value directly.
     fn emitTemplateStructuralCast(
         self: *Compiler,
@@ -3912,7 +3912,7 @@ pub const Compiler = struct {
 
     // Cast a merge solvable's byte range (cast_src) to its resolved type
     // into cast_dst, then run the merge residual against cast_dst.
-    // cast_src == cast_dst is the in-place form used after MatchStrRest;
+    // cast_src == cast_dst is the in-place form used after MatchSpanRest;
     // the whole-string path casts the source value directly.
     fn emitTemplateCast(
         self: *Compiler,
@@ -3941,8 +3941,8 @@ pub const Compiler = struct {
     }
 
     fn emitTemplateRest(self: *Compiler, reg: u8, regs: TemplateRegs, region: Region) Error!void {
-        _ = try self.ir().push(self.vm.allocator, .{ .match_str_rest = .{
-            .op = .MatchStrRest,
+        _ = try self.ir().push(self.vm.allocator, .{ .match_span_rest = .{
+            .op = .MatchSpanRest,
             .dst = regs.rest,
             .src = reg,
             .front = regs.front,
@@ -3993,8 +3993,8 @@ pub const Compiler = struct {
             } }, region)),
             .value => |part| {
                 try self.emitEvaluablePartValue(module_id, ast, part, region);
-                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_str_val = .{
-                    .op = .MatchStrVal,
+                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_span_val = .{
+                    .op = .MatchSpanVal,
                     .src = reg,
                     .cursor = cursor,
                     .opp = opp,

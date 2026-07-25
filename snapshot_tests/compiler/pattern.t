@@ -1112,7 +1112,7 @@
   0005    | MatchWindowEnter 6 fail->33
   0009    | MatchScrutinee r0
   0011    | MatchType r0 string
-  0014    | MatchStrInit r0 front=r2 end=r3
+  0014    | MatchSpanInit r0 front=r2 end=r3
   0018    | MatchStrLit r0 cursor=r2 opp=r3 front "1"
   0025    | MatchCmp r2 == r3
   0030    | Jump 30 -> 34
@@ -1131,7 +1131,7 @@
   0005    | MatchWindowEnter 6 fail->33
   0009    | MatchScrutinee r0
   0011    | MatchType r0 string
-  0014    | MatchStrInit r0 front=r2 end=r3
+  0014    | MatchSpanInit r0 front=r2 end=r3
   0018    | MatchStrLit r0 cursor=r2 opp=r3 front "2"
   0025    | MatchCmp r2 == r3
   0030    | Jump 30 -> 34
@@ -1360,7 +1360,7 @@
   0009    | MatchWindowEnter 6 fail->46
   0013    | MatchScrutinee r0
   0015    | MatchType r0 string
-  0018    | MatchStrInit r0 front=r2 end=r3
+  0018    | MatchSpanInit r0 front=r2 end=r3
   0022    | MatchStrChar r5 r0 cursor=r2 opp=r3 front
   0028    | MatchType r5 num_or_codepoint
   0031    | MatchBound r5 lo "a"
@@ -3316,7 +3316,7 @@ P * (a * b), so ([1] * 2) * 3 becomes [1] * 6 with a single chunk loop.
   0005    | MatchWindowEnter 6 fail->33
   0009    | MatchScrutinee r0
   0011    | MatchType r0 string
-  0014    | MatchStrInit r0 front=r2 end=r3
+  0014    | MatchSpanInit r0 front=r2 end=r3
   0018    | MatchStrLit r0 cursor=r2 opp=r3 front "null"
   0025    | MatchCmp r2 == r3
   0030    | Jump 30 -> 34
@@ -3714,9 +3714,9 @@ P * (a * b), so ([1] * 2) * 3 becomes [1] * 6 with a single chunk loop.
   0005    | MatchWindowEnter 6 fail->52
   0009    | MatchScrutinee r0
   0011    | MatchType r0 string
-  0014    | MatchStrInit r0 front=r2 end=r3
+  0014    | MatchSpanInit r0 front=r2 end=r3
   0018    | MatchStrLit r0 cursor=r2 opp=r3 front "a"
-  0025    | MatchStrRest r4 r0[r2..r3]
+  0025    | MatchSpanRest r4 r0[r2..r3]
   0030    | MatchCast r4 <- num r4
   0034    | MatchType r4 num_or_codepoint
   0037    | MatchBound r4 lo -5

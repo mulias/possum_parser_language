@@ -1155,7 +1155,7 @@ pub const VM = struct {
                     self.cur_frame.ip = self.current_window_fail;
                 }
             },
-            .MatchStrInit => {
+            .MatchSpanInit => {
                 // String-template loop entry: front = 0, end = byte length.
                 // The preceding MatchType guarantees src is string-typed.
                 const src = self.readByte();
@@ -1190,7 +1190,7 @@ pub const VM = struct {
                 self.setScratch(cursor, Elem.numberFloat(@floatFromInt(new_cursor)));
                 prev.release();
             },
-            .MatchStrVal => {
+            .MatchSpanVal => {
                 // The preceding expression left the segment value on the
                 // stack; stringify it (identity on strings) and compare its
                 // bytes at the cursor like MatchStrLit with the runtime
@@ -1249,7 +1249,7 @@ pub const VM = struct {
                 self.setScratch(cursor, Elem.numberFloat(@floatFromInt(span.next_cursor)));
                 prev_cursor.release();
             },
-            .MatchStrRest => {
+            .MatchSpanRest => {
                 // The substring [front..end) — the solvable's raw byte
                 // range — into dst: an InputSubstring range when the source
                 // is one, else a fresh copy.
@@ -1297,7 +1297,7 @@ pub const VM = struct {
                 // document for a structural template solvable (whose parsed
                 // container a following child window matches). Empty or
                 // ill-typed bytes fail. src == dst is the in-place form
-                // used after MatchStrRest; a whole-string template casts
+                // used after MatchSpanRest; a whole-string template casts
                 // the source value directly.
                 const dst = self.readByte();
                 const src = self.readByte();

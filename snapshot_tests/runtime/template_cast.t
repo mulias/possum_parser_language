@@ -1,7 +1,7 @@
 A template hole whose pattern is a structural array or object casts the
 hole's byte range by parsing it as JSON, then matches the parsed container
 against the sub-pattern. The parse and match run inline (no plan
-interpreter): MatchStrRest takes the byte range, MatchCastJson parses it,
+interpreter): MatchSpanRest takes the byte range, MatchCastJson parses it,
 and a child window matches the parsed value.
 
 An array cast between fixed literals binds the array's elements:
