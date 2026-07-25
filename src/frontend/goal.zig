@@ -1522,10 +1522,13 @@ fn lowerPattern(
             } }, region);
         },
         .repeat => |op| {
+            var count_factors = ArrayList(Ast.Part){};
+            try count_factors.append(self.alloc(), try self.patternPart(op.right));
             try self.pushConstraint(constraints, .{ .solve_repeat = .{
                 .place = place,
                 .pattern = try self.patternPart(op.left),
-                .count = try self.patternPart(op.right),
+                .count_factors = count_factors,
+                .solvable_index = null,
             } }, region);
         },
         .string_template => |parts| {
@@ -2881,7 +2884,7 @@ fn printConstraint(
             try writer.writeAll("\n");
             try printIndent(writer, indent + 1);
             try writer.writeAll("count: ");
-            try self.printPart(writer, c.count, indent + 1);
+            try self.printPart(writer, c.count_factors.items[0], indent + 1);
             try writer.writeAll(")");
         },
         .search_key => |c| {

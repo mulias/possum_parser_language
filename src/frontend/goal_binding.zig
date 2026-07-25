@@ -701,7 +701,7 @@ const Analyzer = struct {
             },
             .solve_repeat => |repeat| {
                 self.collectPartEvalReads(repeat.pattern, set);
-                self.collectPartEvalReads(repeat.count, set);
+                for (repeat.count_factors.items) |factor| self.collectPartEvalReads(factor, set);
             },
             .search_key => |search| {
                 for (self.ast.constraint_sets.items[search.key].constraints.items) |sub| {
@@ -779,7 +779,9 @@ const Analyzer = struct {
             },
             .solve_repeat => |*repeat| {
                 try self.classifyPart(env, bindable, &repeat.pattern, region);
-                try self.classifyPart(env, bindable, &repeat.count, region);
+                for (repeat.count_factors.items) |*factor| {
+                    try self.classifyPart(env, bindable, factor, region);
+                }
             },
             .search_key => |search| {
                 try self.scheduleConstraints(
@@ -1034,7 +1036,7 @@ const Analyzer = struct {
                 },
                 .solve_repeat => |repeat| {
                     self.collectBindablePart(repeat.pattern, set);
-                    self.collectBindablePart(repeat.count, set);
+                    for (repeat.count_factors.items) |factor| self.collectBindablePart(factor, set);
                 },
                 .search_key => |search| {
                     self.collectBindable(self.ast.constraint_sets.items[search.key].constraints.items, set);
@@ -1152,7 +1154,7 @@ const Analyzer = struct {
                 },
                 .solve_repeat => |repeat| {
                     self.collectPatternPartSlots(repeat.pattern, set);
-                    self.collectPatternPartSlots(repeat.count, set);
+                    for (repeat.count_factors.items) |factor| self.collectPatternPartSlots(factor, set);
                 },
                 .search_key => |search| {
                     self.collectPatternSlots(self.ast.constraint_sets.items[search.key].constraints.items, set);
@@ -1336,7 +1338,7 @@ const Verifier = struct {
                 },
                 .solve_repeat => |repeat| {
                     self.verifyPart(repeat.pattern);
-                    self.verifyPart(repeat.count);
+                    for (repeat.count_factors.items) |factor| self.verifyPart(factor);
                 },
                 .search_key => |search| {
                     self.verifyConstraints(self.ast.constraint_sets.items[search.key].constraints.items);

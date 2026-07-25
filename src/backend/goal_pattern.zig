@@ -521,7 +521,7 @@ fn lowerContent(ctx: *Ctx, scope: Scope, constraint: *const GoalAst.Constraint, 
         },
         .solve_merge => |c| try lowerMerge(ctx, .merge, c.parts.items, c.solvable_index, all_bound),
         .match_template => |c| try lowerTemplate(ctx, c.segments.items, all_bound),
-        .solve_repeat => |c| try lowerRepeat(ctx, c.pattern, c.count, all_bound),
+        .solve_repeat => |c| try lowerRepeat(ctx, c.pattern, c.count_factors.items[0], all_bound),
         .local => @panic("Internal Error: neutral local constraint survived binding"),
         else => return error.UnsupportedPattern,
     }

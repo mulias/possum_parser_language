@@ -366,7 +366,17 @@ pub const Constraint = struct {
             ty: ?ValueType,
         },
         match_template: struct { place: PlaceId, segments: ArrayList(Segment) },
-        solve_repeat: struct { place: PlaceId, pattern: Part, count: Part },
+        // The pattern is repeated the product of count_factors times. A
+        // nested `*` chain flattens into the factor list, so the counts
+        // multiply. solvable_index is filled by binding analysis; a second
+        // solvable (unbound) factor is the one-unbound-part compile error,
+        // as for solve_merge.
+        solve_repeat: struct {
+            place: PlaceId,
+            pattern: Part,
+            count_factors: ArrayList(Part),
+            solvable_index: ?u32,
+        },
         // Search the object's unmatched members for one whose key and
         // value match the nested scopes; commit to the first success.
         search_key: struct { place: PlaceId, key: SetId, value: SetId },

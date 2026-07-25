@@ -904,7 +904,7 @@ pub const Compiler = struct {
         for (constraints) |constraint| switch (constraint.kind) {
             .search_key => searches += 1,
             .solve_repeat => |c| {
-                const shape = self.repeatShape(ast, c.pattern, c.count).?;
+                const shape = self.repeatShape(ast, c.pattern, c.count_factors.items[0]).?;
                 repeats = @max(repeats, @as(u32, if (shape == .array) 3 else 1));
             },
             .match_template => |c| {
@@ -1913,7 +1913,7 @@ pub const Compiler = struct {
                     !self.mergeNegatedNonNumber(ast, c.ty, c.parts.items)) return false;
             },
             .solve_repeat => |c| {
-                if (self.repeatShape(ast, c.pattern, c.count) == null) return false;
+                if (self.repeatShape(ast, c.pattern, c.count_factors.items[0]) == null) return false;
             },
             else => return false,
         };
@@ -2666,7 +2666,7 @@ pub const Compiler = struct {
         var repeat_block: u8 = 0;
         for (constraints) |constraint| switch (constraint.kind) {
             .solve_repeat => |c| {
-                const shape = self.repeatShape(ast, c.pattern, c.count).?;
+                const shape = self.repeatShape(ast, c.pattern, c.count_factors.items[0]).?;
                 repeat_block = @max(repeat_block, @as(u8, if (shape == .array) 3 else 1));
             },
             else => {},
@@ -2996,7 +2996,7 @@ pub const Compiler = struct {
                 .solve_repeat => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
                     const src_reg = scratch_base + @as(u8, @intCast(c.place));
-                    switch (self.repeatShape(ast, c.pattern, c.count).?) {
+                    switch (self.repeatShape(ast, c.pattern, c.count_factors.items[0]).?) {
                         // A known pattern: push its value, derive the
                         // count from the place's value, and test the
                         // count operand against the derived count.
@@ -3007,7 +3007,7 @@ pub const Compiler = struct {
                                 .byte1 = src_reg,
                                 .byte2 = repeat_reg,
                             } }, step_region));
-                            try self.emitRepeatCountSteps(module_id, ast, c.count, repeat_reg, &fail_jumps, step_region);
+                            try self.emitRepeatCountSteps(module_id, ast, c.count_factors.items[0], repeat_reg, &fail_jumps, step_region);
                         },
                         // A codepoint range: scan the string, derive the
                         // codepoint count, and test the count operand
@@ -3029,7 +3029,7 @@ pub const Compiler = struct {
                                 .upper_kind = upper_desc.kind,
                                 .upper_arg = upper_desc.arg,
                             } }, step_region));
-                            try self.emitRepeatCountSteps(module_id, ast, c.count, repeat_reg, &fail_jumps, step_region);
+                            try self.emitRepeatCountSteps(module_id, ast, c.count_factors.items[0], repeat_reg, &fail_jumps, step_region);
                         },
                         // A fixed-length array sub-pattern: derive the
                         // chunk count from the length, test the count
@@ -3050,7 +3050,7 @@ pub const Compiler = struct {
                                 .count_dst = repeat_reg,
                                 .base = repeat_base_reg,
                             } }, step_region));
-                            try self.emitRepeatCountSteps(module_id, ast, c.count, repeat_reg, &fail_jumps, step_region);
+                            try self.emitRepeatCountSteps(module_id, ast, c.count_factors.items[0], repeat_reg, &fail_jumps, step_region);
 
                             // A chunk with no constrained elements (all
                             // placeholders, like Array.length's [_] * L)
@@ -3086,7 +3086,7 @@ pub const Compiler = struct {
                         // A bare binder: push the known count, solve the
                         // representative chunk, and bind it.
                         .chunk => {
-                            try self.writeRepeatOperand(module_id, ast, c.count, step_region);
+                            try self.writeRepeatOperand(module_id, ast, c.count_factors.items[0], step_region);
                             try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
                                 .op = .MatchRepeatChunk,
                                 .byte1 = src_reg,
