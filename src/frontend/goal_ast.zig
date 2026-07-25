@@ -335,7 +335,6 @@ pub const Constraint = struct {
         has_key: struct { place: PlaceId, sid: StringTable.Id },
         // point tests
         eq_const: struct { place: PlaceId, value: NodeId },
-        eq_places: struct { a: PlaceId, b: PlaceId },
         in_range: struct { place: PlaceId, lower: Limit, upper: Limit },
         // A variable occurrence. Binding analysis classifies each as
         // binder, bound read, or global reference (a zero-arity function

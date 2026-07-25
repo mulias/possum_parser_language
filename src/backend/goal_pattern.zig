@@ -102,7 +102,6 @@ fn constraintPlace(kind: GoalAst.Constraint.Kind) ?GoalAst.PlaceId {
         .match_template => |c| c.place,
         .solve_repeat => |c| c.place,
         .search_key => |c| c.place,
-        .eq_places => null,
     };
 }
 
@@ -137,7 +136,6 @@ fn lowerPlaceGroup(ctx: *Ctx, scope: Scope, place: GoalAst.PlaceId, all_bound: b
             .str_suffix => |c| suffix = c.literal,
             .keys_exact => keys_exact = true,
             .keys_min, .has_key, .search_key => {},
-            .eq_places => return error.UnsupportedPattern,
             else => {
                 if (content != null) return error.UnsupportedPattern;
                 content = constraint;

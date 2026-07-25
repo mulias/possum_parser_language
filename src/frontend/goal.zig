@@ -2218,10 +2218,6 @@ fn placeSrc(def: Ast.PlaceDef) ?Ast.PlaceId {
 fn markUsedPlaces(constraints: []const Ast.Constraint, used: []bool) void {
     for (constraints) |c| {
         switch (c.kind) {
-            .eq_places => |x| {
-                used[x.a] = true;
-                used[x.b] = true;
-            },
             inline else => |x| used[x.place] = true,
         }
     }
@@ -2230,10 +2226,6 @@ fn markUsedPlaces(constraints: []const Ast.Constraint, used: []bool) void {
 fn remapPlaces(constraints: []Ast.Constraint, map: []const Ast.PlaceId) void {
     for (constraints) |*c| {
         switch (c.kind) {
-            .eq_places => |*x| {
-                x.a = map[x.a];
-                x.b = map[x.b];
-            },
             inline else => |*x| x.place = map[x.place],
         }
     }
@@ -2822,7 +2814,6 @@ fn printConstraint(
             try self.printGoal(writer, c.value, indent);
             try writer.writeAll(")");
         },
-        .eq_places => |c| try writer.print("(eq_places %{d} %{d})", .{ c.a, c.b }),
         .in_range => |c| {
             try writer.print("(in_range %{d} ", .{c.place});
             try self.printLimit(writer, c.lower, indent);

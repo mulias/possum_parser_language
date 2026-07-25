@@ -685,7 +685,7 @@ const Analyzer = struct {
     fn collectEvalReads(self: *Analyzer, constraint: Ast.Constraint, set: *SlotSet) void {
         switch (constraint.kind) {
             .is_type, .len_eq, .len_min, .str_prefix, .str_suffix, .keys_exact, .keys_min, .has_key => {},
-            .eq_const, .eq_places, .local, .bind, .eq_slot, .eq_global => {},
+            .eq_const, .local, .bind, .eq_slot, .eq_global => {},
             .eval_eq => |eval| self.collectExprSlots(eval.expr, set),
             .in_range => |range| {
                 self.collectLimitEvalReads(range.lower, set);
@@ -753,7 +753,7 @@ const Analyzer = struct {
     ) Allocator.Error!void {
         const region = constraint.region;
         switch (constraint.kind) {
-            .is_type, .len_eq, .len_min, .str_prefix, .str_suffix, .keys_exact, .keys_min, .has_key, .eq_const, .eq_places => {},
+            .is_type, .len_eq, .len_min, .str_prefix, .str_suffix, .keys_exact, .keys_min, .has_key, .eq_const => {},
             .bind, .eq_slot, .eq_global => unreachable,
             .local => |occ| try self.classifyLocalConstraint(env, constraint, occ, region),
             .eval_eq => |eval| try self.walkPatternExpr(env, bindable, eval.expr),
@@ -1015,7 +1015,7 @@ const Analyzer = struct {
         for (constraints) |constraint| {
             switch (constraint.kind) {
                 .is_type, .len_eq, .len_min, .str_prefix, .str_suffix, .keys_exact, .keys_min, .has_key => {},
-                .eq_const, .eq_places, .eval_eq => {},
+                .eq_const, .eval_eq => {},
                 .bind, .eq_slot, .eq_global => {},
                 .local => |occ| if (self.patternSlot(occ.name)) |slot| set.set(slot),
                 .in_range => |range| {
@@ -1132,7 +1132,7 @@ const Analyzer = struct {
         for (constraints) |constraint| {
             switch (constraint.kind) {
                 .is_type, .len_eq, .len_min, .str_prefix, .str_suffix, .keys_exact, .keys_min, .has_key => {},
-                .eq_const, .eq_places => {},
+                .eq_const => {},
                 .bind, .eq_slot, .eq_global => {},
                 .local => |occ| if (self.patternSlot(occ.name)) |slot| set.set(slot),
                 .eval_eq => |eval| self.collectExprSlots(eval.expr, set),
@@ -1312,7 +1312,7 @@ const Verifier = struct {
     fn verifyConstraints(self: *const Verifier, constraints: []const Ast.Constraint) void {
         for (constraints) |constraint| {
             switch (constraint.kind) {
-                .is_type, .len_eq, .len_min, .str_prefix, .str_suffix, .keys_exact, .keys_min, .has_key, .eq_places => {},
+                .is_type, .len_eq, .len_min, .str_prefix, .str_suffix, .keys_exact, .keys_min, .has_key => {},
                 .bind, .eq_slot, .eq_global => {},
                 .eq_const => |eq| self.verifyGoal(eq.value),
                 .local => |occ| self.fail("neutral local survived binding", occ.name),
