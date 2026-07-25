@@ -1169,9 +1169,6 @@ test "audit: pattern shapes not yet stepable compile to a match plan" {
         // dispatch (a number-typed merge with a runtime part does step)
         \\G = "" $ 9 ; ("" $ 14) -> (G + X) $ X
         ,
-        // solve_repeat: the pattern operand is a global
-        \\G = "" $ 1 ; ("" $ [1, 1]) -> (G * N) $ N
-        ,
         // search_key: a deep (non-leaf) key pattern
         \\"" $ {"a": 1, "123": 1} -> {"%(0 + N)": 1, ..._} $ N
         ,

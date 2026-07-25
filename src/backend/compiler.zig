@@ -548,11 +548,12 @@ pub const Compiler = struct {
         } }, region);
     }
 
-    // Push a global-named search key onto the value stack for MatchKeyClaim
-    // to pop. A plain value global pushes its constant; a zero-arity
-    // function global evaluates per match (its call yields the key). The
-    // compile-time split mirrors emitEqGlobalStep.
-    fn emitSearchKeyGlobal(self: *Compiler, module_id: Module.Id, name: Frontend.PathTable.Id, region: Region) Error!void {
+    // Push a module global's value onto the value stack for a popping match
+    // op (MatchKeyClaim's search key, MatchRepeatValue's pattern). A plain
+    // value global pushes its constant; a zero-arity function global
+    // evaluates per match (its call yields the value). The compile-time
+    // split mirrors emitEqGlobalStep.
+    fn emitGlobalValuePush(self: *Compiler, module_id: Module.Id, name: Frontend.PathTable.Id, region: Region) Error!void {
         const global = self.resolveGlobal(module_id, name) orelse {
             try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.pathString(name)});
             return Error.UndefinedVariable;
@@ -1935,30 +1936,31 @@ pub const Compiler = struct {
     const RepeatShape = enum { value, chunk, range, array };
 
     // How a solve_repeat lowers to inline steps. `value`: the pattern
-    // operand evaluates at match time (a constant, a bound read, or any
-    // evaluable expression — a call, merge, or literal container), the
-    // count is derived from the scrutinee's value in place, and the count
-    // operand is tested against it. `chunk`: the pattern is a bare binder
-    // or placeholder solved from a known count. `range`: the pattern is a
-    // codepoint range scanned over a string value, the count is the
-    // codepoint count. `array`: the pattern is a fixed-length array of
+    // operand evaluates at match time (a constant, a bound read, a module
+    // global, or any evaluable expression — a call, merge, or literal
+    // container), the count is derived from the scrutinee's value in place,
+    // and the count operand is tested against it. `chunk`: the pattern is a
+    // bare binder or placeholder solved from a known count. `range`: the
+    // pattern is a codepoint range scanned over a string value, the count is
+    // the codepoint count. `array`: the pattern is a fixed-length array of
     // leaf-tested elements, matched chunk by chunk in a loop. Null keeps
-    // the plan path — deeper structural sub-patterns, globals (which may
-    // be zero-arity functions), non-evaluable pattern operands (alts,
-    // sequences, nested matches, value-cased local callees), and
-    // both-unresolved shapes (a runtime error the plan preserves).
+    // the plan path — deeper structural sub-patterns, non-evaluable pattern
+    // operands (alts, sequences, nested matches, value-cased local callees),
+    // and both-unresolved shapes (a runtime error the plan preserves). A
+    // module global pushes via the eval bridge (constant, or a call for a
+    // zero-arity parser); a non-zero-arity global fails at emit.
     fn repeatShape(self: *Compiler, ast: *const Ast, pattern_part: Ast.Part, count: Ast.Part) ?RepeatShape {
         switch (pattern_part) {
             .expr => |id| if (self.evalExprStepable(ast, id) and self.repeatCountStepable(ast, count)) {
                 return .value;
             },
-            .read => if (self.repeatCountStepable(ast, count)) return .value,
+            .read, .global => if (self.repeatCountStepable(ast, count)) return .value,
             .bind, .placeholder => if (self.repeatKnownCount(ast, count)) return .chunk,
             .sub => |set_id| if (self.repeatCountStepable(ast, count)) {
                 if (self.repeatRangeConstraint(ast, set_id) != null) return .range;
                 if (repeatArrayLen(ast, set_id) != null) return .array;
             },
-            .local, .global => {},
+            .local => {},
         }
         return null;
     }
@@ -2943,7 +2945,7 @@ pub const Compiler = struct {
                             break :blk true;
                         },
                         .eq_global => |g| blk: {
-                            try self.emitSearchKeyGlobal(module_id, g.name, step_region);
+                            try self.emitGlobalValuePush(module_id, g.name, step_region);
                             break :blk true;
                         },
                         else => false,
@@ -3208,6 +3210,7 @@ pub const Compiler = struct {
         switch (part) {
             .expr => |id| try self.writeGoal(module_id, ast, id),
             .read => |ls| try self.emitUnaryOp(.GetLocal, ls.slot, region),
+            .global => |name| try self.emitGlobalValuePush(module_id, name, region),
             else => unreachable,
         }
     }
