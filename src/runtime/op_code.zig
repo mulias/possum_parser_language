@@ -105,6 +105,11 @@ pub const OpCode = enum(u8) {
     MatchRepeatInit,
     MatchRepeatNext,
     MatchRepeatRange,
+    // Solve a range count factor in a count product: read the residual
+    // count, find the greedy (largest) repetition count in the range that
+    // divides it, and write the quotient (the trailing unbound factor's
+    // value) back for a following MatchBind.
+    MatchRepeatRangeDivide,
     MatchRepeatValue,
     MatchScrutinee,
     MatchSearchInit,
@@ -313,6 +318,7 @@ pub const OpCode = enum(u8) {
             .MatchNextUnclaimed,
             .MatchRepeatInit,
             .MatchRepeatRange,
+            .MatchRepeatRangeDivide,
             .MatchStrChar,
             .MatchStrEnd,
             .MatchStrLit,
@@ -582,6 +588,7 @@ pub const OpCode = enum(u8) {
             .MatchRepeatInit,
             .MatchRepeatNext,
             .MatchRepeatRange,
+            .MatchRepeatRangeDivide,
             .MatchScrutinee,
             .MatchSearchInit,
             .MatchSlice,
@@ -762,7 +769,9 @@ pub const OpCode = enum(u8) {
             .MatchRepeatChunk,
             .MatchRepeatValue,
             => self.matchRepeatInstruction(chunk, writer, offset),
-            .MatchRepeatRange => self.matchRepeatRangeInstruction(chunk, vm, module, writer, offset),
+            .MatchRepeatRange,
+            .MatchRepeatRangeDivide,
+            => self.matchRepeatRangeInstruction(chunk, vm, module, writer, offset),
             .MatchBound => self.matchBoundInstruction(chunk, vm, module, writer, offset),
             .MatchRangeBound => self.matchRangeBoundInstruction(chunk, writer, offset),
             .MatchStrEnd => self.matchStrEndInstruction(chunk, vm, module, writer, offset),

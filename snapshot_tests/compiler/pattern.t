@@ -4480,10 +4480,19 @@ P * (a * b), so ([1] * 2) * 3 becomes [1] * 6 with a single chunk loop.
   ========================================
   0000    | PushVar N
   0002    | PushString "aaaaaa"
-  0004    | DestructurePlan 0: ((eq "a" * eq 2..eq 3) * bind N)
-  0006    | TakeRight 6 -> 11
-  0009    | GetLocalMove l0
-  0011    | End
+  0004    | JumpIfFailure 4 -> 35
+  0007    | MatchWindowEnter 3 fail->33
+  0011    | MatchScrutinee r0
+  0013    | PushString "a"
+  0015    | MatchRepeatValue r0 r2
+  0018    | MatchRepeatRangeDivide r2 r2 2..3
+  0027    | MatchBind l0 r2
+  0030    | Jump 30 -> 34
+  0033    | MatchFail
+  0034    | MatchWindowExit
+  0035    | TakeRight 35 -> 40
+  0038    | GetLocalMove l0
+  0040    | End
   ========================================
 
   $ possum -p 'I(V) = V ; "" $ [1,1] -> (I([1]) * 2)' -i ''

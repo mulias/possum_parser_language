@@ -742,6 +742,7 @@ pub const Ir = struct {
             .MatchKeyClaim,
             .MatchBound,
             .MatchRepeatRange,
+            .MatchRepeatRangeDivide,
             .MatchRepeatInit,
             .MatchStrLit,
             .MatchStrVal,

@@ -298,6 +298,19 @@
   $ possum -p '"12345" -> ("0".."9" * N) $ N' -i "12345"
   5
 
+A range count factor in a product with an unbound factor solves greedily:
+the largest repetition count in the range that divides the derived count
+wins, and the quotient binds the unbound factor.
+
+  $ possum -p '("" $ "aaaaaa") -> (("a" * 2..3) * N) $ N' -i ''
+  2
+
+  $ possum -p '("" $ "aaaa") -> (("a" * 2..3) * N) $ N' -i ''
+  2
+
+  $ possum -p '("" $ "aaaaaa") -> (("a" * 2..) * N) $ N' -i ''
+  1
+
   $ possum -p 'Id(N) = N -> M & M ; json -> {A: Id(A), ..._} $ A' -i '{"x": "y", "a": "a"}'
   "a"
 

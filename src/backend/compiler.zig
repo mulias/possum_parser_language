@@ -2082,11 +2082,20 @@ pub const Compiler = struct {
                 .local => false,
             };
         }
+        var range_seen = false;
         for (factors, 0..) |factor, i| {
             if (solvable_index) |s| if (i == s) continue;
             switch (factor) {
                 .read, .global => {},
                 .expr => |id| if (!self.evalExprStepable(ast, id)) return false,
+                // At most one range factor; solved as `r` in the count
+                // product (r · U = residual) for a trailing unbound, or
+                // bound-checked against the residual when none follows.
+                .sub => |set_id| {
+                    if (range_seen) return false;
+                    if (self.repeatRangeConstraint(ast, set_id) == null) return false;
+                    range_seen = true;
+                },
                 else => return false,
             }
         }
@@ -3328,6 +3337,44 @@ pub const Compiler = struct {
                 else => {},
             }
         }
+        // A range factor (at most one, guaranteed by repeatCountFactorsStepable)
+        // is solved after the scalar factors divide out: greedy r · U = residual
+        // for a trailing unbound U, else a bound-check on the residual.
+        const range_idx: ?usize = for (factors, 0..) |factor, i| {
+            if (factor == .sub) break i;
+        } else null;
+        if (range_idx) |ri| {
+            try self.emitRepeatScalarDivide(module_id, ast, factors, ri, solvable_index, reg, fail_jumps, region);
+            const rc = self.repeatRangeConstraint(ast, factors[ri].sub).?.kind.in_range;
+            if (solvable_index) |s| {
+                var lower_eval: ?Ast.NodeId = null;
+                var upper_eval: ?Ast.NodeId = null;
+                const lower_desc = try self.rangeDescriptor(module_id, ast, rc.lower, region, &lower_eval);
+                const upper_desc = try self.rangeDescriptor(module_id, ast, rc.upper, region, &upper_eval);
+                std.debug.assert(lower_eval == null and upper_eval == null);
+                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_repeat_range = .{
+                    .op = .MatchRepeatRangeDivide,
+                    .src = reg,
+                    .dst = reg,
+                    .lower_kind = lower_desc.kind,
+                    .lower_arg = lower_desc.arg,
+                    .upper_kind = upper_desc.kind,
+                    .upper_arg = upper_desc.arg,
+                } }, region));
+                switch (factors[s]) {
+                    .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                        .op = .MatchBind,
+                        .byte1 = ls.slot,
+                        .byte2 = reg,
+                    } }, region),
+                    .placeholder => {},
+                    else => unreachable,
+                }
+            } else {
+                try self.emitInRangeStep(module_id, ast, reg, rc.lower, rc.upper, fail_jumps, region);
+            }
+            return;
+        }
         if (solvable_index) |s| {
             try self.writeRepeatCountProduct(module_id, ast, factors, s, region);
             try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
@@ -3350,6 +3397,37 @@ pub const Compiler = struct {
                 .op = .MatchEval,
                 .byte1 = reg,
                 .byte2 = 0,
+            } }, region));
+        }
+    }
+
+    // Divide the count register by the product of the scalar factors,
+    // skipping the range factor and the unbound solvable. Emits nothing
+    // when there are no scalar factors.
+    fn emitRepeatScalarDivide(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        factors: []const Ast.Part,
+        range_idx: usize,
+        solvable_index: ?u32,
+        reg: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        var pushed = false;
+        for (factors, 0..) |factor, i| {
+            if (i == range_idx) continue;
+            if (solvable_index) |s| if (i == s) continue;
+            try self.emitEvaluablePartValue(module_id, ast, factor, region);
+            if (pushed) try self.emitOp(.RepeatValue, region);
+            pushed = true;
+        }
+        if (pushed) {
+            try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_test = .{
+                .op = .MatchDivideEval,
+                .byte1 = reg,
+                .byte2 = reg,
             } }, region));
         }
     }

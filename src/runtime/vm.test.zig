@@ -3196,6 +3196,65 @@ test "a range count tests the derived repeat count" {
     }
 }
 
+test "a range count factor in a product solves greedily for the trailing unbound" {
+    // (P * lo..hi) * N: the range's r and the unbound N multiply to the
+    // derived count T. Greedy picks the largest r in [lo, min(hi, T)] that
+    // divides T, so r=3, N=2 on T=6.
+    {
+        const parser =
+            \\("" $ "aaaaaa") -> (("a" * 2..3) * N) $ N
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            Elem.numberFloat(2),
+            vm,
+        );
+    }
+    {
+        // T=4: r=3 does not divide 4, so greedy falls to r=2, N=2.
+        const divisor_fallback =
+            \\("" $ "aaaa") -> (("a" * 2..3) * N) $ N
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", divisor_fallback, ""),
+            Elem.numberFloat(2),
+            vm,
+        );
+    }
+    {
+        // An open upper bound caps at T, so r=6, N=1.
+        const unbounded =
+            \\("" $ "aaaaaa") -> (("a" * 2..) * N) $ N
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", unbounded, ""),
+            Elem.numberFloat(1),
+            vm,
+        );
+    }
+    {
+        // T=5 has no divisor in [2, 3], so the match fails.
+        const no_divisor =
+            \\("" $ "aaaaa") -> (("a" * 2..3) * N) $ N
+        ;
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectFailure(
+            try vm.interpret("test", no_divisor, ""),
+        );
+    }
+}
+
 test "a zero-count repeat matches the empty value and binds it" {
     {
         const parser =

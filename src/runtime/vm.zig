@@ -1732,6 +1732,54 @@ pub const VM = struct {
                     self.cur_frame.ip = self.current_window_fail;
                 }
             },
+            .MatchRepeatRangeDivide => {
+                // Solve a range count factor in a count product: src holds
+                // the residual count T (the scalar factors already divided
+                // out). Find the greedy (largest) repetition count r in
+                // [lo, min(hi, T)] that divides T, and write the quotient
+                // N = T / r into dst for the following MatchBind. lo
+                // defaults to the implicit 0 and hi may be open (unbounded
+                // above). Fails the window when no such r exists.
+                const src = self.readByte();
+                const dst = self.readByte();
+                const lower_kind: RangeLimitKind = @enumFromInt(self.readByte());
+                const lower_arg = self.readShort();
+                const upper_kind: RangeLimitKind = @enumFromInt(self.readByte());
+                const upper_arg = self.readShort();
+                const value = self.getScratch(src);
+                const solved: ?f64 = blk: {
+                    const t_float = numberFloatOf(value, self.strings) orelse break :blk null;
+                    if (t_float < 0 or @trunc(t_float) != t_float) break :blk null;
+                    const total: i64 = @intFromFloat(t_float);
+                    const lo_bound = try self.repeatRangeCountBound(lower_kind, lower_arg);
+                    const hi_bound = try self.repeatRangeCountBound(upper_kind, upper_arg);
+                    // A zero residual is zero outer repetitions (N = 0); the
+                    // inner unit is never instantiated.
+                    if (total == 0) break :blk 0;
+                    // r must be a positive integer that divides T; N = T / r
+                    // is at least 1, so r is capped at T even when hi is
+                    // open or huge.
+                    var lo: i64 = if (lo_bound) |l| @intFromFloat(@ceil(l)) else 0;
+                    if (lo < 1) lo = 1;
+                    var hi: i64 = total;
+                    if (hi_bound) |h| {
+                        const floored: i64 = @intFromFloat(@floor(h));
+                        if (floored < hi) hi = floored;
+                    }
+                    var r: i64 = hi;
+                    while (r >= lo) : (r -= 1) {
+                        if (@rem(total, r) == 0) break :blk @floatFromInt(@divExact(total, r));
+                    }
+                    break :blk null;
+                };
+                if (solved) |n| {
+                    const previous = self.getScratch(dst);
+                    self.setScratch(dst, Elem.numberFloat(n));
+                    previous.release();
+                } else {
+                    self.cur_frame.ip = self.current_window_fail;
+                }
+            },
             .MatchFail => {
                 const value = self.peek(0);
                 if (value.isSuccess()) self.recordPatternFailure(value);
@@ -2631,6 +2679,17 @@ pub const VM = struct {
     // const and read bounds must be strings (runtime error otherwise). A
     // string that isn't a single codepoint imposes no limit, mirroring
     // the plan interpreter's rangeLimitCodepoint.
+    fn repeatRangeCountBound(self: *VM, kind: RangeLimitKind, arg: u16) !?f64 {
+        const limit: Elem = switch (kind) {
+            .none => return null,
+            .read => try self.getBoundLocal(arg),
+            .const_elem => self.getConstant(arg),
+            .global, .bind => unreachable,
+        };
+        return numberFloatOf(limit, self.strings) orelse
+            self.runtimeError("Repeat count range bound must be a number", .{});
+    }
+
     fn repeatRangeCodepoint(self: *VM, kind: RangeLimitKind, arg: u16) !?u21 {
         const limit: Elem = switch (kind) {
             .none => return null,
