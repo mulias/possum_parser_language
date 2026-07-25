@@ -662,3 +662,28 @@ cursors must meet); `[...B, ...B]` requires the value be B twice over:
 
 
 
+
+A fixed-length structural part chomps a fixed-size chunk at the cursor and
+matches it in a child window. A leading `[1]` base chomps forward:
+
+  $ possum -p 'json -> [[1, ...A, ...B], [...B]] $ [A, B]' -i '[[1, 2, 3, 4], [3, 4]]'
+  [
+    [2],
+    [3, 4]
+  ]
+
+The chunk's child window binds nested variables (the `[B, C]` element):
+
+  $ possum -p 'json -> [[...A, [B, C]], [...A]] $ [A, B, C]' -i '[[7, 8, [1, 2]], [7, 8]]'
+  [
+    [7, 8],
+    1,
+    2
+  ]
+
+
+
+
+
+
+

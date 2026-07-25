@@ -1305,6 +1305,43 @@ pub const VM = struct {
                 self.setScratch(dst, rest);
                 previous.release();
             },
+            .MatchSpanChunk => {
+                // Slice a fixed-length array chunk at the cursor — forward
+                // [cur..cur+len) or backward [cur-len..cur) — failing if it
+                // does not fit before the opposite cursor, materialize it as
+                // a fresh array into dst, and advance/retreat the cursor. A
+                // child window matches the chunk against the structural
+                // array-merge part.
+                const dst = self.readByte();
+                const src = self.readByte();
+                const cursor = self.readByte();
+                const opp = self.readByte();
+                const back = self.readByte() != 0;
+                const len = self.readByte();
+                const src_elems = self.getScratch(src).asDyn().asArray().elems.items;
+                const cur: usize = @intFromFloat(self.getScratch(cursor).asFloat());
+                const opp_v: usize = @intFromFloat(self.getScratch(opp).asFloat());
+                const start: usize = if (back) blk: {
+                    if (cur < opp_v + len) {
+                        self.cur_frame.ip = self.current_window_fail;
+                        return;
+                    }
+                    break :blk cur - len;
+                } else blk: {
+                    if (cur + len > opp_v) {
+                        self.cur_frame.ip = self.current_window_fail;
+                        return;
+                    }
+                    break :blk cur;
+                };
+                const slice = try Elem.DynElem.Array.copy(self, src_elems[start .. start + len]);
+                const prev_dst = self.getScratch(dst);
+                self.setScratch(dst, slice.dyn.elem());
+                prev_dst.release();
+                const prev_cursor = self.getScratch(cursor);
+                self.setScratch(cursor, Elem.numberFloat(@floatFromInt(if (back) start else start + len)));
+                prev_cursor.release();
+            },
             .MatchCmp => {
                 // Compare the register against a comparand — a module
                 // constant, a bound frame local, or another scratch

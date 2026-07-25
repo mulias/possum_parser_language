@@ -1669,6 +1669,25 @@ test "('' $ [[1, 2, 3], [3]]) -> [[...A, ...B], [...B]] $ A" {
     }
 }
 
+test "('' $ [[7, 8, [1, 2]], [7, 8]]) -> [[...A, [B, C]], [...A]] $ B" {
+    // A non-empty structural array-merge part (`[B, C]`) slices a
+    // fixed-length MatchSpanChunk and matches it in a child window, which
+    // binds the nested variables. A leaks-check on the fresh chunk arrays.
+    const parser =
+        \\('' $ [[7, 8, [1, 2]], [7, 8]]) -> [[...A, [B, C]], [...A]] $ B
+    ;
+    {
+        var vm = VM.create();
+        try vm.init(allocator, writers, config);
+        defer vm.deinit();
+        try testing.expectSuccess(
+            try vm.interpret("test", parser, ""),
+            Elem.numberFloat(1),
+            vm,
+        );
+    }
+}
+
 test "('' $ [[], 100]) -> [[], A] $ A" {
     const parser =
         \\('' $ [[], 100]) -> [[], A] $ A

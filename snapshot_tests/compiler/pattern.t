@@ -4597,4 +4597,68 @@ chomps backward (MatchSpanVal), and the solvable A takes the residual span
   0099    | End
   ========================================
 
+A non-empty structural merge part (the `[1]` base) slices a fixed-length
+chunk with MatchSpanChunk into the chunk register and matches it in a child
+window (MatchWindowEnter/MatchSubScrutinee ... MatchRefail on mismatch),
+then the cursor scheduler continues.
 
+  $ possum -p 'const([[1,2,3],[3]]) -> [[1, ...A, ...B], [...B]] $ [A, B]' -i ''
+  
+  ================4:const=================
+  const(C) = "" $ C
+  ========================================
+  0000    | GetLocalMove l0
+  0002    | End
+  ========================================
+  
+  ================2:@main=================
+  const([[1,2,3],[3]]) -> [[1, ...A, ...B], [...B]] $ [A, B]
+  ========================================
+  0000    | PushVar A
+  0002    | PushVar B
+  0004    | GetConstant 0: const
+  0006    | GetConstantMutable 1: [_, _]
+  0008    | GetConstant 2: [1, 2, 3]
+  0010    | InsertAtIndex 0
+  0012    | GetConstant 3: [3]
+  0014    | InsertAtIndex 1
+  0016    | CallFunction 1
+  0018    | JumpIfFailure 18 -> 123
+  0021    | MatchWindowEnter 9 fail->121
+  0025    | MatchScrutinee r0
+  0027    | MatchType r0 array
+  0030    | MatchCount r0 ==2
+  0034    | MatchElem r2 r0[1]
+  0039    | MatchType r2 array
+  0042    | MatchCount r2 >=0
+  0046    | MatchSlice r3 r2[0..^0]
+  0051    | MatchBind l1 r3
+  0054    | MatchElem r1 r0[0]
+  0059    | MatchType r1 array
+  0062    | MatchSpanInit r1 front=r5 end=r6
+  0066    | MatchSpanChunk r8 r1[1]@cursor=r5 opp=r6 front
+  0073    | MatchWindowEnter 3 fail->100
+  0077    | MatchSubScrutinee r0 ^r8
+  0080    | MatchType r0 array
+  0083    | MatchCount r0 ==1
+  0087    | MatchElem r1 r0[0]
+  0092    | MatchCmp r1 == 1
+  0097    | Jump 97 -> 102
+  0100    | MatchWindowExit
+  0101    | MatchRefail
+  0102    | MatchWindowExit
+  0103    | GetLocal l1
+  0105    | MatchSpanVal r1 cursor=r6 opp=r5 back
+  0110    | MatchSpanRest r7 r1[r5..r6]
+  0115    | MatchBind l0 r7
+  0118    | Jump 118 -> 122
+  0121    | MatchFail
+  0122    | MatchWindowExit
+  0123    | TakeRight 123 -> 136
+  0126    | GetConstantMutable 5: [_, _]
+  0128    | GetLocalMove l0
+  0130    | InsertAtIndex 0
+  0132    | GetLocalMove l1
+  0134    | InsertAtIndex 1
+  0136    | End
+  ========================================

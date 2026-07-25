@@ -135,6 +135,13 @@ pub const Ir = struct {
         // range reuse else copy) or a fresh array slice, the solvable's raw
         // range.
         match_span_rest: struct { op: OpCode, dst: u8, src: u8, front: u8, end: u8 },
+        // MatchSpanChunk (dst, src, cursor, opposite cursor, back flag,
+        // length): semidet — slice a fixed-length array chunk at the cursor
+        // (forward [cursor..cursor+len) when back=0, else [cursor-len..cursor)),
+        // failing if it does not fit before the opposite cursor, materialize
+        // it as a fresh array into dst, and advance/retreat the cursor. A
+        // structural array-merge part; a child window matches dst.
+        match_span_chunk: struct { op: OpCode, dst: u8, src: u8, cursor: u8, opp: u8, back: u8, len: u8 },
         // MatchStrLit (src, cursor, opposite cursor, back flag, literal
         // constant): semidet — compare the constant's bytes at the cursor
         // (forward [front..front+len) when back=0, else [end-len..end)),
@@ -417,6 +424,15 @@ pub const Ir = struct {
                     try chunk.write(allocator, m.front, region);
                     try chunk.write(allocator, m.end, region);
                 },
+                .match_span_chunk => |m| {
+                    try chunk.writeOp(allocator, m.op, region);
+                    try chunk.write(allocator, m.dst, region);
+                    try chunk.write(allocator, m.src, region);
+                    try chunk.write(allocator, m.cursor, region);
+                    try chunk.write(allocator, m.opp, region);
+                    try chunk.write(allocator, m.back, region);
+                    try chunk.write(allocator, m.len, region);
+                },
                 .match_str_lit => |m| {
                     try chunk.writeOp(allocator, m.op, region);
                     try chunk.write(allocator, m.src, region);
@@ -525,6 +541,7 @@ pub const Ir = struct {
             .match_repeat_next => 7,
             .match_span_init => 4,
             .match_span_rest => 5,
+            .match_span_chunk => 7,
             .match_str_lit => 7,
             .match_span_val => 5,
             .match_str_char => 6,
@@ -693,6 +710,7 @@ pub const Ir = struct {
             .match_repeat_next => |m| m.op,
             .match_span_init => |m| m.op,
             .match_span_rest => |m| m.op,
+            .match_span_chunk => |m| m.op,
             .match_str_lit => |m| m.op,
             .match_span_val => |m| m.op,
             .match_str_char => |m| m.op,
@@ -749,6 +767,7 @@ pub const Ir = struct {
             .MatchRepeatInit,
             .MatchStrLit,
             .MatchSpanVal,
+            .MatchSpanChunk,
             .MatchStrChar,
             .MatchEval,
             .MatchRangeBound,

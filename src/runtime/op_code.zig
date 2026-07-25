@@ -114,6 +114,7 @@ pub const OpCode = enum(u8) {
     MatchScrutinee,
     MatchSearchInit,
     MatchSlice,
+    MatchSpanChunk,
     MatchSpanInit,
     MatchSpanRest,
     MatchSpanVal,
@@ -319,6 +320,7 @@ pub const OpCode = enum(u8) {
             .MatchRepeatInit,
             .MatchRepeatRange,
             .MatchRepeatRangeDivide,
+            .MatchSpanChunk,
             .MatchStrChar,
             .MatchStrEnd,
             .MatchStrLit,
@@ -592,6 +594,7 @@ pub const OpCode = enum(u8) {
             .MatchScrutinee,
             .MatchSearchInit,
             .MatchSlice,
+            .MatchSpanChunk,
             .MatchSpanInit,
             .MatchSpanRest,
             .MatchStrChar,
@@ -754,6 +757,7 @@ pub const OpCode = enum(u8) {
             .MatchRepeatInit => self.matchRepeatInitInstruction(chunk, writer, offset),
             .MatchRepeatNext => self.matchRepeatNextInstruction(chunk, writer, offset),
             .MatchSlice => self.matchSliceInstruction(chunk, writer, offset),
+            .MatchSpanChunk => self.matchSpanChunkInstruction(chunk, writer, offset),
             .MatchSpanInit => self.matchSpanInitInstruction(chunk, writer, offset),
             .MatchSpanRest => self.matchSpanRestInstruction(chunk, writer, offset),
             .MatchStrLit => self.matchStrLitInstruction(chunk, vm, module, writer, offset),
@@ -1029,6 +1033,17 @@ pub const OpCode = enum(u8) {
         const back = chunk.read(offset + 4);
         try writer.print("{s} r{} r{}[{}..^{}]\n", .{ @tagName(self), dst, src, front, back });
         return offset + 5;
+    }
+
+    fn matchSpanChunkInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const dst = chunk.read(offset + 1);
+        const src = chunk.read(offset + 2);
+        const cursor = chunk.read(offset + 3);
+        const opp = chunk.read(offset + 4);
+        const back = chunk.read(offset + 5);
+        const len = chunk.read(offset + 6);
+        try writer.print("{s} r{} r{}[{}]@cursor=r{} opp=r{} {s}\n", .{ @tagName(self), dst, src, len, cursor, opp, strCursorDir(back) });
+        return offset + 7;
     }
 
     fn matchSpanInitInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {

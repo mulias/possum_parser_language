@@ -915,7 +915,9 @@ pub const Compiler = struct {
                 if (self.templateStepable(ast, c.segments.items) == .cursor) spans = @max(spans, 4);
             },
             .solve_merge => |c| {
-                if (self.arrayMergeStepable(ast, c.ty, c.parts.items, c.solvable_index)) spans = @max(spans, 3);
+                if (self.arrayMergeStepable(ast, c.ty, c.parts.items, c.solvable_index)) {
+                    spans = @max(spans, @as(u32, if (arrayMergeHasStructural(ast, c.parts.items, c.solvable_index)) 4 else 3));
+                }
             },
             else => {},
         };
@@ -2348,10 +2350,12 @@ pub const Compiler = struct {
 
     // Whether an array merge lowers to the span-cursor scheduler: every
     // non-solvable part is a runtime array value (a bound read or an
-    // evaluable expression, compared element-wise by MatchSpanVal) or the
-    // empty structural base (absorbed by chomping nothing), and the single
-    // solvable part is a bind or placeholder taking the residual span.
-    // Non-empty structural parts and untyped merges keep the plan path.
+    // evaluable expression, compared element-wise by MatchSpanVal) or a
+    // fixed-length structural array whose interior itself steps (an empty
+    // base chomps nothing; a non-empty one slices a MatchSpanChunk matched
+    // in a child window), and the single solvable part is a bind or
+    // placeholder taking the residual span. Untyped merges keep the plan
+    // path.
     fn arrayMergeStepable(self: *Compiler, ast: *const Ast, ty: ?Ast.ValueType, parts: []const Ast.Part, solvable_index: ?u32) bool {
         if ((ty orelse return false) != .array) return false;
         for (parts, 0..) |part, i| {
@@ -2365,33 +2369,48 @@ pub const Compiler = struct {
             switch (part) {
                 .read => {},
                 .expr => |id| if (!self.constPatternNode(ast, id) and !self.evalExprStepable(ast, id)) return false,
-                .sub => |set_id| if (!arrayMergePartEmpty(ast, set_id)) return false,
+                .sub => |set_id| {
+                    if (arrayMergePartFixedLen(ast, set_id) == null) return false;
+                    if (!self.constraintsStepable(ast, ast.constraint_sets.items[set_id].constraints.items)) return false;
+                },
                 else => return false,
             }
         }
         return true;
     }
 
-    // A structural merge part that constrains its span to the empty array:
-    // the fixed-element base of an all-rest array pattern. The cursor
-    // scheduler skips it (chomps nothing).
-    fn arrayMergePartEmpty(ast: *const Ast, set_id: Ast.SetId) bool {
+    // A fixed-length structural array merge part's element count, read from
+    // its len_eq constraint (a rest inside makes it len_min, not fixed, so
+    // null keeps it on the plan path). The `.subtree` case matchArrayMerge
+    // asserts is a fixed-length array.
+    fn arrayMergePartFixedLen(ast: *const Ast, set_id: Ast.SetId) ?u8 {
         const set = &ast.constraint_sets.items[set_id];
-        if (set.places.items.len != 1) return false;
         var typed = false;
-        var empty = false;
+        var len: ?u8 = null;
         for (set.constraints.items) |constraint| switch (constraint.kind) {
-            .is_type => |c| {
-                if (c.place != 0 or c.ty != .array) return false;
+            .is_type => |c| if (c.place == 0 and c.ty == .array) {
                 typed = true;
             },
-            .len_eq => |c| {
-                if (c.place != 0 or c.len != 0) return false;
-                empty = true;
+            .len_eq => |c| if (c.place == 0) {
+                len = c.len;
             },
-            else => return false,
+            else => {},
         };
-        return typed and empty;
+        return if (typed) len else null;
+    }
+
+    // Whether an array merge has a non-empty structural part, which needs
+    // the chunk register (the fourth span-block slot) to materialize the
+    // MatchSpanChunk slice for its child window.
+    fn arrayMergeHasStructural(ast: *const Ast, parts: []const Ast.Part, solvable_index: ?u32) bool {
+        for (parts, 0..) |part, i| {
+            if (solvable_index != null and solvable_index.? == i) continue;
+            switch (part) {
+                .sub => |set_id| if ((arrayMergePartFixedLen(ast, set_id) orelse 0) > 0) return true,
+                else => {},
+            }
+        }
+        return false;
     }
 
     // A pattern constant folded for step comparison: numbers fold to
@@ -3008,7 +3027,7 @@ pub const Compiler = struct {
                             c.parts.items,
                             c.solvable_index,
                             reg,
-                            .{ .front = span_front, .end = span_end, .rest = span_rest },
+                            .{ .front = span_front, .end = span_end, .rest = span_rest, .chunk = span_char },
                             &fail_jumps,
                             step_region,
                         );
@@ -3689,7 +3708,7 @@ pub const Compiler = struct {
         }
     }
 
-    const SpanRegs = struct { front: u8, end: u8, rest: u8 };
+    const SpanRegs = struct { front: u8, end: u8, rest: u8, chunk: u8 };
 
     // An array merge solved through the span-cursor scheduler, mirroring the
     // string template cursor path (emitTemplateCursor). The before-parts
@@ -3763,9 +3782,10 @@ pub const Compiler = struct {
     }
 
     // One non-solvable array-merge part. `back` selects the end cursor
-    // (chomp backward) over the front cursor (chomp forward). An empty
-    // structural base chomps nothing; a runtime array value is compared
-    // element-wise at the cursor by MatchSpanVal.
+    // (chomp backward) over the front cursor (chomp forward). A runtime
+    // array value is compared element-wise at the cursor by MatchSpanVal; a
+    // fixed-length structural part slices a MatchSpanChunk at the cursor and
+    // matches it in a child window (the empty base slices nothing).
     fn emitArrayMergeSegment(
         self: *Compiler,
         module_id: Module.Id,
@@ -3777,13 +3797,32 @@ pub const Compiler = struct {
         fail_jumps: *ArrayList(Ir.Index),
         region: Region,
     ) Error!void {
+        const allocator = self.vm.allocator;
+        const cursor = if (back) regs.end else regs.front;
+        const opp = if (back) regs.front else regs.end;
         switch (part) {
-            .sub => {},
+            .sub => |set_id| {
+                const len = arrayMergePartFixedLen(ast, set_id).?;
+                if (len == 0) return;
+                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_span_chunk = .{
+                    .op = .MatchSpanChunk,
+                    .dst = regs.chunk,
+                    .src = reg,
+                    .cursor = cursor,
+                    .opp = opp,
+                    .back = if (back) 1 else 0,
+                    .len = len,
+                } }, region));
+                const set = &ast.constraint_sets.items[set_id];
+                try self.writeMatchSteps(module_id, ast, set.places.items, set.constraints.items, .{ .sub = .{
+                    .src_reg = regs.chunk,
+                    .on_fail = .{ .arm = fail_jumps },
+                    .bind_mode = .bind,
+                } }, region);
+            },
             else => {
-                const cursor = if (back) regs.end else regs.front;
-                const opp = if (back) regs.front else regs.end;
                 try self.emitEvaluablePartValue(module_id, ast, part, region);
-                try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_span_val = .{
+                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_span_val = .{
                     .op = .MatchSpanVal,
                     .src = reg,
                     .cursor = cursor,
