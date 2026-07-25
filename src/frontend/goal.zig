@@ -1322,7 +1322,10 @@ fn foldedPatternRepeat(
                 .upper = new_upper,
             } }, region);
         },
-        else => return null,
+        else => {
+            if (count == 1) return left;
+            return null;
+        },
     }
 }
 
