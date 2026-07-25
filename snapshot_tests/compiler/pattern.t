@@ -1556,6 +1556,50 @@ single array-chunk repeat (`[1] * 2`) that already steps inline.
   0103    | End
   ========================================
 
+Two nested constant repeats consolidate into one: (P * a) * b folds to
+P * (a * b), so ([1] * 2) * 3 becomes [1] * 6 with a single chunk loop.
+
+  $ possum -p '"" $ [1, 1] -> (([1] * 2) * 3)' -i ''
+  
+  ================2:@main=================
+  "" $ [1, 1] -> (([1] * 2) * 3)
+  ========================================
+  0000    | GetConstant 0: [1, 1]
+  0002    | JumpIfFailure 2 -> 103
+  0005    | MatchWindowEnter 5 fail->101
+  0009    | MatchScrutinee r0
+  0011    | MatchRepeatInit r0 /1 n=r2 base=r3
+  0016    | MatchCmp r2 == 6
+  0021    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->98
+  0028    | MatchWindowEnter 3 fail->55
+  0032    | MatchSubScrutinee r0 ^r4
+  0035    | MatchType r0 array
+  0038    | MatchCount r0 ==1
+  0042    | MatchElem r1 r0[0]
+  0047    | MatchCmp r1 == 1
+  0052    | Jump 52 -> 57
+  0055    | MatchWindowExit
+  0056    | MatchRefail
+  0057    | MatchWindowExit
+  0058    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->98
+  0065    | MatchWindowEnter 3 fail->92
+  0069    | MatchSubScrutinee r0 ^r4
+  0072    | MatchType r0 array
+  0075    | MatchCount r0 ==1
+  0079    | MatchElem r1 r0[0]
+  0084    | MatchCmp r1 == 1
+  0089    | Jump 89 -> 94
+  0092    | MatchWindowExit
+  0093    | MatchRefail
+  0094    | MatchWindowExit
+  0095    | JumpBack 95 -> 58
+  0098    | Jump 98 -> 102
+  0101    | MatchFail
+  0102    | MatchWindowExit
+  0103    | End
+  ========================================
+
+
 
   $ possum -p 'bool(1, 0) -> true' -i '1'
   

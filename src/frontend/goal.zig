@@ -1322,6 +1322,18 @@ fn foldedPatternRepeat(
                 .upper = new_upper,
             } }, region);
         },
+        // (P * a) * b = P * (a * b). A range inner count does not
+        // distribute ((P * 1..3) * 2 is P*2 | P*4 | P*6), so a non-number
+        // inner count stays nested.
+        .repeat => |inner| {
+            if (count == 1) return left;
+            const inner_count = constPatternNumber(inner.right) orelse return null;
+            return try Pattern.create(self.alloc(), .{ .repeat = .{
+                .left = inner.left,
+                .right = try Pattern.create(self.alloc(), .{ .number_float = inner_count * count }, region),
+            } }, region);
+        },
+        // P * 1 = P for any other pattern.
         else => {
             if (count == 1) return left;
             return null;
