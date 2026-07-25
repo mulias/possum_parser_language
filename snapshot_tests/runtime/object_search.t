@@ -100,6 +100,12 @@ probe commits to that member, so no other is tried.
   [ParserFailure]
   [1]
 
+A module global names a known key too: the eval bridge pushes its value
+(here a zero-arity parser's result) and probes that member directly.
+
+  $ possum -p 'Field = "" $ "email" ; ("" $ {"email": 5, "other": 9}) -> {Field: V, ..._} $ V' -i ''
+  5
+
 A bound key must be a string:
 
   $ possum -p "(('' \$ 1) -> K) & (('' \$ {\"1\": 5}) -> {K: V}) \$ V" -i ''

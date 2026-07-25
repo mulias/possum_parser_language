@@ -4102,3 +4102,38 @@
   0099    | GetLocalMove l1
   0101    | End
   ========================================
+
+  $ possum -p 'Field = "" $ "email" ; ("" $ {"email": 5, "other": 9}) -> {Field: V, ..._} $ V' -i ''
+  
+  ================2:Field=================
+  Field = "" $ "email"
+  ========================================
+  0000    | PushEmptyString
+  0001    | TakeRight 1 -> 6
+  0004    | PushString "email"
+  0006    | End
+  ========================================
+  
+  ================2:@main=================
+  ("" $ {"email": 5, "other": 9}) -> {Field: V, ..._} $ V
+  ========================================
+  0000    | PushVar V
+  0002    | GetConstant 0: {"email": 5, "other": 9}
+  0004    | JumpIfFailure 4 -> 45
+  0007    | MatchWindowEnter 5 fail->43
+  0011    | MatchScrutinee r0
+  0013    | MatchType r0 object
+  0016    | MatchCount r0 >=1
+  0020    | CallFunctionConstant 2: Field
+  0022    | MatchKeyClaim key=r2 val=r3 src=r0 keys=r2..r2 \ []
+  0029    | MatchWindowEnter 2 fail->39
+  0033    | MatchSubScrutinee r0 ^r3
+  0036    | MatchBind l0 r0
+  0039    | MatchWindowExit
+  0040    | Jump 40 -> 44
+  0043    | MatchFail
+  0044    | MatchWindowExit
+  0045    | TakeRight 45 -> 50
+  0048    | GetLocalMove l0
+  0050    | End
+  ========================================

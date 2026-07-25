@@ -548,6 +548,23 @@ pub const Compiler = struct {
         } }, region);
     }
 
+    // Push a global-named search key onto the value stack for MatchKeyClaim
+    // to pop. A plain value global pushes its constant; a zero-arity
+    // function global evaluates per match (its call yields the key). The
+    // compile-time split mirrors emitEqGlobalStep.
+    fn emitSearchKeyGlobal(self: *Compiler, module_id: Module.Id, name: Frontend.PathTable.Id, region: Region) Error!void {
+        const global = self.resolveGlobal(module_id, name) orelse {
+            try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.pathString(name)});
+            return Error.UndefinedVariable;
+        };
+        if (global.isDynType(.Function)) {
+            if (global.asDyn().asFunction().arity != 0) return error.UnsupportedPattern;
+            try self.writeCallFunctionConstant(module_id, global, region);
+        } else {
+            try self.writeConstant(module_id, global, region);
+        }
+    }
+
     fn numberStringNodeToElem(self: *Compiler, number: []const u8, negated: bool) !Elem {
         const elem = try Elem.numberStringFromBytes(number, self.vm);
         if (negated) {
@@ -2088,10 +2105,10 @@ pub const Compiler = struct {
 
     // Whether a search pair's key or value sub-pattern lowers to inline
     // steps: exactly one place (the found key or value) constrained by at
-    // most one leaf. A key may bind, be ignored, or compare against a
-    // bound local (a direct member probe); const and global keys keep the
-    // plan path until a constant-comparand probe exists. A value may also
-    // compare against constants and globals.
+    // most one leaf. A key may bind, be ignored, or probe a known member
+    // by a bound local or a module global (the eval bridge pushes it for
+    // MatchKeyClaim). A value may also compare against constants and
+    // globals. Const keys don't arise — a literal key is a has_key place.
     fn searchSetStepable(self: *Compiler, ast: *const Ast, set_id: Ast.SetId, is_key: bool) bool {
         _ = self;
         const set = &ast.constraint_sets.items[set_id];
@@ -2099,8 +2116,8 @@ pub const Compiler = struct {
         if (set.constraints.items.len > 1) return false;
         if (set.constraints.items.len == 0) return true;
         return switch (set.constraints.items[0].kind) {
-            .bind, .eq_slot => true,
-            .eq_const, .eq_global => !is_key,
+            .bind, .eq_slot, .eq_global => true,
+            .eq_const => !is_key,
             else => false,
         };
     }
@@ -2915,18 +2932,25 @@ pub const Compiler = struct {
                     const constant = try self.hasKeyListConstant(module_id, constraints, c.place, step_region);
                     const value_set = &ast.constraint_sets.items[c.value];
 
-                    const bound_key: ?u8 = if (singleSetConstraint(ast, c.key)) |kc| switch (kc.kind) {
-                        .eq_slot => |s| s.slot,
-                        else => null,
-                    } else null;
+                    // A known key (a bound local or a module global) probes
+                    // its member directly: the eval bridge pushes the key,
+                    // MatchKeyClaim pops and looks it up, and the value
+                    // matches in a nested window. A mismatch fails the arm
+                    // since no other member can carry this key. An unknown
+                    // (binding) key falls through to the scanning path.
+                    const known_key = if (singleSetConstraint(ast, c.key)) |kc| switch (kc.kind) {
+                        .eq_slot => |s| blk: {
+                            try self.emitUnaryOp(.GetLocal, s.slot, step_region);
+                            break :blk true;
+                        },
+                        .eq_global => |g| blk: {
+                            try self.emitSearchKeyGlobal(module_id, g.name, step_region);
+                            break :blk true;
+                        },
+                        else => false,
+                    } else false;
 
-                    if (bound_key) |slot| {
-                        // A known key probes its member directly: the eval
-                        // bridge pushes the bound key, MatchKeyClaim pops and
-                        // looks it up, and the value matches in a nested
-                        // window. A mismatch fails the arm since no other
-                        // member can carry this key.
-                        try self.emitUnaryOp(.GetLocal, slot, step_region);
+                    if (known_key) {
                         try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_key_claim = .{
                             .op = .MatchKeyClaim,
                             .key_dst = key_dst,
