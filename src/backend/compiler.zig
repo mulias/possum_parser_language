@@ -1913,6 +1913,10 @@ pub const Compiler = struct {
                     !self.mergeNegatedNonNumber(ast, c.ty, c.parts.items)) return false;
             },
             .solve_repeat => |c| {
+                // Multi-factor counts (a flattened `*` chain) are not yet
+                // stepped inline; they take the plan path until the scalar
+                // product solve lands.
+                if (c.count_factors.items.len != 1) return false;
                 if (self.repeatShape(ast, c.pattern, c.count_factors.items[0]) == null) return false;
             },
             else => return false,

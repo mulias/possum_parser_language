@@ -1521,12 +1521,20 @@ fn lowerPattern(
                 .ty = ty,
             } }, region);
         },
-        .repeat => |op| {
+        .repeat => {
+            // Flatten the `*` chain: repeat-of-repeat multiplies counts, so
+            // ((P * a) * b) and P * (a * b) both become pattern P with count
+            // factors [a, b]. Descend the pattern-nesting on the left; each
+            // right is a count factor, itself flattened if it is a product.
             var count_factors = ArrayList(Ast.Part){};
-            try count_factors.append(self.alloc(), try self.patternPart(op.right));
+            var base = pattern;
+            while (base.node == .repeat) {
+                try self.appendCountFactors(base.node.repeat.right, &count_factors);
+                base = base.node.repeat.left;
+            }
             try self.pushConstraint(constraints, .{ .solve_repeat = .{
                 .place = place,
-                .pattern = try self.patternPart(op.left),
+                .pattern = try self.patternPart(base),
                 .count_factors = count_factors,
                 .solvable_index = null,
             } }, region);
@@ -1913,6 +1921,20 @@ fn concatLiterals(self: *Goal, parts: []const *Pattern.RNode) Error![]const u8 {
         else => {},
     };
     return bytes;
+}
+
+// Flatten a repeat count expression into its multiplied factors: a
+// product `a * b` contributes both a and b (recursively), anything else
+// is one factor. Lets a compound count like `2 * N` join the factor list
+// the same way a nested `(P * 2) * N` chain does.
+fn appendCountFactors(self: *Goal, count: *Pattern.RNode, factors: *ArrayList(Ast.Part)) Error!void {
+    switch (count.node) {
+        .repeat => |product| {
+            try self.appendCountFactors(product.left, factors);
+            try self.appendCountFactors(product.right, factors);
+        },
+        else => try factors.append(self.alloc(), try self.patternPart(count)),
+    }
 }
 
 fn patternPart(self: *Goal, pattern: *Pattern.RNode) Error!Ast.Part {
@@ -2881,10 +2903,12 @@ fn printConstraint(
             try printIndent(writer, indent + 1);
             try writer.writeAll("pattern: ");
             try self.printPart(writer, c.pattern, indent + 1);
-            try writer.writeAll("\n");
-            try printIndent(writer, indent + 1);
-            try writer.writeAll("count: ");
-            try self.printPart(writer, c.count_factors.items[0], indent + 1);
+            for (c.count_factors.items) |factor| {
+                try writer.writeAll("\n");
+                try printIndent(writer, indent + 1);
+                try writer.writeAll("count: ");
+                try self.printPart(writer, factor, indent + 1);
+            }
             try writer.writeAll(")");
         },
         .search_key => |c| {

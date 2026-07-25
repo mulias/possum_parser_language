@@ -521,7 +521,7 @@ fn lowerContent(ctx: *Ctx, scope: Scope, constraint: *const GoalAst.Constraint, 
         },
         .solve_merge => |c| try lowerMerge(ctx, .merge, c.parts.items, c.solvable_index, all_bound),
         .match_template => |c| try lowerTemplate(ctx, c.segments.items, all_bound),
-        .solve_repeat => |c| try lowerRepeat(ctx, c.pattern, c.count_factors.items[0], all_bound),
+        .solve_repeat => |c| try lowerRepeat(ctx, c.pattern, c.count_factors.items, all_bound),
         .local => @panic("Internal Error: neutral local constraint survived binding"),
         else => return error.UnsupportedPattern,
     }
@@ -850,8 +850,13 @@ fn lowerTemplate(ctx: *Ctx, segments: []const GoalAst.Segment, all_bound: bool) 
     ctx.builder.nodes.items[start].subtree_len = @intCast(ctx.builder.nodes.items.len - start);
 }
 
-fn lowerRepeat(ctx: *Ctx, repeat_pattern: GoalAst.Part, count: GoalAst.Part, all_bound: bool) Error!void {
+// Reconstruct the nested repeat plan from the flat factor list: the
+// first factor is the outermost count, its pattern subtree is the repeat
+// of the remaining factors (or the base pattern when one factor is left).
+// A flattened `((P * a) * b)` re-nests here as repeat(b, repeat(a, P)).
+fn lowerRepeat(ctx: *Ctx, repeat_pattern: GoalAst.Part, factors: []const GoalAst.Part, all_bound: bool) Error!void {
     const allocator = ctx.allocator();
+    const rest = factors[1..];
     const start = ctx.builder.nodes.items.len;
     const repeat_idx: u32 = @intCast(ctx.builder.repeats.items.len);
     try ctx.builder.nodes.append(allocator, .{
@@ -866,9 +871,13 @@ fn lowerRepeat(ctx: *Ctx, repeat_pattern: GoalAst.Part, count: GoalAst.Part, all
     });
 
     const pattern_start: u32 = @intCast(ctx.builder.nodes.items.len);
-    try lowerPart(ctx, repeat_pattern, all_bound);
+    if (rest.len == 0) {
+        try lowerPart(ctx, repeat_pattern, all_bound);
+    } else {
+        try lowerRepeat(ctx, repeat_pattern, rest, all_bound);
+    }
     const count_start: u32 = @intCast(ctx.builder.nodes.items.len);
-    try lowerPart(ctx, count, all_bound);
+    try lowerPart(ctx, factors[0], all_bound);
 
     const pattern_op = try pattern.lowerRepeatOperand(ctx.lower, ctx.builder, pattern_start);
     const count_op = try pattern.lowerRepeatOperand(ctx.lower, ctx.builder, count_start);
@@ -881,7 +890,11 @@ fn lowerRepeat(ctx: *Ctx, repeat_pattern: GoalAst.Part, count: GoalAst.Part, all
         }
     }
     if (has_rebound) {
-        try lowerPart(ctx, repeat_pattern, true);
+        if (rest.len == 0) {
+            try lowerPart(ctx, repeat_pattern, true);
+        } else {
+            try lowerRepeat(ctx, repeat_pattern, rest, true);
+        }
     }
 
     ctx.builder.repeats.items[repeat_idx] = .{
