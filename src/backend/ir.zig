@@ -751,6 +751,7 @@ pub const Ir = struct {
             .MatchRepeatValue,
             .MatchRepeatChunk,
             .MatchSubtractEval,
+            .MatchDivideEval,
             .MatchRefail,
             => true,
             else => false,

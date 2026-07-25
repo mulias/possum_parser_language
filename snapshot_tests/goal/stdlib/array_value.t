@@ -33,7 +33,7 @@ Full created-stage goal form of stdlib/array_value.
         scrutinee: A~0
         %0 = scrutinee
         (arm
-          (solve_repeat %0
+          (solve_repeat %0 solvable=0
             pattern: (set
               %0 = scrutinee
               (is_type %0 array)

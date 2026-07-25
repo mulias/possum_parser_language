@@ -444,12 +444,12 @@ fn reportGoalDiagnostics(self: *Frontend) !void {
             .extra_unbound_part => if (diagnostic.name) |name| try self.printError(
                 module_id,
                 region,
-                "variable '{s}' is unbound here: a merge can solve at most one unbound part",
+                "variable '{s}' is unbound here: a pattern can solve at most one unbound part",
                 .{self.strings.get(name)},
             ) else try self.printError(
                 module_id,
                 region,
-                "pattern part is unbound here: a merge can solve at most one unbound part",
+                "pattern part is unbound here: a pattern can solve at most one unbound part",
                 .{},
             ),
         }

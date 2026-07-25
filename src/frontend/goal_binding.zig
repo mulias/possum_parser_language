@@ -679,6 +679,31 @@ const Analyzer = struct {
         return solvable;
     }
 
+    // The one-unbound-part rule over a repeat's count factors, judged
+    // after classification (a bind or placeholder is unbound; reads,
+    // globals, expressions, and structural sub-factors are not). The first
+    // unbound factor is the one the count solve binds; every further
+    // unbound factor is the same compile error solve_merge raises.
+    fn repeatSolvableIndex(
+        self: *Analyzer,
+        factors: []const Ast.Part,
+        region: Region,
+    ) !?u32 {
+        var solvable: ?u32 = null;
+        for (factors, 0..) |factor, index| {
+            switch (factor) {
+                .bind, .placeholder => {},
+                else => continue,
+            }
+            if (solvable == null) {
+                solvable = @intCast(index);
+            } else {
+                try self.diagnose(region, self.partUnboundName(factor), .extra_unbound_part);
+            }
+        }
+        return solvable;
+    }
+
     // Slots a constraint reads in evaluated positions: eval_eq
     // expressions, expression parts, and the evaluated interior of
     // compound range limits (whose bare locals bind rather than read).
@@ -782,6 +807,12 @@ const Analyzer = struct {
                 for (repeat.count_factors.items) |*factor| {
                     try self.classifyPart(env, bindable, factor, region);
                 }
+                // The one-unbound rule over the count factors, judged after
+                // classification: the product of the evaluable factors
+                // divides the derived count and the single unbound factor
+                // binds the residual. A second unbound factor leaves the
+                // count underdetermined — the same error solve_merge raises.
+                repeat.solvable_index = try self.repeatSolvableIndex(repeat.count_factors.items, region);
             },
             .search_key => |search| {
                 try self.scheduleConstraints(

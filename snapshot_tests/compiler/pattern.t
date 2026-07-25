@@ -4249,3 +4249,286 @@ P * (a * b), so ([1] * 2) * 3 becomes [1] * 6 with a single chunk loop.
   0048    | GetLocalMove l0
   0050    | End
   ========================================
+
+  $ possum -p 'I(V)=V ; "" $ [1,1,1,1,1,1] -> (I([1]) * I(2) * I(3))' -i ''
+  
+  ==================2:I===================
+  I(V)=V
+  ========================================
+  0000    | GetLocalMove l0
+  0002    | End
+  ========================================
+  
+  ================2:@main=================
+  "" $ [1,1,1,1,1,1] -> (I([1]) * I(2) * I(3))
+  ========================================
+  0000    | GetConstant 0: [1, 1, 1, 1, 1, 1]
+  0002    | JumpIfFailure 2 -> 41
+  0005    | MatchWindowEnter 3 fail->39
+  0009    | MatchScrutinee r0
+  0011    | GetConstant 1: I
+  0013    | GetConstant 2: [1]
+  0015    | CallFunction 1
+  0017    | MatchRepeatValue r0 r2
+  0020    | GetConstant 1: I
+  0022    | PushInteger 3
+  0024    | CallFunction 1
+  0026    | GetConstant 1: I
+  0028    | PushInteger 2
+  0030    | CallFunction 1
+  0032    | RepeatValue
+  0033    | MatchEval r2
+  0036    | Jump 36 -> 40
+  0039    | MatchFail
+  0040    | MatchWindowExit
+  0041    | End
+  ========================================
+
+  $ possum -p '"" $ [1,1,1,1,1,1] -> ((([1] * 2) * N) * 3) $ N' -i ''
+  
+  ================2:@main=================
+  "" $ [1,1,1,1,1,1] -> ((([1] * 2) * N) * 3) $ N
+  ========================================
+  0000    | PushVar N
+  0002    | GetConstant 0: [1, 1, 1, 1, 1, 1]
+  0004    | JumpIfFailure 4 -> 111
+  0007    | MatchWindowEnter 5 fail->109
+  0011    | MatchScrutinee r0
+  0013    | MatchRepeatInit r0 /1 n=r2 base=r3
+  0018    | PushInteger 3
+  0020    | PushInteger 2
+  0022    | RepeatValue
+  0023    | MatchDivideEval r2 <- r2 / <pop>
+  0026    | MatchBind l0 r2
+  0029    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->106
+  0036    | MatchWindowEnter 3 fail->63
+  0040    | MatchSubScrutinee r0 ^r4
+  0043    | MatchType r0 array
+  0046    | MatchCount r0 ==1
+  0050    | MatchElem r1 r0[0]
+  0055    | MatchCmp r1 == 1
+  0060    | Jump 60 -> 65
+  0063    | MatchWindowExit
+  0064    | MatchRefail
+  0065    | MatchWindowExit
+  0066    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->106
+  0073    | MatchWindowEnter 3 fail->100
+  0077    | MatchSubScrutinee r0 ^r4
+  0080    | MatchType r0 array
+  0083    | MatchCount r0 ==1
+  0087    | MatchElem r1 r0[0]
+  0092    | MatchCmp r1 == 1
+  0097    | Jump 97 -> 102
+  0100    | MatchWindowExit
+  0101    | MatchRefail
+  0102    | MatchWindowExit
+  0103    | JumpBack 103 -> 66
+  0106    | Jump 106 -> 110
+  0109    | MatchFail
+  0110    | MatchWindowExit
+  0111    | TakeRight 111 -> 116
+  0114    | GetLocalMove l0
+  0116    | End
+  ========================================
+
+  $ possum -p '"" $ [1,1,1,1,1,1] -> ([1] * (2 * N)) $ N' -i ''
+  
+  ================2:@main=================
+  "" $ [1,1,1,1,1,1] -> ([1] * (2 * N)) $ N
+  ========================================
+  0000    | PushVar N
+  0002    | GetConstant 0: [1, 1, 1, 1, 1, 1]
+  0004    | JumpIfFailure 4 -> 108
+  0007    | MatchWindowEnter 5 fail->106
+  0011    | MatchScrutinee r0
+  0013    | MatchRepeatInit r0 /1 n=r2 base=r3
+  0018    | PushInteger 2
+  0020    | MatchDivideEval r2 <- r2 / <pop>
+  0023    | MatchBind l0 r2
+  0026    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->103
+  0033    | MatchWindowEnter 3 fail->60
+  0037    | MatchSubScrutinee r0 ^r4
+  0040    | MatchType r0 array
+  0043    | MatchCount r0 ==1
+  0047    | MatchElem r1 r0[0]
+  0052    | MatchCmp r1 == 1
+  0057    | Jump 57 -> 62
+  0060    | MatchWindowExit
+  0061    | MatchRefail
+  0062    | MatchWindowExit
+  0063    | MatchRepeatNext r0 base=r3+1 chunk=r4 done->103
+  0070    | MatchWindowEnter 3 fail->97
+  0074    | MatchSubScrutinee r0 ^r4
+  0077    | MatchType r0 array
+  0080    | MatchCount r0 ==1
+  0084    | MatchElem r1 r0[0]
+  0089    | MatchCmp r1 == 1
+  0094    | Jump 94 -> 99
+  0097    | MatchWindowExit
+  0098    | MatchRefail
+  0099    | MatchWindowExit
+  0100    | JumpBack 100 -> 63
+  0103    | Jump 103 -> 107
+  0106    | MatchFail
+  0107    | MatchWindowExit
+  0108    | TakeRight 108 -> 113
+  0111    | GetLocalMove l0
+  0113    | End
+  ========================================
+
+  $ possum -p 'I(V)=V ; array(digit) -> (I([1]) * I(2) * N * I(3)) $ N' -i '111111111111'
+  
+  ================6:digit=================
+  digit = 0..9
+  ========================================
+  0000    | ParseIntegerRange 0..9
+  0003    | End
+  ========================================
+  
+  ================7:array=================
+  array(elem) = tuple1(elem) * 1..
+  ========================================
+  0000    | PushNull
+  0001    | PushInteger 1
+  0003    | ValidateRepeatPattern
+  0004    | JumpIfZero 4 -> 26
+  0007    | Swap
+  0008    | GetConstant 0: tuple1
+  0010    | GetLocal l0
+  0012    | CallFunction 1
+  0014    | Merge
+  0015    | JumpIfFailure 15 -> 44
+  0018    | Swap
+  0019    | Decrement
+  0020    | JumpIfZero 20 -> 26
+  0023    | JumpBack 23 -> 7
+  0026    | Swap
+  0027    | SetInputMark
+  0028    | GetConstant 0: tuple1
+  0030    | GetLocal l0
+  0032    | CallFunction 1
+  0034    | JumpIfFailure 34 -> 42
+  0037    | PopInputMark
+  0038    | Merge
+  0039    | JumpBack 39 -> 27
+  0042    | ResetInput
+  0043    | Drop
+  0044    | Swap
+  0045    | Drop
+  0046    | End
+  ========================================
+  
+  ================7:tuple1================
+  tuple1(elem) =  elem -> Elem $ [Elem]
+  ========================================
+  0000    | PushVar Elem
+  0002    | CallFunctionLocal l0
+  0004    | JumpIfFailure 4 -> 17
+  0007    | MatchWindowEnter 2 fail->16
+  0011    | MatchScrutinee r0
+  0013    | MatchBind l1 r0
+  0016    | MatchWindowExit
+  0017    | TakeRight 17 -> 26
+  0020    | GetConstantMutable 1: [_]
+  0022    | GetLocalMove l1
+  0024    | InsertAtIndex 0
+  0026    | End
+  ========================================
+  
+  ==================2:I===================
+  I(V)=V
+  ========================================
+  0000    | GetLocalMove l0
+  0002    | End
+  ========================================
+  
+  ================2:@main=================
+  array(digit) -> (I([1]) * I(2) * N * I(3)) $ N
+  ========================================
+  0000    | PushVar N
+  0002    | GetConstant 0: array
+  0004    | GetConstant 1: digit
+  0006    | CallFunction 1
+  0008    | JumpIfFailure 8 -> 50
+  0011    | MatchWindowEnter 3 fail->48
+  0015    | MatchScrutinee r0
+  0017    | GetConstant 2: I
+  0019    | GetConstant 3: [1]
+  0021    | CallFunction 1
+  0023    | MatchRepeatValue r0 r2
+  0026    | GetConstant 2: I
+  0028    | PushInteger 3
+  0030    | CallFunction 1
+  0032    | GetConstant 2: I
+  0034    | PushInteger 2
+  0036    | CallFunction 1
+  0038    | RepeatValue
+  0039    | MatchDivideEval r2 <- r2 / <pop>
+  0042    | MatchBind l0 r2
+  0045    | Jump 45 -> 49
+  0048    | MatchFail
+  0049    | MatchWindowExit
+  0050    | TakeRight 50 -> 55
+  0053    | GetLocalMove l0
+  0055    | End
+  ========================================
+
+  $ possum -p '("" $ "aaaaaa") -> (("a" * 2..3) * N) $ N' -i ''
+  
+  ================2:@main=================
+  ("" $ "aaaaaa") -> (("a" * 2..3) * N) $ N
+  ========================================
+  0000    | PushVar N
+  0002    | PushString "aaaaaa"
+  0004    | DestructurePlan 0: ((eq "a" * eq 2..eq 3) * bind N)
+  0006    | TakeRight 6 -> 11
+  0009    | GetLocalMove l0
+  0011    | End
+  ========================================
+
+  $ possum -p 'I(V) = V ; "" $ [1,1] -> (I([1]) * 2)' -i ''
+  
+  ==================2:I===================
+  I(V) = V
+  ========================================
+  0000    | GetLocalMove l0
+  0002    | End
+  ========================================
+  
+  ================2:@main=================
+  "" $ [1,1] -> (I([1]) * 2)
+  ========================================
+  0000    | GetConstant 0: [1, 1]
+  0002    | JumpIfFailure 2 -> 30
+  0005    | MatchWindowEnter 3 fail->28
+  0009    | MatchScrutinee r0
+  0011    | GetConstant 1: I
+  0013    | GetConstant 2: [1]
+  0015    | CallFunction 1
+  0017    | MatchRepeatValue r0 r2
+  0020    | MatchCmp r2 == 2
+  0025    | Jump 25 -> 29
+  0028    | MatchFail
+  0029    | MatchWindowExit
+  0030    | End
+  ========================================
+
+  $ possum -p '("" $ "aaa") -> ("a" * 2..3)' -i ''
+  
+  ================2:@main=================
+  ("" $ "aaa") -> ("a" * 2..3)
+  ========================================
+  0000    | PushString "aaa"
+  0002    | JumpIfFailure 2 -> 36
+  0005    | MatchWindowEnter 3 fail->34
+  0009    | MatchScrutinee r0
+  0011    | PushString "a"
+  0013    | MatchRepeatValue r0 r2
+  0016    | MatchType r2 num_or_codepoint
+  0019    | MatchBound r2 lo 2
+  0025    | MatchBound r2 hi 3
+  0031    | Jump 31 -> 35
+  0034    | MatchFail
+  0035    | MatchWindowExit
+  0036    | End
+  ========================================

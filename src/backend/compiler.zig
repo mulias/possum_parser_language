@@ -904,7 +904,7 @@ pub const Compiler = struct {
         for (constraints) |constraint| switch (constraint.kind) {
             .search_key => searches += 1,
             .solve_repeat => |c| {
-                const shape = self.repeatShape(ast, c.pattern, c.count_factors.items[0]).?;
+                const shape = self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index).?;
                 repeats = @max(repeats, @as(u32, if (shape == .array) 3 else 1));
             },
             .match_template => |c| {
@@ -1913,11 +1913,7 @@ pub const Compiler = struct {
                     !self.mergeNegatedNonNumber(ast, c.ty, c.parts.items)) return false;
             },
             .solve_repeat => |c| {
-                // Multi-factor counts (a flattened `*` chain) are not yet
-                // stepped inline; they take the plan path until the scalar
-                // product solve lands.
-                if (c.count_factors.items.len != 1) return false;
-                if (self.repeatShape(ast, c.pattern, c.count_factors.items[0]) == null) return false;
+                if (self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index) == null) return false;
             },
             else => return false,
         };
@@ -1953,14 +1949,14 @@ pub const Compiler = struct {
     // and both-unresolved shapes (a runtime error the plan preserves). A
     // module global pushes via the eval bridge (constant, or a call for a
     // zero-arity parser); a non-zero-arity global fails at emit.
-    fn repeatShape(self: *Compiler, ast: *const Ast, pattern_part: Ast.Part, count: Ast.Part) ?RepeatShape {
+    fn repeatShape(self: *Compiler, ast: *const Ast, pattern_part: Ast.Part, factors: []const Ast.Part, solvable_index: ?u32) ?RepeatShape {
         switch (pattern_part) {
-            .expr => |id| if (self.evalExprStepable(ast, id) and self.repeatCountStepable(ast, count)) {
+            .expr => |id| if (self.evalExprStepable(ast, id) and self.repeatCountFactorsStepable(ast, factors, solvable_index)) {
                 return .value;
             },
-            .read, .global => if (self.repeatCountStepable(ast, count)) return .value,
-            .bind, .placeholder => if (self.repeatKnownCount(ast, count)) return .chunk,
-            .sub => |set_id| if (self.repeatCountStepable(ast, count)) {
+            .read, .global => if (self.repeatCountFactorsStepable(ast, factors, solvable_index)) return .value,
+            .bind, .placeholder => if (self.repeatCountKnown(ast, factors)) return .chunk,
+            .sub => |set_id| if (self.repeatCountFactorsStepable(ast, factors, solvable_index)) {
                 if (self.repeatRangeConstraint(ast, set_id) != null) return .range;
                 if (repeatArrayLen(ast, set_id) != null) return .array;
             },
@@ -2070,15 +2066,31 @@ pub const Compiler = struct {
         };
     }
 
-    // Whether a count operand lowers to inline tests against the derived
-    // count register.
-    fn repeatCountStepable(self: *Compiler, ast: *const Ast, count: Ast.Part) bool {
-        return switch (count) {
-            .placeholder, .bind, .read => true,
-            .expr => |id| self.constPatternNode(ast, id),
-            .sub => |set_id| repeatCountSetStepable(ast, set_id),
-            .local, .global => false,
-        };
+    // Whether the count factors lower to inline steps against the derived
+    // count register. A single factor keeps the established single-Part
+    // shapes (exact/bound counts, a bind, a placeholder, a range or leaf
+    // count-set) plus a lone evaluable scalar. Multiple factors form a
+    // product: every non-solvable factor must be an evaluable scalar the
+    // derived count divides by, leaving the residual for the one unbound
+    // factor (solvable_index) to bind.
+    fn repeatCountFactorsStepable(self: *Compiler, ast: *const Ast, factors: []const Ast.Part, solvable_index: ?u32) bool {
+        if (factors.len == 1) {
+            return switch (factors[0]) {
+                .placeholder, .bind, .read, .global => true,
+                .expr => |id| self.evalExprStepable(ast, id),
+                .sub => |set_id| repeatCountSetStepable(ast, set_id),
+                .local => false,
+            };
+        }
+        for (factors, 0..) |factor, i| {
+            if (solvable_index) |s| if (i == s) continue;
+            switch (factor) {
+                .read, .global => {},
+                .expr => |id| if (!self.evalExprStepable(ast, id)) return false,
+                else => return false,
+            }
+        }
+        return true;
     }
 
     // A count sub-set steps when it is a single place constrained by
@@ -2096,14 +2108,16 @@ pub const Compiler = struct {
         return true;
     }
 
-    // Whether a count operand is a known value usable as a chunk-solve
-    // input: a constant or a bound read.
-    fn repeatKnownCount(self: *Compiler, ast: *const Ast, count: Ast.Part) bool {
-        return switch (count) {
-            .read => true,
-            .expr => |id| self.constPatternNode(ast, id),
-            else => false,
+    // Whether every count factor is an evaluable scalar (no unbound
+    // solvable, no structural sub-factor): their product is a known value
+    // usable as the chunk-solve input.
+    fn repeatCountKnown(self: *Compiler, ast: *const Ast, factors: []const Ast.Part) bool {
+        for (factors) |factor| switch (factor) {
+            .read, .global => {},
+            .expr => |id| if (!self.evalExprStepable(ast, id)) return false,
+            else => return false,
         };
+        return true;
     }
 
     // Whether a search pair's key or value sub-pattern lowers to inline
@@ -2670,7 +2684,7 @@ pub const Compiler = struct {
         var repeat_block: u8 = 0;
         for (constraints) |constraint| switch (constraint.kind) {
             .solve_repeat => |c| {
-                const shape = self.repeatShape(ast, c.pattern, c.count_factors.items[0]).?;
+                const shape = self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index).?;
                 repeat_block = @max(repeat_block, @as(u8, if (shape == .array) 3 else 1));
             },
             else => {},
@@ -3000,10 +3014,10 @@ pub const Compiler = struct {
                 .solve_repeat => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
                     const src_reg = scratch_base + @as(u8, @intCast(c.place));
-                    switch (self.repeatShape(ast, c.pattern, c.count_factors.items[0]).?) {
+                    switch (self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index).?) {
                         // A known pattern: push its value, derive the
-                        // count from the place's value, and test the
-                        // count operand against the derived count.
+                        // count from the place's value, and solve the
+                        // count factors against the derived count.
                         .value => {
                             try self.writeRepeatOperand(module_id, ast, c.pattern, step_region);
                             try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
@@ -3011,7 +3025,7 @@ pub const Compiler = struct {
                                 .byte1 = src_reg,
                                 .byte2 = repeat_reg,
                             } }, step_region));
-                            try self.emitRepeatCountSteps(module_id, ast, c.count_factors.items[0], repeat_reg, &fail_jumps, step_region);
+                            try self.emitRepeatCountSolve(module_id, ast, c.count_factors.items, c.solvable_index, repeat_reg, &fail_jumps, step_region);
                         },
                         // A codepoint range: scan the string, derive the
                         // codepoint count, and test the count operand
@@ -3033,7 +3047,7 @@ pub const Compiler = struct {
                                 .upper_kind = upper_desc.kind,
                                 .upper_arg = upper_desc.arg,
                             } }, step_region));
-                            try self.emitRepeatCountSteps(module_id, ast, c.count_factors.items[0], repeat_reg, &fail_jumps, step_region);
+                            try self.emitRepeatCountSolve(module_id, ast, c.count_factors.items, c.solvable_index, repeat_reg, &fail_jumps, step_region);
                         },
                         // A fixed-length array sub-pattern: derive the
                         // chunk count from the length, test the count
@@ -3054,7 +3068,7 @@ pub const Compiler = struct {
                                 .count_dst = repeat_reg,
                                 .base = repeat_base_reg,
                             } }, step_region));
-                            try self.emitRepeatCountSteps(module_id, ast, c.count_factors.items[0], repeat_reg, &fail_jumps, step_region);
+                            try self.emitRepeatCountSolve(module_id, ast, c.count_factors.items, c.solvable_index, repeat_reg, &fail_jumps, step_region);
 
                             // A chunk with no constrained elements (all
                             // placeholders, like Array.length's [_] * L)
@@ -3087,10 +3101,11 @@ pub const Compiler = struct {
                             self.patchJump(first_next);
                             self.patchJump(loop_next);
                         },
-                        // A bare binder: push the known count, solve the
-                        // representative chunk, and bind it.
+                        // A bare binder: push the known count (the product
+                        // of the scalar factors), solve the representative
+                        // chunk, and bind it.
                         .chunk => {
-                            try self.writeRepeatOperand(module_id, ast, c.count_factors.items[0], step_region);
+                            try self.writeRepeatCountProduct(module_id, ast, c.count_factors.items, null, step_region);
                             try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
                                 .op = .MatchRepeatChunk,
                                 .byte1 = src_reg,
@@ -3284,6 +3299,79 @@ pub const Compiler = struct {
             .kind = .constant,
             .arg = constant,
         } }, region));
+    }
+
+    // Solve the count factors against the derived count in `reg`. A lone
+    // factor the single-Part emitter handles keeps its bytecode. Otherwise
+    // the factors form a product: the evaluable scalars divide the derived
+    // count (MatchDivideEval, one per pushed product, failing on an
+    // uneven division), and the single unbound factor binds the residual —
+    // or, with no unbound factor, the derived count must equal the product
+    // (MatchEval).
+    fn emitRepeatCountSolve(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        factors: []const Ast.Part,
+        solvable_index: ?u32,
+        reg: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        if (factors.len == 1) {
+            switch (factors[0]) {
+                .placeholder, .bind, .read, .sub => return self.emitRepeatCountSteps(module_id, ast, factors[0], reg, fail_jumps, region),
+                .expr => |id| if (self.constPatternNode(ast, id)) {
+                    return self.emitRepeatCountSteps(module_id, ast, factors[0], reg, fail_jumps, region);
+                },
+                else => {},
+            }
+        }
+        if (solvable_index) |s| {
+            try self.writeRepeatCountProduct(module_id, ast, factors, s, region);
+            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                .op = .MatchDivideEval,
+                .byte1 = reg,
+                .byte2 = reg,
+            } }, region));
+            switch (factors[s]) {
+                .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                    .op = .MatchBind,
+                    .byte1 = ls.slot,
+                    .byte2 = reg,
+                } }, region),
+                .placeholder => {},
+                else => unreachable,
+            }
+        } else {
+            try self.writeRepeatCountProduct(module_id, ast, factors, null, region);
+            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                .op = .MatchEval,
+                .byte1 = reg,
+                .byte2 = 0,
+            } }, region));
+        }
+    }
+
+    // Push the product of the evaluable count factors, skipping the
+    // unbound solvable when one is given. Each factor evaluates to a
+    // number; RepeatValue multiplies the running product.
+    fn writeRepeatCountProduct(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        factors: []const Ast.Part,
+        skip_index: ?u32,
+        region: Region,
+    ) Error!void {
+        var first = true;
+        for (factors, 0..) |factor, i| {
+            if (skip_index) |s| if (i == s) continue;
+            try self.emitEvaluablePartValue(module_id, ast, factor, region);
+            if (!first) try self.emitOp(.RepeatValue, region);
+            first = false;
+        }
     }
 
     // Emit the residual steps of a number or boolean merge rooted at

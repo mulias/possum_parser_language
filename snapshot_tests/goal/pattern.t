@@ -225,7 +225,7 @@ Pattern repeats become solve_repeat over pattern and count parts.
       scrutinee: (call word)
       %0 = scrutinee
       (arm
-        (solve_repeat %0
+        (solve_repeat %0 solvable=0
           pattern: "ab"
           count: (bind N~0))))
 

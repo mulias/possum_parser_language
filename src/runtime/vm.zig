@@ -1446,6 +1446,37 @@ pub const VM = struct {
                     self.cur_frame.ip = self.current_window_fail;
                 }
             },
+            .MatchDivideEval => {
+                // The residual of a repeat count factored as a product: the
+                // preceding expression left one evaluable factor on the
+                // stack; divide src (the derived count) by it into dst.
+                // Chained once per scalar factor before the unbound factor
+                // binds the leftover. Fails when src or the popped factor
+                // isn't a number, when the factor is zero, or when the
+                // division is not exact.
+                const dst = self.readByte();
+                const src = self.readByte();
+                const factor = self.pop();
+                const src_value = self.getScratch(src);
+                if (numberFloatOf(src_value, self.strings)) |src_float| {
+                    if (numberFloatOf(factor, self.strings)) |factor_float| {
+                        factor.release();
+                        if (factor_float != 0 and @rem(src_float, factor_float) == 0) {
+                            const previous = self.getScratch(dst);
+                            self.setScratch(dst, Elem.numberFloat(src_float / factor_float));
+                            previous.release();
+                        } else {
+                            self.cur_frame.ip = self.current_window_fail;
+                        }
+                    } else {
+                        factor.release();
+                        self.cur_frame.ip = self.current_window_fail;
+                    }
+                } else {
+                    factor.release();
+                    self.cur_frame.ip = self.current_window_fail;
+                }
+            },
             .MatchMergeBool => {
                 // Booleans merge by logical OR, so the residual of a merge
                 // is the scrutinee with the folded static truth claimed

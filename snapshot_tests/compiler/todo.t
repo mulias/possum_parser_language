@@ -156,3 +156,7 @@ same way. Expected: a message naming '_secret' and the module.
   
   [ImportResolution]
   [1]
+
+  $ possum -p 'const({"a": 1, "b": 2, "c": 3}) -> {"a": 1, ...({_: _} * N)} $ N' -i ''
+  [UnsupportedPattern]
+  [1]

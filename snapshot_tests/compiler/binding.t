@@ -113,7 +113,7 @@ merge with a second unbound part is a compile error.
 
   $ possum -p 'number -> (A + B) $ [A, B]' -i '5'
   
-  Program Error: variable 'B' is unbound here: a merge can solve at most one unbound part
+  Program Error: variable 'B' is unbound here: a pattern can solve at most one unbound part
   
   program:1:10-17:
   1 \xe2\x96\x8f number -> (A + B) $ [A, B] (esc)
@@ -127,7 +127,7 @@ variable-length segment.
 
   $ possum -p 'json -> "%(A)-%(B)" $ [A, B]' -i '"x-y"'
   
-  Program Error: variable 'B' is unbound here: a merge can solve at most one unbound part
+  Program Error: variable 'B' is unbound here: a pattern can solve at most one unbound part
   
   program:1:8-19:
   1 \xe2\x96\x8f json -> "%(A)-%(B)" $ [A, B] (esc)
@@ -156,7 +156,7 @@ two unbound variables is rejected.
 
   $ possum -p '("a" -> V) * (N + M) $ [N, M]' -i 'aaa'
   
-  Program Error: variable 'M' is unbound here: a merge can solve at most one unbound part
+  Program Error: variable 'M' is unbound here: a pattern can solve at most one unbound part
   
   program:1:13-20:
   1 \xe2\x96\x8f ("a" -> V) * (N + M) $ [N, M] (esc)
@@ -169,14 +169,14 @@ Every extra unbound part is reported.
 
   $ possum -p 'number -> (A + B + C) $ [A, B, C]' -i '5'
   
-  Program Error: variable 'B' is unbound here: a merge can solve at most one unbound part
+  Program Error: variable 'B' is unbound here: a pattern can solve at most one unbound part
   
   program:1:10-21:
   1 \xe2\x96\x8f number -> (A + B + C) $ [A, B, C] (esc)
     \xe2\x96\x8f           ^^^^^^^^^^^ (esc)
   
   
-  Program Error: variable 'C' is unbound here: a merge can solve at most one unbound part
+  Program Error: variable 'C' is unbound here: a pattern can solve at most one unbound part
   
   program:1:10-21:
   1 \xe2\x96\x8f number -> (A + B + C) $ [A, B, C] (esc)

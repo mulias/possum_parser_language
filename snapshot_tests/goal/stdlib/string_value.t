@@ -9,7 +9,7 @@ Full created-stage goal form of stdlib/string_value.
         scrutinee: S~0
         %0 = scrutinee
         (arm
-          (solve_repeat %0
+          (solve_repeat %0 solvable=0
             pattern: (set
               %0 = scrutinee
               (in_range %0 "\x00" _)) (esc)

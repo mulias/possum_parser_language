@@ -86,6 +86,7 @@ pub const OpCode = enum(u8) {
     MatchCmp,
     MatchCount,
     MatchBound,
+    MatchDivideEval,
     MatchElem,
     MatchEval,
     MatchFail,
@@ -331,6 +332,7 @@ pub const OpCode = enum(u8) {
             .MatchRepeatValue,
             .MatchStrVal,
             .MatchSubtractEval,
+            .MatchDivideEval,
             => .{ .fixed = .{ .pops = 1, .pushes = 0 } },
 
             // Opens a window; the fail-target operand is a branch edge to
@@ -616,6 +618,9 @@ pub const OpCode = enum(u8) {
             // Pops and releases the evaluated summed part; the numeric
             // residual written into the destination is not a Dyn handle.
             .MatchSubtractEval,
+            // Pops and releases the evaluated count factor; the numeric
+            // residual written into the destination is not a Dyn handle.
+            .MatchDivideEval,
             => .{ .operands = .consumed, .result = .none },
 
             // The matched value stays on the stack on success (pattern
@@ -753,6 +758,7 @@ pub const OpCode = enum(u8) {
             .MatchCount => self.matchCountInstruction(chunk, writer, offset),
             .MatchEval => self.matchEvalInstruction(chunk, writer, offset),
             .MatchSubtractEval => self.matchSubtractEvalInstruction(chunk, writer, offset),
+            .MatchDivideEval => self.matchDivideEvalInstruction(chunk, writer, offset),
             .MatchRepeatChunk,
             .MatchRepeatValue,
             => self.matchRepeatInstruction(chunk, writer, offset),
@@ -1130,6 +1136,13 @@ pub const OpCode = enum(u8) {
         const dst = chunk.read(offset + 1);
         const src = chunk.read(offset + 2);
         try writer.print("{s} r{} <- r{} - <pop>\n", .{ @tagName(self), dst, src });
+        return offset + 3;
+    }
+
+    fn matchDivideEvalInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+        const dst = chunk.read(offset + 1);
+        const src = chunk.read(offset + 2);
+        try writer.print("{s} r{} <- r{} / <pop>\n", .{ @tagName(self), dst, src });
         return offset + 3;
     }
 

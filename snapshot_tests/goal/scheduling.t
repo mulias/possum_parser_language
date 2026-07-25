@@ -36,7 +36,7 @@ one-unbound-part rule rejects it.
         B~1
       ]))
   
-  Program Error: variable 'B' is unbound here: a merge can solve at most one unbound part
+  Program Error: variable 'B' is unbound here: a pattern can solve at most one unbound part
   
   program:1:9-21:
   1 \xe2\x96\x8f input -> [...A, ...B] $ [A, B] (esc)
@@ -228,7 +228,7 @@ solvable-part count judges parts before classification, so both count.
             (read A~0))))
       A~0)
   
-  Program Error: variable 'A' is unbound here: a merge can solve at most one unbound part
+  Program Error: variable 'A' is unbound here: a pattern can solve at most one unbound part
   
   program:1:9-22:
   1 \xe2\x96\x8f input -> ("x" + A + A) $ A (esc)

@@ -240,7 +240,7 @@ underdetermined, and goal binding rejects it.
           (local A)
           _)))
   
-  Program Error: pattern part is unbound here: a merge can solve at most one unbound part
+  Program Error: pattern part is unbound here: a pattern can solve at most one unbound part
   
   program:1:12-17:
   1 \xe2\x96\x8f json -> [1, A + _] (esc)

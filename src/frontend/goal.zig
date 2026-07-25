@@ -2899,7 +2899,9 @@ fn printConstraint(
             try writer.writeAll(")");
         },
         .solve_repeat => |c| {
-            try writer.print("(solve_repeat %{d}\n", .{c.place});
+            try writer.print("(solve_repeat %{d}", .{c.place});
+            if (c.solvable_index) |index| try writer.print(" solvable={d}", .{index});
+            try writer.writeAll("\n");
             try printIndent(writer, indent + 1);
             try writer.writeAll("pattern: ");
             try self.printPart(writer, c.pattern, indent + 1);
