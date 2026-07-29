@@ -9,7 +9,7 @@ const StringTable = @import("string_table.zig").FrontendStringTable;
 // and for crossing into the runtime string table.
 pub const PathTable = struct {
     allocator: Allocator,
-    entries: ArrayList(Entry) = .{},
+    entries: ArrayList(Entry) = .empty,
     ids_by_flat: std.AutoHashMapUnmanaged(StringTable.Id, Id) = .{},
 
     pub const Id = enum(u32) { _ };
@@ -35,7 +35,7 @@ pub const PathTable = struct {
         const flat_sid = try strings.insert(name);
         if (self.ids_by_flat.get(flat_sid)) |id| return id;
 
-        var segment_list = ArrayList(StringTable.Id){};
+        var segment_list = ArrayList(StringTable.Id).empty;
         errdefer segment_list.deinit(self.allocator);
         var iter = std.mem.splitScalar(u8, name, '.');
         while (iter.next()) |segment| {
@@ -57,7 +57,7 @@ pub const PathTable = struct {
     pub fn insertSegments(self: *PathTable, strings: *StringTable, segs: []const StringTable.Id) !Id {
         std.debug.assert(segs.len > 0);
 
-        var flat_name = ArrayList(u8){};
+        var flat_name = ArrayList(u8).empty;
         defer flat_name.deinit(self.allocator);
         for (segs, 0..) |sid, i| {
             if (i > 0) try flat_name.append(self.allocator, '.');

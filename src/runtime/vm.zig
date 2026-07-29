@@ -45,6 +45,12 @@ pub const Config = struct {
     print_memory_report: bool = false,
     // Record call/return/destructure events for the --explain report.
     explain: bool = false,
+    // Required only for loading modules from disk (native CLI). Left null in
+    // contexts that never touch the filesystem (wasm, unit tests).
+    io: ?std.Io = null,
+    // Used to expand `~/` in disk import paths. Left null when the filesystem
+    // is never touched (wasm, unit tests).
+    environ_map: ?*const std.process.Environ.Map = null,
 
     pub fn setEnv(self: *Config, env: Env) void {
         self.printScanner = env.printScanner;
@@ -332,27 +338,27 @@ pub const VM = struct {
         self.allocator = allocator;
         self.gc = GC.init(self, allocator);
         self.strings = StringTable.init(allocator);
-        self.modules = ArrayList(*Module){};
+        self.modules = ArrayList(*Module).empty;
         self.loader = ModuleLoader.init(self, allocator);
         self.compiler = null;
-        self.stack = ArrayList(Elem){};
-        self.frames = ArrayList(CallFrame){};
-        self.match_regs = ArrayList(Elem){};
-        self.window_bases = ArrayList(usize){};
+        self.stack = ArrayList(Elem).empty;
+        self.frames = ArrayList(CallFrame).empty;
+        self.match_regs = ArrayList(Elem).empty;
+        self.window_bases = ArrayList(usize).empty;
         self.current_window_base = 0;
-        self.window_fails = ArrayList(usize){};
+        self.window_fails = ArrayList(usize).empty;
         self.current_window_fail = 0;
         self.cur_frame = undefined;
         self.cur_code = undefined;
-        self.temp_dyns = ArrayList(*Elem.DynElem){};
+        self.temp_dyns = ArrayList(*Elem.DynElem).empty;
         self.input = undefined;
-        self.inputMarks = ArrayList(usize){};
+        self.inputMarks = ArrayList(usize).empty;
         self.inputOffset = 0;
         self.pos_memo = Pos{};
         self.farthest = null;
         self.expected = ExpectedSet.empty;
-        self.explain_events = ArrayList(explain.Event){};
-        self.explain_open = ArrayList(usize){};
+        self.explain_events = ArrayList(explain.Event).empty;
+        self.explain_open = ArrayList(usize).empty;
         self.uniqueIdCount = 0;
         self.rc_stats = RcStats{};
         self.singleton_empty_array = null;

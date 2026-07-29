@@ -78,7 +78,7 @@ fn addDocImports(b: *Build, exe: *Build.Step.Compile) void {
         pandoc.addArgs(&.{ "-f", "gfm", "-t", "plain" });
         pandoc.addFileArg(b.path(input_file));
 
-        const output = pandoc.captureStdOut();
+        const output = pandoc.captureStdOut(.{});
 
         exe.root_module.addAnonymousImport(output_name, .{
             .root_source_file = output,
@@ -89,12 +89,13 @@ fn addDocImports(b: *Build, exe: *Build.Step.Compile) void {
 // Embed every stdlib file under its "stdlib/<file>" name; the module
 // loader's embedded_sources maps logical import names onto these.
 fn addStdlibImports(b: *Build, exe: *Build.Step.Compile) void {
-    var dir = b.build_root.handle.openDir("stdlib", .{ .iterate = true }) catch
+    const io = b.graph.io;
+    var dir = b.build_root.handle.openDir(io, "stdlib", .{ .iterate = true }) catch
         @panic("cannot open the stdlib directory");
-    defer dir.close();
+    defer dir.close(io);
 
     var files = dir.iterate();
-    while (files.next() catch @panic("cannot read the stdlib directory")) |entry| {
+    while (files.next(io) catch @panic("cannot read the stdlib directory")) |entry| {
         if (entry.kind != .file) continue;
         if (!std.mem.endsWith(u8, entry.name, ".possum")) continue;
 

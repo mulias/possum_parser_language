@@ -15,7 +15,7 @@ string templates, and container construction.
   husks:             6 parked, 1 reused
   strings interned:  107
   strings size:      739 chars
-  bytes in use:      8528
+  bytes in use:      8568
 
 A dyn string passed to a native builtin and kept live: the native
 releases the popped argument handle, so U reports unique in the result
@@ -32,4 +32,4 @@ instead of carrying the popped copy's count forever.
   husks:             0 parked, 0 reused
   strings interned:  11
   strings size:      41 chars
-  bytes in use:      609
+  bytes in use:      657

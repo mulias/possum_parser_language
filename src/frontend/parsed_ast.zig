@@ -164,7 +164,7 @@ pub const Ast = struct {
     pub fn init(arena: *ArenaAllocator) Ast {
         return Ast{
             .arena = arena,
-            .roots = .{},
+            .roots = .empty,
         };
     }
 

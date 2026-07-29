@@ -29,7 +29,7 @@ quadratic (every level copied the whole suffix).
   husks:             0 parked, 0 reused
   strings interned:  9
   strings size:      25 chars
-  bytes in use:      792
+  bytes in use:      872
 
 With fast paths disabled every level copies the whole suffix again:
 one string allocation per level instead of one rope total.
@@ -63,4 +63,4 @@ one rope allocation cycles through the whole loop.
   husks:             7 parked, 6 reused
   strings interned:  11
   strings size:      32 chars
-  bytes in use:      424
+  bytes in use:      448

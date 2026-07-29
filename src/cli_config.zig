@@ -49,7 +49,7 @@ const params = clap.parseParamsComptime(
     \\
 );
 
-pub fn run(allocator: Allocator) !Mode {
+pub fn run(allocator: Allocator, args: std.process.Args) !Mode {
     const parsers = comptime .{
         .STR = clap.parsers.string,
         .FILE = clap.parsers.string,
@@ -57,7 +57,7 @@ pub fn run(allocator: Allocator) !Mode {
         .DOCS = clap.parsers.enumeration(Docs),
     };
 
-    var result = try clap.parse(clap.Help, &params, parsers, .{ .allocator = allocator });
+    var result = try clap.parse(clap.Help, &params, parsers, args, .{ .allocator = allocator });
     defer result.deinit();
 
     if (result.args.help != 0) return .{ .Help = undefined };

@@ -42,4 +42,4 @@ report as the only unique live dyn.
   husks:             0 parked, 0 reused
   strings interned:  7
   strings size:      21 chars
-  bytes in use:      368
+  bytes in use:      400

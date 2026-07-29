@@ -20,7 +20,7 @@ pub const ModuleLoader = struct {
     // resolve against. Values are slices of owned_buffers entries.
     module_dirs: std.AutoHashMapUnmanaged(Module.Id, []const u8) = .{},
     // Allocations the loader owns: cache keys, module names, file sources.
-    owned_buffers: ArrayList([]const u8) = .{},
+    owned_buffers: ArrayList([]const u8) = .empty,
     cwd_cache: ?[]const u8 = null,
 
     // The wasm build has no filesystem; only embedded modules load there.
@@ -170,7 +170,8 @@ pub const ModuleLoader = struct {
                 return .{ .module = self.vm.getModule(module_id), .newly_loaded = false };
             }
 
-            const source = std.fs.cwd().readFileAlloc(self.allocator, path, std.math.maxInt(u32)) catch |err| switch (err) {
+            const io = self.vm.config.io orelse return Error.ModuleNotFound;
+            const source = std.Io.Dir.cwd().readFileAlloc(io, path, self.allocator, .unlimited) catch |err| switch (err) {
                 error.OutOfMemory => return Error.OutOfMemory,
                 else => return Error.ModuleNotFound,
             };
@@ -222,7 +223,8 @@ pub const ModuleLoader = struct {
     // importer is not file-backed). No symlink resolution.
     fn resolvePath(self: *ModuleLoader, literal: []const u8, importer: Module.Id) Error![]const u8 {
         if (std.mem.eql(u8, literal, "~") or std.mem.startsWith(u8, literal, "~/")) {
-            const home = std.posix.getenv("HOME") orelse return Error.ModuleNotFound;
+            const env_map = self.vm.config.environ_map orelse return Error.ModuleNotFound;
+            const home = env_map.get("HOME") orelse return Error.ModuleNotFound;
             return std.fs.path.resolve(self.allocator, &.{ home, literal[@min(literal.len, 2)..] }) catch Error.OutOfMemory;
         }
         if (std.fs.path.isAbsolute(literal)) {
@@ -234,7 +236,10 @@ pub const ModuleLoader = struct {
 
     fn cwd(self: *ModuleLoader) Error![]const u8 {
         if (self.cwd_cache == null) {
-            self.cwd_cache = std.process.getCwdAlloc(self.allocator) catch return Error.ModuleNotFound;
+            const io = self.vm.config.io orelse return Error.ModuleNotFound;
+            const path0 = std.process.currentPathAlloc(io, self.allocator) catch return Error.ModuleNotFound;
+            defer self.allocator.free(path0);
+            self.cwd_cache = self.allocator.dupe(u8, path0) catch return Error.OutOfMemory;
         }
         return self.cwd_cache.?;
     }
@@ -245,6 +250,7 @@ const test_allocator = std.testing.allocator;
 
 fn testVM(vm: *VM) !void {
     try vm.init(test_allocator, testing_writers, .{ .includeStdlib = false });
+    vm.config.io = std.testing.io;
 }
 
 test "embedded module loads once and is cached" {
@@ -280,11 +286,11 @@ test "disk modules dedup by normalized path and resolve relative to the importer
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
 
-    try tmp.dir.makeDir("sub");
-    try tmp.dir.writeFile(.{ .sub_path = "sub/a.possum", .data = "x = \"x\"" });
-    try tmp.dir.writeFile(.{ .sub_path = "sub/b.possum", .data = "y = \"y\"" });
+    try tmp.dir.createDirPath(std.testing.io, "sub");
+    try tmp.dir.writeFile(std.testing.io, .{ .sub_path = "sub/a.possum", .data = "x = \"x\"" });
+    try tmp.dir.writeFile(std.testing.io, .{ .sub_path = "sub/b.possum", .data = "y = \"y\"" });
 
-    const tmp_path = try tmp.dir.realpathAlloc(test_allocator, ".");
+    const tmp_path = try tmp.dir.realPathFileAlloc(std.testing.io, ".", test_allocator);
     defer test_allocator.free(tmp_path);
 
     const a_path = try std.fs.path.join(test_allocator, &.{ tmp_path, "sub", "a.possum" });
@@ -336,7 +342,11 @@ test "~ expands to the home directory" {
     try testVM(&vm);
     defer vm.deinit();
 
-    if (std.posix.getenv("HOME")) |home| {
+    var env_map = try std.testing.environ.createMap(test_allocator);
+    defer env_map.deinit();
+    vm.config.environ_map = &env_map;
+
+    if (env_map.get("HOME")) |home| {
         const resolved = try vm.loader.resolvePath("~/foo.possum", 0);
         defer test_allocator.free(resolved);
         try std.testing.expect(std.mem.startsWith(u8, resolved, home));

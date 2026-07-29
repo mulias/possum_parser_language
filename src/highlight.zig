@@ -17,7 +17,7 @@ pub const HighlightConfig = struct {
 
 /// Parse source code into line information
 fn parseLines(source: []const u8, allocator: std.mem.Allocator) !std.ArrayListUnmanaged(LineInfo) {
-    var lines = std.ArrayListUnmanaged(LineInfo){};
+    var lines = std.ArrayListUnmanaged(LineInfo).empty;
 
     if (source.len == 0) {
         return lines;
@@ -193,7 +193,7 @@ fn writeUnderline(
 
 /// Highlight the EOF position (one character after the end of source)
 pub fn highlightEndPosition(source: []const u8, writer: anytype, config: HighlightConfig) !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
@@ -288,7 +288,7 @@ pub fn highlightEndPosition(source: []const u8, writer: anytype, config: Highlig
 }
 
 pub fn highlightRegion(source: []const u8, region: Region, writer: anytype, config: HighlightConfig) !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 

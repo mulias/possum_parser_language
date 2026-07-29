@@ -5,11 +5,11 @@ const PathTable = @import("path_table.zig").PathTable;
 const Region = @import("../region.zig").Region;
 const Pattern = @import("pattern_tree.zig");
 
-goals: ArrayList(RNode) = .{},
+goals: ArrayList(RNode) = .empty,
 // Nested constraint scopes referenced by SetId: composite constraint
 // sub-patterns and repeat count tests.
-constraint_sets: ArrayList(ConstraintSet) = .{},
-declarations: ArrayList(Declaration) = .{},
+constraint_sets: ArrayList(ConstraintSet) = .empty,
+declarations: ArrayList(Declaration) = .empty,
 main: ?NodeId = null,
 // The generated name of main's anonymous-function node in the dependency
 // graph; binding analysis resolves main's locals against it.
@@ -27,7 +27,7 @@ main_order: u64 = 0,
 // declarations, plus the private aliases synthesized for inline import
 // expressions. The frontend wires each into the dependency resolver; the
 // list is consumed building the graph and ignored afterward.
-imports: ArrayList(Import) = .{},
+imports: ArrayList(Import) = .empty,
 
 pub const Import = struct {
     path: Path,
@@ -76,7 +76,7 @@ pub const RNode = struct {
 pub const Declaration = struct {
     name: PathTable.Id,
     underscored: bool,
-    params: ArrayList(PathTable.Id) = .{},
+    params: ArrayList(PathTable.Id) = .empty,
     // Per-parameter parser/value kinds, matching the backend
     // Function.ParamTypes bitset: bit i set means params[i] is a value, unset
     // a parser. Value declarations have every param bit set.
@@ -422,7 +422,7 @@ pub const Lambda = struct {
     parent_name: ?PathTable.Id,
     name: PathTable.Id,
     body: NodeId,
-    captures: ArrayList(StringTable.Id) = .{},
+    captures: ArrayList(StringTable.Id) = .empty,
 };
 
 // Greedy loop up to an optional cap, then an ordinary pattern test of the

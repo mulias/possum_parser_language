@@ -136,7 +136,7 @@ const Checker = struct {
     fn resolveFunction(self: *Checker, name: Paths.Id) error{OutOfMemory}!?*const Ast.Declaration {
         var node = self.node;
         var ref = name;
-        var visited: ArrayList(Frontend.GlobalKey) = .{};
+        var visited: ArrayList(Frontend.GlobalKey) = .empty;
         defer visited.deinit(self.frontend.allocator);
 
         while (true) {

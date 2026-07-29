@@ -106,11 +106,11 @@ const Child = union(enum) {
 };
 
 const Node = struct {
-    labels: ArrayList(Label) = .{},
+    labels: ArrayList(Label) = .empty,
     start: usize,
     end: usize,
     failed: bool = false,
-    children: ArrayList(Child) = .{},
+    children: ArrayList(Child) = .empty,
     // Farthest input position touched anywhere in the subtree.
     reach: usize,
     // Farthest position of any failed attempt in the subtree. A successful
@@ -124,8 +124,8 @@ const StepEntry = struct {
     value: Snapshot,
     pattern: Snapshot,
     matched: bool,
-    binds: ArrayList(Event.Bind) = .{},
-    children: ArrayList(usize) = .{},
+    binds: ArrayList(Event.Bind) = .empty,
+    children: ArrayList(usize) = .empty,
 };
 
 const DestructureNode = struct {
@@ -135,12 +135,12 @@ const DestructureNode = struct {
     value: Snapshot,
     pattern: Snapshot,
     failed: bool = false,
-    steps: ArrayList(StepEntry) = .{},
+    steps: ArrayList(StepEntry) = .empty,
 };
 
 const Tree = struct {
-    nodes: ArrayList(Node) = .{},
-    destructures: ArrayList(DestructureNode) = .{},
+    nodes: ArrayList(Node) = .empty,
+    destructures: ArrayList(DestructureNode) = .empty,
 
     const root: usize = 0;
 };
@@ -154,11 +154,11 @@ fn build(allocator: Allocator, events: []const Event) !Tree {
         .reach = 0,
     });
 
-    var open_nodes: ArrayList(usize) = .{};
+    var open_nodes: ArrayList(usize) = .empty;
     defer open_nodes.deinit(allocator);
     try open_nodes.append(allocator, Tree.root);
 
-    var open_destructures: ArrayList(usize) = .{};
+    var open_destructures: ArrayList(usize) = .empty;
     defer open_destructures.deinit(allocator);
 
     for (events) |event| {

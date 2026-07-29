@@ -13,7 +13,7 @@ place every iteration.
   husks:             1 parked, 0 reused
   strings interned:  8
   strings size:      24 chars
-  bytes in use:      184
+  bytes in use:      192
 
   $ PRINT_MEMORY_REPORT=true DISABLE_RC_FAST_PATHS=true possum -p '("a" $ [1]) * 40 $ "ok"' -i 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
   "ok"
@@ -26,4 +26,4 @@ place every iteration.
   husks:             0 parked, 0 reused
   strings interned:  8
   strings size:      24 chars
-  bytes in use:      184
+  bytes in use:      192

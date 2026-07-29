@@ -1,5 +1,5 @@
 const std = @import("std");
-const Writer = std.io.Writer;
+const Writer = std.Io.Writer;
 const Chunk = @import("chunk.zig").Chunk;
 const VM = @import("vm.zig").VM;
 const Module = @import("module.zig").Module;
