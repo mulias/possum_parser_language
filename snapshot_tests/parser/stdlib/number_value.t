@@ -99,7 +99,7 @@
       (Identifier 29:0-20 Num.FromBinaryDigits) [
         (Identifier 29:21-23 Bs)
       ])
-    (TakeRight 30:2-67
+    (Sequence 30:2-67
       (Destructure 30:2-25
         (Function 30:2-18
           (Identifier 30:2-14 Array.Length) [
@@ -130,7 +130,7 @@
             (Identifier 34:9-10 B)
           ])
           (Identifier 34:15-19 Rest)))
-      (TakeRight 34:23-145
+      (Sequence 34:23-145
         (Destructure 35:4-13
           (Identifier 35:4-5 B)
           (Range 35:9-13 (NumberString 35:9-10 0) (NumberString 35:12-13 1)))
@@ -159,7 +159,7 @@
       (Identifier 44:0-19 Num.FromOctalDigits) [
         (Identifier 44:20-22 Os)
       ])
-    (TakeRight 45:2-66
+    (Sequence 45:2-66
       (Destructure 45:2-25
         (Function 45:2-18
           (Identifier 45:2-14 Array.Length) [
@@ -190,7 +190,7 @@
             (Identifier 49:9-10 O)
           ])
           (Identifier 49:15-19 Rest)))
-      (TakeRight 49:23-144
+      (Sequence 49:23-144
         (Destructure 50:4-13
           (Identifier 50:4-5 O)
           (Range 50:9-13 (NumberString 50:9-10 0) (NumberString 50:12-13 7)))
@@ -219,7 +219,7 @@
       (Identifier 59:0-17 Num.FromHexDigits) [
         (Identifier 59:18-20 Hs)
       ])
-    (TakeRight 60:2-64
+    (Sequence 60:2-64
       (Destructure 60:2-25
         (Function 60:2-18
           (Identifier 60:2-14 Array.Length) [
@@ -250,7 +250,7 @@
             (Identifier 64:9-10 H)
           ])
           (Identifier 64:15-19 Rest)))
-      (TakeRight 64:23-144
+      (Sequence 64:23-144
         (Destructure 65:4-14
           (Identifier 65:4-5 H)
           (Range 65:9-14 (NumberString 65:9-10 0) (NumberString 65:12-14 15)))

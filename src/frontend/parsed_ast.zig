@@ -151,6 +151,7 @@ pub const Ast = struct {
         Return,
         TakeLeft,
         TakeRight,
+        Sequence,
         NumberSubtract,
     };
 
