@@ -10,7 +10,7 @@ pub const Module = struct {
     id: Id,
     name: []const u8,
     source: []const u8,
-    constants: ArrayList(Elem) = ArrayList(Elem){},
+    constants: ArrayList(Elem) = ArrayList(Elem).empty,
 
     pub const Id = u16;
 

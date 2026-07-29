@@ -16,7 +16,7 @@ replaced value's handle.
   husks:             2 parked, 1 reused
   strings interned:  10
   strings size:      27 chars
-  bytes in use:      896
+  bytes in use:      960
 
   $ PRINT_MEMORY_REPORT=true DISABLE_RC_FAST_PATHS=true possum -p '("a" -> C $ {"k": C, "n": [C]}) * 3' -i 'aaa'
   {
@@ -32,7 +32,7 @@ replaced value's handle.
   husks:             0 parked, 0 reused
   strings interned:  10
   strings size:      27 chars
-  bytes in use:      896
+  bytes in use:      996
 
 A replaced value kept live through a binding: the object merge overwrites
 "n" from V to [2], releasing V's handle, so V reports unique in the final
@@ -54,4 +54,4 @@ result instead of shared.
   husks:             1 parked, 0 reused
   strings interned:  10
   strings size:      27 chars
-  bytes in use:      1712
+  bytes in use:      1836

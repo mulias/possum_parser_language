@@ -224,7 +224,7 @@ pub const Parser = struct {
         self.scanner.setStringMode(quote_type);
 
         var first_part_token: ?Token = null;
-        var template_parts = ArrayList(*Ast.RNode){};
+        var template_parts = ArrayList(*Ast.RNode).empty;
         var final: *Ast.RNode = undefined;
 
         while (true) {
@@ -494,7 +494,7 @@ pub const Parser = struct {
     fn importBarePath(self: *Parser) Error!BarePath {
         const allocator = self.ast.arena.allocator();
 
-        var segment_tokens = ArrayList(Token){};
+        var segment_tokens = ArrayList(Token).empty;
         try segment_tokens.append(allocator, self.token);
         var end_region = self.token.region;
         try self.advance();
@@ -543,7 +543,7 @@ pub const Parser = struct {
             return self.errorAt(root, "expected a string or stdlib path after '!'");
         }
 
-        var logical_name = ArrayList(u8){};
+        var logical_name = ArrayList(u8).empty;
         for (segment_tokens.items[0 .. segment_tokens.items.len - 1]) |token| {
             try logical_name.appendSlice(allocator, token.lexeme);
             try logical_name.append(allocator, '/');
@@ -650,7 +650,7 @@ pub const Parser = struct {
         if (self.check(.RightParen)) {
             const closing_paren_region = self.token.region;
             try self.advance(); // advance past the ')'
-            const empty_args = ArrayList(*Ast.RNode){};
+            const empty_args = ArrayList(*Ast.RNode).empty;
             return self.ast.createFunction(
                 function_ident,
                 empty_args,
@@ -673,7 +673,7 @@ pub const Parser = struct {
     }
 
     fn paramsOrArgs(self: *Parser) !ArrayList(*Ast.RNode) {
-        var arguments = ArrayList(*Ast.RNode){};
+        var arguments = ArrayList(*Ast.RNode).empty;
 
         const first_expr = try self.expression();
         try arguments.append(self.ast.arena.allocator(), first_expr);
@@ -750,7 +750,7 @@ pub const Parser = struct {
         const region = self.token.region;
         try self.advance(); // consume the '['
 
-        var elements = ArrayList(*Ast.RNode){};
+        var elements = ArrayList(*Ast.RNode).empty;
 
         // Initial spread: [...expr]
         if (try self.match(.DotDotDot)) {
@@ -792,19 +792,19 @@ pub const Parser = struct {
 
         // Initial spread: {...expr}
         if (try self.match(.DotDotDot)) {
-            const empty_pairs = ArrayList(Ast.ObjectPair){};
+            const empty_pairs = ArrayList(Ast.ObjectPair).empty;
             const empty_object = try self.ast.createObject(empty_pairs, region);
             return self.objectSpread(empty_object);
         }
 
         // Empty object: {}
         if (try self.match(.RightBrace)) {
-            const empty_pairs = ArrayList(Ast.ObjectPair){};
+            const empty_pairs = ArrayList(Ast.ObjectPair).empty;
             const end_region = self.token.region;
             return self.ast.createObject(empty_pairs, region.merge(end_region));
         }
 
-        var pairs = ArrayList(Ast.ObjectPair){};
+        var pairs = ArrayList(Ast.ObjectPair).empty;
 
         // First member
         const first_pair = try self.objectPair();
@@ -924,7 +924,7 @@ pub const Parser = struct {
         }
 
         // Standard array parsing for non-spread elements
-        var elements = ArrayList(*Ast.RNode){};
+        var elements = ArrayList(*Ast.RNode).empty;
 
         // Parse the first element
         const first_expr = try self.expression();
@@ -999,7 +999,7 @@ pub const Parser = struct {
         }
 
         // Standard object parsing for non-spread elements
-        var pairs = ArrayList(Ast.ObjectPair){};
+        var pairs = ArrayList(Ast.ObjectPair).empty;
 
         // Parse the first pair
         const first_pair = try self.objectPair();

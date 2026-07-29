@@ -210,7 +210,7 @@ fn addParserDeclaration(
     const name = try self.paths.insert(self.strings, name_ident.name);
     self.current_parent_function_name = name;
 
-    var param_ids = ArrayList(PathTable.Id){};
+    var param_ids = ArrayList(PathTable.Id).empty;
     try param_ids.ensureTotalCapacity(self.alloc(), params.len);
     var param_types: u32 = 0;
     for (params, 0..) |param, i| {
@@ -270,7 +270,7 @@ fn addValueDeclaration(
 ) Error!void {
     const name = try self.paths.insert(self.strings, name_ident.name);
 
-    var param_ids = ArrayList(PathTable.Id){};
+    var param_ids = ArrayList(PathTable.Id).empty;
     try param_ids.ensureTotalCapacity(self.alloc(), params.len);
     var param_types: u32 = 0;
     for (params, 0..) |param, i| {
@@ -609,7 +609,7 @@ fn convertParserTemplate(
 }
 
 fn convertParserAlt(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
-    var arms = ArrayList(Ast.AltArm){};
+    var arms = ArrayList(Ast.AltArm).empty;
     try self.collectParserAltArms(rnode, &arms);
     return self.addGoal(.{ .alt = arms }, rnode.region);
 }
@@ -746,13 +746,13 @@ fn convertValue(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
         .Negation => |inner| self.addGoal(.{ .neg = try self.convertValue(inner) }, region),
         .ValueLabel => |inner| self.convertValue(inner),
         .Array => |elems| blk: {
-            var items = ArrayList(NodeId){};
+            var items = ArrayList(NodeId).empty;
             try items.ensureTotalCapacity(self.alloc(), elems.items.len);
             for (elems.items) |elem| items.appendAssumeCapacity(try self.convertValue(elem));
             break :blk self.addGoal(.{ .array = items }, region);
         },
         .Object => |pairs| blk: {
-            var converted = ArrayList(Ast.ObjectPair){};
+            var converted = ArrayList(Ast.ObjectPair).empty;
             try converted.ensureTotalCapacity(self.alloc(), pairs.items.len);
             for (pairs.items) |pair| converted.appendAssumeCapacity(.{
                 .key = try self.convertValue(pair.key),
@@ -830,7 +830,7 @@ fn convertValueTemplate(
 }
 
 fn convertValueAlt(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
-    var arms = ArrayList(Ast.AltArm){};
+    var arms = ArrayList(Ast.AltArm).empty;
     try self.collectValueAltArms(rnode, &arms);
     return self.addGoal(.{ .alt = arms }, rnode.region);
 }
@@ -913,13 +913,13 @@ fn convertPattern(self: *Goal, rnode: *ParsedAst.RNode) Error!*Pattern.RNode {
             return Error.InvalidPatternNode;
         },
         .Array => |elems| blk: {
-            var converted = ArrayList(*Pattern.RNode){};
+            var converted = ArrayList(*Pattern.RNode).empty;
             try converted.ensureTotalCapacity(self.alloc(), elems.items.len);
             for (elems.items) |elem| converted.appendAssumeCapacity(try self.convertPattern(elem));
             break :blk .{ .array = converted };
         },
         .Object => |pairs| blk: {
-            var converted = ArrayList(Pattern.ObjectPair){};
+            var converted = ArrayList(Pattern.ObjectPair).empty;
             try converted.ensureTotalCapacity(self.alloc(), pairs.items.len);
             for (pairs.items) |pair| converted.appendAssumeCapacity(.{
                 .key = try self.convertPattern(pair.key),
@@ -928,7 +928,7 @@ fn convertPattern(self: *Goal, rnode: *ParsedAst.RNode) Error!*Pattern.RNode {
             break :blk .{ .object = converted };
         },
         .StringTemplate => |parts| blk: {
-            var converted = ArrayList(*Pattern.RNode){};
+            var converted = ArrayList(*Pattern.RNode).empty;
             try converted.ensureTotalCapacity(self.alloc(), parts.items.len);
             for (parts.items) |part| converted.appendAssumeCapacity(try self.convertPattern(part));
             break :blk .{ .string_template = converted };
@@ -1062,7 +1062,7 @@ fn isPlaceholder(self: *Goal, name: PathTable.Id) bool {
 }
 
 fn seqPair(self: *Goal, first: NodeId, second: NodeId, result: u32, region: Region) Error!NodeId {
-    var goals = ArrayList(NodeId){};
+    var goals = ArrayList(NodeId).empty;
     try goals.ensureTotalCapacity(self.alloc(), 2);
     goals.appendAssumeCapacity(first);
     goals.appendAssumeCapacity(second);
@@ -1107,15 +1107,15 @@ fn convertDestructure(
     return self.addGoal(.{ .match = .{
         .scrutinee = scrutinee,
         .pattern = pattern,
-        .places = .{},
-        .arms = .{},
+        .places = .empty,
+        .arms = .empty,
     } }, region);
 }
 
 // Decompose a match's folded pattern into places and a single arm.
 fn lowerMatch(self: *Goal, match: *Ast.Match) Error!void {
     try match.places.append(self.alloc(), .scrutinee);
-    var constraints = ArrayList(Ast.Constraint){};
+    var constraints = ArrayList(Ast.Constraint).empty;
     try self.lowerPattern(match.pattern, 0, &match.places, &constraints);
     try match.arms.append(self.alloc(), .{
         .constraints = constraints,
@@ -1135,8 +1135,8 @@ fn lowerRepeat(self: *Goal, rep: *Ast.Repeat) Error!void {
 // composite sub-patterns.
 fn patternSet(self: *Goal, pattern: *Pattern.RNode) Error!SetId {
     var set = Ast.ConstraintSet{
-        .places = .{},
-        .constraints = .{},
+        .places = .empty,
+        .constraints = .empty,
         .region = pattern.region,
     };
     try set.places.append(self.alloc(), .scrutinee);
@@ -1482,7 +1482,7 @@ fn lowerPattern(
             } }, region);
         },
         .merge => {
-            var part_patterns = ArrayList(*Pattern.RNode){};
+            var part_patterns = ArrayList(*Pattern.RNode).empty;
             var ty: ?Ast.ValueType = null;
             try self.collectMergePatterns(pattern, &part_patterns, &ty);
             if (ty == .array) {
@@ -1509,7 +1509,7 @@ fn lowerPattern(
             if (part_patterns.items.len == 1) {
                 return self.lowerPattern(part_patterns.items[0], place, places, constraints);
             }
-            var parts = ArrayList(Ast.Part){};
+            var parts = ArrayList(Ast.Part).empty;
             try parts.ensureTotalCapacity(self.alloc(), part_patterns.items.len);
             for (part_patterns.items) |part| {
                 parts.appendAssumeCapacity(try self.patternPart(part));
@@ -1526,7 +1526,7 @@ fn lowerPattern(
             // ((P * a) * b) and P * (a * b) both become pattern P with count
             // factors [a, b]. Descend the pattern-nesting on the left; each
             // right is a count factor, itself flattened if it is a product.
-            var count_factors = ArrayList(Ast.Part){};
+            var count_factors = ArrayList(Ast.Part).empty;
             var base = pattern;
             while (base.node == .repeat) {
                 try self.appendCountFactors(base.node.repeat.right, &count_factors);
@@ -1540,7 +1540,7 @@ fn lowerPattern(
             } }, region);
         },
         .string_template => |parts| {
-            var segments = ArrayList(Ast.Segment){};
+            var segments = ArrayList(Ast.Segment).empty;
             try segments.ensureTotalCapacity(self.alloc(), parts.items.len);
             for (parts.items) |part| {
                 segments.appendAssumeCapacity(switch (part.node) {
@@ -1813,7 +1813,7 @@ fn lowerObjectMerge(
     var key_count: u32 = 0;
     var has_repeat = false;
     var has_search_pair = false;
-    var seen_keys = ArrayList([]const u8){};
+    var seen_keys = ArrayList([]const u8).empty;
     defer seen_keys.deinit(self.alloc());
     for (parts, 0..) |part, i| {
         switch (part.node) {
@@ -1921,7 +1921,7 @@ fn lowerObjectMerge(
             },
             .repeat => {
                 var base = part;
-                var count_factors = ArrayList(Ast.Part){};
+                var count_factors = ArrayList(Ast.Part).empty;
                 while (base.node == .repeat) {
                     try self.appendCountFactors(base.node.repeat.right, &count_factors);
                     base = base.node.repeat.left;

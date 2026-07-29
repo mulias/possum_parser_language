@@ -16,7 +16,7 @@ const StringTable = runtime.StringTable;
 // variable-length operand encodings are resolved when the instructions are
 // written to a Chunk.
 pub const Ir = struct {
-    instructions: ArrayList(Insn) = .{},
+    instructions: ArrayList(Insn) = .empty,
     // Set when writeTo fails with ShortOverflow, so the caller can report
     // where the oversized jump is.
     overflow_region: ?Region = null,
@@ -838,7 +838,7 @@ pub const Ir = struct {
         const insns = self.instructions.items;
         const targets = try allocator.alloc(Index, insns.len);
         @memset(targets, unpatched_jump);
-        var stack = ArrayList(Index){};
+        var stack = ArrayList(Index).empty;
         defer stack.deinit(allocator);
         for (insns, 0..) |insn, i| {
             const index: Index = @intCast(i);

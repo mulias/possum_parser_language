@@ -14,7 +14,7 @@ from a consumed unique rhs would flip that split.
   husks:             3 parked, 1 reused
   strings interned:  9
   strings size:      26 chars
-  bytes in use:      368
+  bytes in use:      400
 
 Same build with the small result kept live, to pin the unique/shared split
 of the survivors.
@@ -34,4 +34,4 @@ of the survivors.
   husks:             2 parked, 1 reused
   strings interned:  8
   strings size:      23 chars
-  bytes in use:      1104
+  bytes in use:      1216

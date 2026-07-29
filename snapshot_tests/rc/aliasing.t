@@ -14,7 +14,7 @@ the unmutated A.
   husks:             1 parked, 0 reused
   strings interned:  9
   strings size:      25 chars
-  bytes in use:      552
+  bytes in use:      592
 
 When the first alternative succeeds, the copy is the fresh result and A
 dies unread in its slot.
@@ -30,4 +30,4 @@ dies unread in its slot.
   husks:             1 parked, 0 reused
   strings interned:  8
   strings size:      23 chars
-  bytes in use:      552
+  bytes in use:      600

@@ -15,7 +15,7 @@ closure.
   husks:             9 parked, 6 reused
   strings interned:  20
   strings size:      94 chars
-  bytes in use:      1376
+  bytes in use:      1392
 
   $ PRINT_MEMORY_REPORT=true DISABLE_RC_FAST_PATHS=true possum -p 'array_sep(word, ",")' -i 'ab,cd,ef,gh,ij'
   ["ab", "cd", "ef", "gh", "ij"]
@@ -28,7 +28,7 @@ closure.
   husks:             0 parked, 0 reused
   strings interned:  20
   strings size:      94 chars
-  bytes in use:      1376
+  bytes in use:      1440
 
 Object closures: object_sep itself takes plain-variable arguments and
 allocates no closures; the closures come from maybe_object_sep's compound
@@ -51,7 +51,7 @@ second object on.
   husks:             9 parked, 4 reused
   strings interned:  106
   strings size:      722 chars
-  bytes in use:      8720
+  bytes in use:      8784
 
   $ PRINT_MEMORY_REPORT=true DISABLE_RC_FAST_PATHS=true possum -p 'json' -i '[{"a": 1}, {"b": 2}, {"c": 3}]'
   [
@@ -68,4 +68,4 @@ second object on.
   husks:             0 parked, 0 reused
   strings interned:  106
   strings size:      722 chars
-  bytes in use:      8720
+  bytes in use:      8808

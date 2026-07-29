@@ -22,15 +22,15 @@ dumps: HashMap(Module.Id, ArrayList(Dump)) = .{},
 // target module's public exports.
 aliases: HashMap(Module.Id, ArrayList(Alias)) = .{},
 graph: DependencyGraph = .{},
-diagnostics: ArrayList(Diagnostic) = .{},
+diagnostics: ArrayList(Diagnostic) = .empty,
 // Scratch space reused by every resolveScopedName call. The function runs to
 // completion before the next identifier is resolved and never re-enters
 // itself, so a single buffer is safe and avoids a per-identifier allocation.
-scoped_name_chain: ArrayList(*DependencyGraph.Node) = .{},
+scoped_name_chain: ArrayList(*DependencyGraph.Node) = .empty,
 // Scratch space reused by every findDeclaration call, same reasoning. Keyed
 // on (module, name), not module alone: alias rewriting can legitimately
 // revisit a module looking for a different name.
-visited_exports: ArrayList(DependencyGraph.NodeKey) = .{},
+visited_exports: ArrayList(DependencyGraph.NodeKey) = .empty,
 
 pub const Resolver = @This();
 
@@ -105,7 +105,7 @@ pub fn addModule(self: *Resolver, module: Module, ast: *const Ast) !void {
 pub fn addDump(self: *Resolver, module_id: Module.Id, target_module: Module.Id, private: bool) !void {
     const gop = try self.dumps.getOrPut(self.arena.allocator(), module_id);
     if (!gop.found_existing) {
-        gop.value_ptr.* = .{};
+        gop.value_ptr.* = .empty;
     }
     try gop.value_ptr.append(self.arena.allocator(), .{
         .module_id = target_module,
@@ -123,7 +123,7 @@ pub fn addAlias(
 ) !void {
     const gop = try self.aliases.getOrPut(self.arena.allocator(), module_id);
     if (!gop.found_existing) {
-        gop.value_ptr.* = .{};
+        gop.value_ptr.* = .empty;
     }
     try gop.value_ptr.append(self.arena.allocator(), .{
         .alias = alias,
@@ -174,7 +174,7 @@ pub fn resolve(self: *Resolver) !void {
         }
     };
 
-    var anons = ArrayList(AnonEntry){};
+    var anons = ArrayList(AnonEntry).empty;
     iter = self.graph.nodes.iterator();
     while (iter.next()) |entry| {
         const key = entry.key_ptr.*;
@@ -278,7 +278,7 @@ fn orderCapturedLocals(self: *Resolver, node: *DependencyGraph.Node) !void {
         return;
     }
 
-    var ordered = ArrayList(StringTable.Id){};
+    var ordered = ArrayList(StringTable.Id).empty;
 
     for (anon.closure_captures.items) |capture| {
         try ordered.append(allocator, capture.local);
@@ -657,7 +657,7 @@ fn resolveThroughAliases(
     }
 
     const allocator = self.arena.allocator();
-    var segments = ArrayList(StringTable.Id){};
+    var segments = ArrayList(StringTable.Id).empty;
     defer segments.deinit(allocator);
     if (alias.selector_prefix) |prefix| {
         try segments.appendSlice(allocator, self.paths.segments(prefix));

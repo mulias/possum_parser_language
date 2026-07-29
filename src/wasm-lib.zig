@@ -8,7 +8,7 @@ const Writers = @import("writer.zig").Writers;
 
 const allocator = switch (builtin.mode) {
     .Debug => blk: {
-        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+        var gpa = std.heap.DebugAllocator(.{}){};
         break :blk gpa.allocator();
     },
     else => std.heap.wasm_allocator,
@@ -31,14 +31,14 @@ fn writeDebugSlice(bytes: []const u8) void {
     writeDebug(@intFromPtr(bytes.ptr), bytes.len);
 }
 
-var out_adapter = ExternalWriter.init(writeOutSlice).deprecatedWriter().adaptToNewApi(&.{});
-var err_adapter = ExternalWriter.init(writeErrSlice).deprecatedWriter().adaptToNewApi(&.{});
-var debug_adapter = ExternalWriter.init(writeDebugSlice).deprecatedWriter().adaptToNewApi(&.{});
+var out_writer = ExternalWriter.init(writeOutSlice, &.{});
+var err_writer = ExternalWriter.init(writeErrSlice, &.{});
+var debug_writer = ExternalWriter.init(writeDebugSlice, &.{});
 
 const writers = Writers{
-    .out = &out_adapter.new_interface,
-    .err = &err_adapter.new_interface,
-    .debug = &debug_adapter.new_interface,
+    .out = &out_writer.interface,
+    .err = &err_writer.interface,
+    .debug = &debug_writer.interface,
 };
 
 fn createVMPtr() !*VM {

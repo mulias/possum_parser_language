@@ -30,9 +30,9 @@ const std = @import("std");
 pub const Compiler = struct {
     vm: *VM,
     frontend: *Frontend,
-    functions: ArrayList(*Elem.DynElem.Function) = .{},
-    scopes: ArrayList(Scope) = .{},
-    irs: ArrayList(Ir) = .{},
+    functions: ArrayList(*Elem.DynElem.Function) = .empty,
+    scopes: ArrayList(Scope) = .empty,
+    irs: ArrayList(Ir) = .empty,
     writers: Writers,
     printBytecode: bool = false,
     global_map: name_resolver.GlobalMap = .{},
@@ -1234,7 +1234,7 @@ pub const Compiler = struct {
 
     fn writeGoalSeq(self: *Compiler, module_id: Module.Id, ast: *const Ast, seq: Ast.Seq, region: Region) Error!void {
         const goals = seq.goals.items;
-        var end_jumps = ArrayList(Ir.Index){};
+        var end_jumps = ArrayList(Ir.Index).empty;
         defer end_jumps.deinit(self.vm.allocator);
 
         for (goals[0..seq.result]) |g| {
@@ -1260,7 +1260,7 @@ pub const Compiler = struct {
     }
 
     fn writeGoalAlt(self: *Compiler, module_id: Module.Id, ast: *const Ast, arms: []const Ast.AltArm, region: Region) Error!void {
-        var end_jumps = ArrayList(Ir.Index){};
+        var end_jumps = ArrayList(Ir.Index).empty;
         defer end_jumps.deinit(self.vm.allocator);
 
         for (arms, 0..) |arm, i| {
@@ -3000,7 +3000,7 @@ pub const Compiler = struct {
         // array register per object place the arm searches (seeded with the
         // place's const keys before the steps run), then a shared key,
         // value, and cursor register reused across pairs.
-        var search_groups = ArrayList(ClaimGroup){};
+        var search_groups = ArrayList(ClaimGroup).empty;
         defer search_groups.deinit(allocator);
         for (constraints) |constraint| switch (constraint.kind) {
             .search_key => |c| {
@@ -3079,7 +3079,7 @@ pub const Compiler = struct {
         // (MatchClaimRest) rather than the has_key/search-register sources
         // (MatchObjectRest). Save/restore across nested writeMatchSteps, as
         // for arm_search_groups.
-        var claim_groups = ArrayList(ClaimGroup){};
+        var claim_groups = ArrayList(ClaimGroup).empty;
         defer claim_groups.deinit(allocator);
         for (constraints) |constraint| switch (constraint.kind) {
             .claim_members => |c| try claim_groups.append(allocator, .{ .src = c.place, .reg = os_claim }),
@@ -3094,7 +3094,7 @@ pub const Compiler = struct {
         // this window needs a shared fail block, which the MatchWindowEnter
         // fail target points at. The indices are never patched — every step
         // fails to the window's fail_ip at runtime, not a per-op target.
-        var fail_jumps = ArrayList(Ir.Index){};
+        var fail_jumps = ArrayList(Ir.Index).empty;
         defer fail_jumps.deinit(allocator);
 
         // An already-failed scrutinee skips the steps and stays the result.
@@ -4784,9 +4784,9 @@ pub const Compiler = struct {
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
-        var prefix = ArrayList(u8){};
+        var prefix = ArrayList(u8).empty;
         defer prefix.deinit(allocator);
-        var suffix = ArrayList(u8){};
+        var suffix = ArrayList(u8).empty;
         defer suffix.deinit(allocator);
         var special: ?Ast.Part = null;
         for (segments) |segment| switch (segment) {
@@ -4881,9 +4881,9 @@ pub const Compiler = struct {
 
         // Normalize segments: fold constants into adjacent literal runs
         // (interned eagerly) and classify the rest.
-        var effs = ArrayList(EffSeg){};
+        var effs = ArrayList(EffSeg).empty;
         defer effs.deinit(allocator);
-        var lit = ArrayList(u8){};
+        var lit = ArrayList(u8).empty;
         defer lit.deinit(allocator);
         var solvable_index: ?usize = null;
 

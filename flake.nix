@@ -4,7 +4,7 @@
   inputs.nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
   inputs.nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0.1.*.tar.gz";
   inputs.zig-overlay.url = "github:mitchellh/zig-overlay";
-  inputs.zls-overlay.url = "github:zigtools/zls?ref=0.15.0";
+  inputs.zls-overlay.url = "github:zigtools/zls?ref=0.16.0";
 
   outputs = { self, nixpkgs, nixpkgs-unstable, zig-overlay, zls-overlay }:
     let
@@ -22,7 +22,7 @@
             allowUnfree = true;
           };
         };
-        zig = zig-overlay.packages.${system}."0.15.1";
+        zig = zig-overlay.packages.${system}."0.16.0";
         zls = zls-overlay.packages.${system}.zls.overrideAttrs (old: {
           nativeBuildInputs = [ zig ];
         });

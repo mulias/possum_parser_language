@@ -9,24 +9,22 @@ const Writers = @import("writer.zig").Writers;
 const build_options = @import("build_options");
 const cli_config = @import("cli_config.zig");
 const explain = runtime.explain;
-const maxInt = std.math.maxInt;
 
-pub fn main() void {
+pub fn main(init: std.process.Init) void {
+    var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
     const allocator = switch (builtin.mode) {
-        .Debug => blk: {
-            var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-            break :blk gpa.allocator();
-        },
+        .Debug => debug_allocator.allocator(),
         else => std.heap.smp_allocator,
     };
+    const io = init.io;
 
-    const stdout = std.fs.File.stdout();
+    const stdout = std.Io.File.stdout();
     var out_buffer: [4096]u8 = undefined;
-    var stdout_writer = stdout.writer(&out_buffer);
+    var stdout_writer = stdout.writer(io, &out_buffer);
 
-    const stderr = std.fs.File.stderr();
+    const stderr = std.Io.File.stderr();
     var err_buffer: [4096]u8 = undefined;
-    var stderr_writer = stderr.writer(&err_buffer);
+    var stderr_writer = stderr.writer(io, &err_buffer);
 
     defer stdout_writer.interface.flush() catch {};
     defer stderr_writer.interface.flush() catch {};
@@ -36,7 +34,7 @@ pub fn main() void {
         .err = &stderr_writer.interface,
         .debug = &stderr_writer.interface,
     };
-    const cli = CLI.init(allocator, writers);
+    const cli = CLI.init(allocator, io, init.environ_map, init.minimal.args, writers);
 
     cli.run() catch |e| {
         cli.writers.err.print("[{s}]\n", .{@errorName(e)}) catch {};
@@ -48,17 +46,23 @@ pub fn main() void {
 
 pub const CLI = struct {
     allocator: Allocator,
+    io: std.Io,
+    environ_map: *std.process.Environ.Map,
+    args: std.process.Args,
     writers: Writers,
 
-    pub fn init(allocator: Allocator, writers: Writers) CLI {
+    pub fn init(allocator: Allocator, io: std.Io, environ_map: *std.process.Environ.Map, args: std.process.Args, writers: Writers) CLI {
         return CLI{
             .allocator = allocator,
+            .io = io,
+            .environ_map = environ_map,
+            .args = args,
             .writers = writers,
         };
     }
 
     pub fn run(self: CLI) !void {
-        switch (try cli_config.run(self.allocator)) {
+        switch (try cli_config.run(self.allocator, self.args)) {
             .Parse => |args| try self.parse(args),
             .Docs => |doc| try self.printDocs(doc),
             .Help => try self.printHelp(),
@@ -68,10 +72,12 @@ pub const CLI = struct {
     }
 
     fn parse(self: CLI, args: cli_config.ParseArgs) !void {
-        const env = try Env.fromOS(self.allocator);
+        const env = Env.fromOS(self.environ_map);
         var config = VMConfig{ .includeStdlib = args.stdlib };
         config.setEnv(env);
         config.explain = args.explain;
+        config.io = self.io;
+        config.environ_map = self.environ_map;
 
         var module_name: []const u8 = undefined;
         var source: []const u8 = undefined;
@@ -132,20 +138,20 @@ pub const CLI = struct {
     }
 
     fn readFile(self: CLI, path: []const u8) ![]const u8 {
-        return try std.fs.cwd().readFileAlloc(self.allocator, path, maxInt(u32));
+        return try std.Io.Dir.cwd().readFileAlloc(self.io, path, self.allocator, .unlimited);
     }
 
     fn readStdin(self: CLI, argName: []const u8) ![]const u8 {
-        const stdin = std.fs.File.stdin();
-        const stat = try stdin.stat();
+        const stdin = std.Io.File.stdin();
+        const stat = try stdin.stat(self.io);
 
-        const isUserInput = stat.kind != std.fs.File.Kind.named_pipe;
+        const isUserInput = stat.kind != std.Io.File.Kind.named_pipe;
 
         if (isUserInput) try self.writers.out.print("Reading {s} (press ctrl-d twice to end):\n", .{argName});
 
-        // TODO: Update Io
-        const old_reader = stdin.deprecatedReader();
-        const input = try old_reader.readAllAlloc(self.allocator, std.math.maxInt(usize));
+        var read_buffer: [4096]u8 = undefined;
+        var stdin_reader = stdin.reader(self.io, &read_buffer);
+        const input = try stdin_reader.interface.allocRemaining(self.allocator, .unlimited);
 
         if (isUserInput) try self.writers.out.print("\n\n", .{});
 
@@ -181,27 +187,26 @@ pub const CLI = struct {
             .@"stdlib-ast" => @embedFile("docs/stdlib-ast"),
         };
 
-        printWithPager(text) catch self.writers.out.print("{s}", .{text}) catch |e| return e;
+        printWithPager(self.io, text) catch self.writers.out.print("{s}", .{text}) catch |e| return e;
     }
 
-    fn printWithPager(str: []const u8) !void {
-        var pager = std.process.Child.init(&[_][]const u8{ "less", "-FIRXS" }, std.heap.page_allocator);
-
-        pager.stdin_behavior = .Pipe;
-
-        try pager.spawn();
+    fn printWithPager(io: std.Io, str: []const u8) !void {
+        var pager = try std.process.spawn(io, .{
+            .argv = &.{ "less", "-FIRXS" },
+            .stdin = .pipe,
+        });
 
         if (pager.stdin) |inputPipe| {
             defer {
-                inputPipe.close();
+                inputPipe.close(io);
                 pager.stdin = null;
             }
             var pipe_buffer: [4096]u8 = undefined;
-            var pipe_writer = inputPipe.writer(&pipe_buffer);
+            var pipe_writer = inputPipe.writer(io, &pipe_buffer);
             try pipe_writer.interface.writeAll(str);
             try pipe_writer.interface.flush();
         }
 
-        _ = try pager.wait();
+        _ = try pager.wait(io);
     }
 };

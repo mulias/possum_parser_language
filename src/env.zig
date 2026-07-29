@@ -36,42 +36,32 @@ pub const Env = struct {
         };
     }
 
-    pub fn fromOS(allocator: Allocator) !Env {
+    pub fn fromOS(env_map: *const std.process.Environ.Map) Env {
         return Env{
-            .printScanner = try getFlag(allocator, "PRINT_SCANNER", false),
-            .printParser = try getFlag(allocator, "PRINT_PARSER", false),
-            .printAst = try getFlag(allocator, "PRINT_AST", false),
-            .printGoalAst = try getGoalStage(allocator, "PRINT_GOAL_AST"),
-            .printCompiledBytecode = try getFlag(allocator, "PRINT_COMPILED_BYTECODE", false),
-            .printExecutedBytecode = try getFlag(allocator, "PRINT_EXECUTED_BYTECODE", false),
-            .printVM = try getFlag(allocator, "PRINT_VM", false),
-            .printGC = try getFlag(allocator, "PRINT_GC", false),
-            .stressTestGC = try getFlag(allocator, "STRESS_TEST_GC", false),
-            .disableRcFastPaths = try getFlag(allocator, "DISABLE_RC_FAST_PATHS", false),
-            .printMemoryReport = try getFlag(allocator, "PRINT_MEMORY_REPORT", false),
-            .runVM = try getFlag(allocator, "RUN_VM", true),
+            .printScanner = getFlag(env_map, "PRINT_SCANNER", false),
+            .printParser = getFlag(env_map, "PRINT_PARSER", false),
+            .printAst = getFlag(env_map, "PRINT_AST", false),
+            .printGoalAst = getGoalStage(env_map, "PRINT_GOAL_AST"),
+            .printCompiledBytecode = getFlag(env_map, "PRINT_COMPILED_BYTECODE", false),
+            .printExecutedBytecode = getFlag(env_map, "PRINT_EXECUTED_BYTECODE", false),
+            .printVM = getFlag(env_map, "PRINT_VM", false),
+            .printGC = getFlag(env_map, "PRINT_GC", false),
+            .stressTestGC = getFlag(env_map, "STRESS_TEST_GC", false),
+            .disableRcFastPaths = getFlag(env_map, "DISABLE_RC_FAST_PATHS", false),
+            .printMemoryReport = getFlag(env_map, "PRINT_MEMORY_REPORT", false),
+            .runVM = getFlag(env_map, "RUN_VM", true),
         };
     }
 
-    fn getFlag(allocator: Allocator, key: []const u8, default: bool) !bool {
-        const value = std.process.getEnvVarOwned(allocator, key) catch |err| switch (err) {
-            error.EnvironmentVariableNotFound => return default,
-            else => |e| return e,
-        };
-        defer allocator.free(value);
-
+    fn getFlag(env_map: *const std.process.Environ.Map, key: []const u8, default: bool) bool {
+        const value = env_map.get(key) orelse return default;
         return std.mem.eql(u8, value, "true");
     }
 
     // A stage name selects where in the goal pipeline to print; "true"
     // prints the latest implemented stage.
-    fn getGoalStage(allocator: Allocator, key: []const u8) !?GoalStage {
-        const value = std.process.getEnvVarOwned(allocator, key) catch |err| switch (err) {
-            error.EnvironmentVariableNotFound => return null,
-            else => |e| return e,
-        };
-        defer allocator.free(value);
-
+    fn getGoalStage(env_map: *const std.process.Environ.Map, key: []const u8) ?GoalStage {
+        const value = env_map.get(key) orelse return null;
         if (std.mem.eql(u8, value, "true")) return .bound;
         return std.meta.stringToEnum(GoalStage, value);
     }

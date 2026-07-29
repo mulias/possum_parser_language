@@ -908,11 +908,11 @@ pub const Elem = packed union {
         if (self.isType(.String) or self.isType(.InputSubstring) or self.isDynType(.String)) {
             return self;
         } else {
-            var bytes = ArrayList(u8){};
-            try self.writeJson(.Compact, vm.*, bytes.writer(vm.allocator));
-            defer bytes.deinit(vm.allocator);
+            var bytes: std.Io.Writer.Allocating = .init(vm.allocator);
+            defer bytes.deinit();
+            try self.writeJson(.Compact, vm.*, &bytes.writer);
 
-            const s = try Elem.DynElem.String.copy(vm, bytes.items);
+            const s = try Elem.DynElem.String.copy(vm, bytes.written());
             return s.dyn.elem();
         }
     }
@@ -990,14 +990,14 @@ pub const Elem = packed union {
                 },
                 .Object => {
                     var object = self.asDyn().asObject();
-                    var jsonObject = json.ObjectMap.init(allocator);
-                    try jsonObject.ensureTotalCapacity(object.members.count());
+                    var jsonObject: json.ObjectMap = .empty;
+                    try jsonObject.ensureTotalCapacity(allocator, object.members.count());
 
                     var iterator = object.members.iterator();
                     while (iterator.next()) |entry| {
                         const key = vm.strings.get(entry.key_ptr.*);
                         const value = try entry.value_ptr.*.toJson(allocator, vm);
-                        try jsonObject.put(key, value);
+                        try jsonObject.put(allocator, key, value);
                     }
 
                     return .{ .object = jsonObject };
@@ -1311,7 +1311,7 @@ pub const Elem = packed union {
                 // with enough capacity that filling the rope allocates
                 // nothing: a collection during construction would sweep
                 // the unrooted string.
-                var segments = ArrayList(Elem){};
+                var segments = ArrayList(Elem).empty;
                 try segments.ensureTotalCapacity(vm.gc.allocator(), capacity);
 
                 const dyn = try vm.gc.createDynElem(String, .String);
@@ -1514,7 +1514,7 @@ pub const Elem = packed union {
                 if (vm.gc.takeParkedArray(capacity)) |array| return array;
 
                 // Allocate elems before array is added to GC
-                var elems = ArrayList(Elem){};
+                var elems = ArrayList(Elem).empty;
                 try elems.ensureTotalCapacity(vm.gc.allocator(), capacity);
 
                 const dyn = try vm.gc.createDynElem(Array, .Array);

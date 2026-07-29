@@ -35,7 +35,7 @@ fn captures(frontend: *Frontend, anon: NodeKey, parent_name: PathTable.Id, local
 
 test "single module with main parser" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -58,7 +58,7 @@ test "single module with main parser" {
 
 test "module with declarations" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -93,7 +93,7 @@ test "module with declarations" {
 
 test "multiple modules with dependencies" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -166,7 +166,7 @@ test "multiple modules with dependencies" {
 
 test "later import shadows earlier import" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -203,7 +203,7 @@ test "later import shadows earlier import" {
 
 test "identifier resolves through transitive dependency" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -239,7 +239,7 @@ test "identifier resolves through transitive dependency" {
 
 test "empty module" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -259,7 +259,7 @@ test "empty module" {
 
 test "declaration with value function" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -292,7 +292,7 @@ test "declaration with value function" {
 
 test "dependency graph population" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -325,7 +325,7 @@ test "dependency graph population" {
 
 test "anonymous functions" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -360,7 +360,7 @@ test "anonymous functions" {
 
 test "nested anonymous functions" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -393,7 +393,7 @@ test "nested anonymous functions" {
 
 test "nested anonymous functions with multiple captures" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -433,7 +433,7 @@ test "nested anonymous functions with multiple captures" {
 
 test "alias resolves qualified names" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -468,7 +468,7 @@ test "alias resolves qualified names" {
 
 test "alias selector re-roots member paths" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -497,7 +497,7 @@ test "alias selector re-roots member paths" {
 
 test "alias kind filter hides mismatched exports" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -528,7 +528,7 @@ test "alias kind filter hides mismatched exports" {
 
 test "alias member that does not exist errors" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -548,7 +548,7 @@ test "alias member that does not exist errors" {
 
 test "alias member that is private errors" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -571,7 +571,7 @@ test "alias member that is private errors" {
 
 test "alias whose case does not match its selector errors" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -589,7 +589,7 @@ test "alias whose case does not match its selector errors" {
 
 test "alias is re-exported through dumps" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -622,7 +622,7 @@ test "alias is re-exported through dumps" {
 
 test "private alias is not re-exported" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -657,7 +657,7 @@ test "private alias is not re-exported" {
 
 test "private dump is visible in-module but not re-exported" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -698,7 +698,7 @@ test "private dump is visible in-module but not re-exported" {
 
 test "private dump is filtered transitively" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -741,7 +741,7 @@ test "private dump is filtered transitively" {
 
 test "alias chains through re-exports" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -773,7 +773,7 @@ test "alias chains through re-exports" {
 
 test "bare alias binds the target module's main parser" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -809,7 +809,7 @@ test "bare alias binds the target module's main parser" {
 
 test "alias root binding chains through re-exports" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -853,7 +853,7 @@ test "alias root binding chains through re-exports" {
 
 test "uppercase alias binds no root" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -877,7 +877,7 @@ test "uppercase alias binds no root" {
 
 test "cyclic selector aliases terminate" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -903,7 +903,7 @@ test "cyclic selector aliases terminate" {
 
 test "circular deps" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -925,7 +925,7 @@ test "circular deps" {
 
 test "import syntax registers an unqualified dump" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -950,7 +950,7 @@ test "import syntax registers an unqualified dump" {
 
 test "import syntax binds an alias namespace and its root" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -981,7 +981,7 @@ test "import syntax binds an alias namespace and its root" {
 
 test "import syntax mounts a selector alias" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -1006,7 +1006,7 @@ test "import syntax mounts a selector alias" {
 
 test "import expression synthesizes a private alias" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -1035,7 +1035,7 @@ test "import expression synthesizes a private alias" {
 
 test "value import expression in value context" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -1060,7 +1060,7 @@ test "value import expression in value context" {
 
 test "selector-less import is not an expression" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -1075,7 +1075,7 @@ test "selector-less import is not an expression" {
 
 test "import of an unknown module errors" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();
@@ -1090,7 +1090,7 @@ test "import of an unknown module errors" {
 
 test "repeated import alias is a duplicate declaration" {
     var vm: VM = undefined;
-    try vm.init(allocator, writers, .{});
+    try vm.init(allocator, writers, .{ .io = std.testing.io });
     defer vm.deinit();
     var frontend = try Frontend.init(&vm);
     defer frontend.deinit();

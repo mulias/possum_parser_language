@@ -21,7 +21,7 @@ pub const Slot = struct {
 };
 
 pub const Env = struct {
-    slots: [max_locals]Slot = [_]Slot{.{}} ** max_locals,
+    slots: [max_locals]Slot = @splat(.{}),
 };
 
 pub const max_locals = 256;
@@ -138,7 +138,7 @@ const Analyzer = struct {
     ast: *Ast,
     allocator: Allocator,
     diagnostics: *ArrayList(Diagnostic),
-    scopes: ArrayList(Scope) = .{},
+    scopes: ArrayList(Scope) = .empty,
 
     // One function frame on the lexical chain. `env` points at the env
     // live in that scope's walk when it descended into a child lambda,

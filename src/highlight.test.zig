@@ -5,41 +5,22 @@ const highlight = @import("highlight.zig");
 const HighlightConfig = highlight.HighlightConfig;
 
 // Test helper to capture writer output
-var test_buffer: std.ArrayListUnmanaged(u8) = undefined;
+var test_buffer: std.Io.Writer.Allocating = undefined;
 
-const TestWriter = struct {
-    const Self = @This();
-
-    pub const Error = error{OutOfMemory};
-
-    pub fn write(self: Self, bytes: []const u8) Error!usize {
-        _ = self;
-        try test_buffer.appendSlice(testing.allocator, bytes);
-        return bytes.len;
-    }
-
-    pub fn print(self: Self, comptime format: []const u8, args: anytype) Error!void {
-        _ = self;
-        try test_buffer.writer(testing.allocator).print(format, args);
-    }
-};
-
-const TestWriterType = std.Io.GenericWriter(TestWriter, TestWriter.Error, TestWriter.write);
-
-fn getTestWriter() TestWriterType {
-    return TestWriterType{ .context = TestWriter{} };
+fn getTestWriter() *std.Io.Writer {
+    return &test_buffer.writer;
 }
 
 fn initTestBuffer() void {
-    test_buffer = std.ArrayListUnmanaged(u8){};
+    test_buffer = std.Io.Writer.Allocating.init(testing.allocator);
 }
 
 fn deinitTestBuffer() void {
-    test_buffer.deinit(testing.allocator);
+    test_buffer.deinit();
 }
 
 fn getTestOutput() []const u8 {
-    return test_buffer.items;
+    return test_buffer.written();
 }
 
 test "highlight single line - no line numbers" {
@@ -348,16 +329,16 @@ test "highlight line numbers width calculation" {
     defer deinitTestBuffer();
 
     // Create source with many lines to test line number width
-    var source_buffer = std.ArrayListUnmanaged(u8){};
-    defer source_buffer.deinit(testing.allocator);
+    var source_buffer = std.Io.Writer.Allocating.init(testing.allocator);
+    defer source_buffer.deinit();
 
     var i: usize = 1;
     while (i <= 100) {
-        try source_buffer.writer(testing.allocator).print("line {d}\n", .{i});
+        try source_buffer.writer.print("line {d}\n", .{i});
         i += 1;
     }
 
-    const source = source_buffer.items;
+    const source = source_buffer.written();
     const region = Region.new(772, 774);
 
     try highlight.highlightRegion(source, region, getTestWriter(), HighlightConfig{});

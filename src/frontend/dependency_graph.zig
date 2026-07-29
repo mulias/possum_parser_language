@@ -92,8 +92,8 @@ pub const DeclarationNode = struct {
     module_ast: *const Ast,
     // A stable pointer into module_ast.declarations.
     decl: *const Ast.Declaration,
-    dependencies: ArrayList(Edge) = .{},
-    locals: ArrayList(StringTable.Id) = .{},
+    dependencies: ArrayList(Edge) = .empty,
+    locals: ArrayList(StringTable.Id) = .empty,
 };
 
 pub const AnonymousFunctionNode = struct {
@@ -102,9 +102,9 @@ pub const AnonymousFunctionNode = struct {
     parent_name: ?PathTable.Id,
     body: Ast.NodeId,
     region: Region,
-    dependencies: ArrayList(Edge) = .{},
-    locals: ArrayList(StringTable.Id) = .{},
-    closure_captures: ArrayList(ClosureCapture) = .{},
+    dependencies: ArrayList(Edge) = .empty,
+    locals: ArrayList(StringTable.Id) = .empty,
+    closure_captures: ArrayList(ClosureCapture) = .empty,
 
     pub fn parent(self: *const AnonymousFunctionNode) ?PathTable.Id {
         return self.parent_name;

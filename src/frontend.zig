@@ -39,16 +39,16 @@ goals: std.AutoArrayHashMapUnmanaged(Module.Id, *Goal) = .{},
 alias_resolutions: std.AutoHashMapUnmanaged(GlobalKey, AliasResolution) = .{},
 // Diagnostics collected by the goal binding pass, reported as compile
 // errors in finalize.
-goal_diagnostics: std.ArrayListUnmanaged(binding.Diagnostic) = .{},
+goal_diagnostics: std.ArrayListUnmanaged(binding.Diagnostic) = .empty,
 // The target module's requested goal print stage; the bound stage can
 // only print from finalize.
 print_goal_stage: ?Ast.Stage = null,
 // Modules every added module implicitly dumps (builtins, then stdlib).
 // Registered before a module's own imports so user imports shadow them.
-implicit_dumps: std.ArrayListUnmanaged(Module.Id) = .{},
+implicit_dumps: std.ArrayListUnmanaged(Module.Id) = .empty,
 // The imports currently being recursed through, outermost first. A load
 // failure reports the failing path literal plus these frames.
-import_chain: std.ArrayListUnmanaged(ImportChainEntry) = .{},
+import_chain: std.ArrayListUnmanaged(ImportChainEntry) = .empty,
 
 pub const AddModuleOpts = struct {
     printScanner: bool = false,
@@ -112,10 +112,10 @@ pub fn init(vm: *VM) !*Frontend {
     frontend.main = null;
     frontend.goals = .{};
     frontend.alias_resolutions = .{};
-    frontend.goal_diagnostics = .{};
+    frontend.goal_diagnostics = .empty;
     frontend.print_goal_stage = null;
-    frontend.implicit_dumps = .{};
-    frontend.import_chain = .{};
+    frontend.implicit_dumps = .empty;
+    frontend.import_chain = .empty;
     frontend.resolver = DependencyResolver.Resolver.init(&frontend.arena, &frontend.paths, &frontend.strings);
     return frontend;
 }
@@ -569,7 +569,7 @@ fn aliasOutcomeFor(self: *Frontend, alias_key: GlobalKey) !AliasOutcome {
 // everything reachable from those through dependency edges.
 fn reachableNodes(self: *Frontend) !std.AutoHashMapUnmanaged(GlobalKey, void) {
     var reachable = std.AutoHashMapUnmanaged(GlobalKey, void){};
-    var stack = std.ArrayListUnmanaged(GlobalKey){};
+    var stack = std.ArrayListUnmanaged(GlobalKey).empty;
     defer stack.deinit(self.arena.allocator());
 
     const target = self.target_module_id orelse return reachable;

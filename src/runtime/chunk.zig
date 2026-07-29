@@ -12,8 +12,8 @@ pub const ChunkError = error{
 };
 
 pub const Chunk = struct {
-    code: ArrayList(u8) = ArrayList(u8){},
-    regions: ArrayList(Region) = ArrayList(Region){},
+    code: ArrayList(u8) = .empty,
+    regions: ArrayList(Region) = .empty,
     source_region: Region,
 
     pub fn deinit(self: *Chunk, allocator: Allocator) void {

@@ -14,7 +14,7 @@ of copying — one fewer dyn created, and gc runs is nonzero.
   husks:             2 parked, 0 reused
   strings interned:  9
   strings size:      25 chars
-  bytes in use:      736
+  bytes in use:      784
 
 A wrapper built and dropped inside a failed Or alternative: the report's
 own collection sweeps the wrapper, so the returned X reports unique
@@ -31,4 +31,4 @@ rather than shared.
   husks:             1 parked, 0 reused
   strings interned:  8
   strings size:      23 chars
-  bytes in use:      552
+  bytes in use:      592

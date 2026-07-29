@@ -11,6 +11,7 @@ const Region = @import("../region.zig").Region;
 const config = VMConfig{
     .includeStdlib = false,
     .gc_mode = .StressTest,
+    .io = std.testing.io,
 };
 
 // Compile and run a program split across a `util` module and a `main` module.

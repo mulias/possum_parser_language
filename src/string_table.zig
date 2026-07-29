@@ -36,7 +36,7 @@ pub fn StringTable(comptime table_scope: Scope) type {
         pub fn init(allocator: Allocator) Self {
             return Self{
                 .allocator = allocator,
-                .buffer = .{},
+                .buffer = .empty,
                 .table = .{},
                 .count = 0,
             };
