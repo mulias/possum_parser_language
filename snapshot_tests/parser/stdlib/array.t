@@ -110,7 +110,7 @@
         (Identifier 17:7-12 elem1)
         (Identifier 17:14-19 elem2)
       ])
-    (TakeRight 17:23-59
+    (Sequence 17:23-59
       (Destructure 17:23-34
         (Identifier 17:23-28 elem1)
         (Identifier 17:32-34 E1))
@@ -130,8 +130,8 @@
         (Identifier 19:18-21 sep)
         (Identifier 19:23-28 elem2)
       ])
-    (TakeRight 19:32-74
-      (TakeRight 19:32-49
+    (Sequence 19:32-74
+      (Sequence 19:32-49
         (Destructure 19:32-43
           (Identifier 19:32-37 elem1)
           (Identifier 19:41-43 E1))
@@ -152,8 +152,8 @@
         (Identifier 21:14-19 elem2)
         (Identifier 21:21-26 elem3)
       ])
-    (TakeRight 22:2-62
-      (TakeRight 22:2-29
+    (Sequence 22:2-62
+      (Sequence 22:2-29
         (Destructure 22:2-13
           (Identifier 22:2-7 elem1)
           (Identifier 22:11-13 E1))
@@ -179,10 +179,10 @@
         (Identifier 27:31-35 sep2)
         (Identifier 27:37-42 elem3)
       ])
-    (TakeRight 28:2-76
-      (TakeRight 28:2-43
-        (TakeRight 28:2-36
-          (TakeRight 28:2-20
+    (Sequence 28:2-76
+      (Sequence 28:2-43
+        (Sequence 28:2-36
+          (Sequence 28:2-20
             (Destructure 28:2-13
               (Identifier 28:2-7 elem1)
               (Identifier 28:11-13 E1))
@@ -274,8 +274,8 @@
         (Identifier 41:27-34 row_sep)
         (Identifier 41:36-39 Pad)
       ])
-    (TakeRight 42:2-151
-      (TakeRight 42:2-79
+    (Sequence 42:2-151
+      (Sequence 42:2-79
         (Destructure 42:2-61
           (Function 42:2-43
             (Identifier 42:2-6 peek) [

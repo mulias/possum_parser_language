@@ -608,7 +608,7 @@ pub const Parser = struct {
         }
 
         const infixType: Ast.InfixType = switch (t.tokenType) {
-            .Ampersand => .TakeRight,
+            .Ampersand => .Sequence,
             .Bar => .Or,
             .DashGreaterThan => .Destructure,
             .DollarSign => .Return,

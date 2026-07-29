@@ -39,7 +39,7 @@
             (ObjectPair (String 8:13-20 "power") (Identifier 8:22-40 PrefixBindingPower))
           ])
           (Identifier 8:45-55 PrefixNode)))
-      (TakeRight 8:59-340
+      (Sequence 8:59-340
         (Destructure 9:4-105
           (Function 9:4-97
             (Identifier 9:4-26 _with_precedence_start) [
@@ -71,7 +71,7 @@
                     (Identifier 16:65-69 Node)
                   ])))
           ]))
-      (TakeRight 18:6-140
+      (Sequence 18:6-140
         (Destructure 19:4-19
           (Identifier 19:4-11 operand)
           (Identifier 19:15-19 Node))
@@ -96,7 +96,7 @@
         (Identifier 27:73-77 Node)
       ])
     (Conditional 28:2-757
-      (TakeRight 28:2-117
+      (Sequence 28:2-117
         (Destructure 28:2-57
           (Identifier 28:2-9 postfix)
           (Merge 28:13-57
@@ -134,7 +134,7 @@
                 ])))
         ])
       (Conditional 36:2-458
-        (TakeRight 36:2-137
+        (Sequence 36:2-137
           (Destructure 36:2-77
             (Identifier 36:2-7 infix)
             (Merge 36:11-77
@@ -155,7 +155,7 @@
                   (Identifier 37:38-55 RightBindingPower)
                 ])
             ]))
-        (TakeRight 37:60-362
+        (Sequence 37:60-362
           (Destructure 38:4-112
             (Function 38:4-99
               (Identifier 38:4-26 _with_precedence_start) [
@@ -261,8 +261,8 @@
       (Identifier 62:0-15 with_offset_pos) [
         (Identifier 62:16-20 node)
       ])
-    (TakeRight 63:2-138
-      (TakeRight 63:2-47
+    (Sequence 63:2-138
+      (Sequence 63:2-47
         (Destructure 63:2-30
           (Identifier 63:2-15 @input.offset)
           (Identifier 63:19-30 StartOffset))
@@ -287,10 +287,10 @@
       (Identifier 68:0-13 with_line_pos) [
         (Identifier 68:14-18 node)
       ])
-    (TakeRight 69:2-297
-      (TakeRight 69:2-112
-        (TakeRight 69:2-85
-          (TakeRight 69:2-68
+    (Sequence 69:2-297
+      (Sequence 69:2-112
+        (Sequence 69:2-85
+          (Sequence 69:2-68
             (Destructure 69:2-26
               (Identifier 69:2-13 @input.line)
               (Identifier 69:17-26 StartLine))

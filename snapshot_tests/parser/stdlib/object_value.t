@@ -21,7 +21,7 @@
         (Identifier 3:8-9 O)
         (Identifier 3:11-12 K)
       ])
-    (TakeRight 3:16-37
+    (Sequence 3:16-37
       (Destructure 3:16-33
         (Identifier 3:16-17 O)
         (Merge 3:21-33
@@ -51,7 +51,7 @@
       (Identifier 7:0-8 Obj.Size) [
         (Identifier 7:9-10 O)
       ])
-    (TakeRight 7:14-35
+    (Sequence 7:14-35
       (Destructure 7:14-31
         (Identifier 7:14-15 O)
         (Repeat 7:19-31

@@ -128,7 +128,7 @@
   
   (DeclareGlobal 43:0-100
     (Identifier 43:0-21 _valid_surrogate_pair)
-    (TakeRight 44:2-76
+    (Sequence 44:2-76
       (Destructure 44:2-22
         (Identifier 44:2-17 _high_surrogate)
         (Identifier 44:21-22 H))

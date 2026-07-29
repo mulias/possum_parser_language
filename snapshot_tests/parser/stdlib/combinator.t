@@ -75,7 +75,7 @@
       (Identifier 14:0-4 peek) [
         (Identifier 14:5-6 p)
       ])
-    (TakeRight 14:10-44
+    (Sequence 14:10-44
       (Destructure 14:10-30
         (Identifier 14:10-23 @input.offset)
         (Identifier 14:27-30 Pos))

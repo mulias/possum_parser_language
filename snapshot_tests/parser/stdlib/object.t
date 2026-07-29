@@ -109,7 +109,7 @@
         (Identifier 17:5-8 key)
         (Identifier 17:10-15 value)
       ])
-    (TakeRight 17:19-49
+    (Sequence 17:19-49
       (Destructure 17:19-27
         (Identifier 17:19-22 key)
         (Identifier 17:26-27 K))
@@ -128,8 +128,8 @@
         (Identifier 19:14-17 sep)
         (Identifier 19:19-24 value)
       ])
-    (TakeRight 19:28-64
-      (TakeRight 19:28-42
+    (Sequence 19:28-64
+      (Sequence 19:28-42
         (Destructure 19:28-36
           (Identifier 19:28-31 key)
           (Identifier 19:35-36 K))
@@ -164,7 +164,7 @@
         (Identifier 23:22-26 Key2)
         (Identifier 23:28-34 value2)
       ])
-    (TakeRight 24:2-56
+    (Sequence 24:2-56
       (Destructure 24:2-14
         (Identifier 24:2-8 value1)
         (Identifier 24:12-14 V1))
@@ -186,8 +186,8 @@
         (Identifier 28:31-35 Key2)
         (Identifier 28:37-43 value2)
       ])
-    (TakeRight 29:2-62
-      (TakeRight 29:2-20
+    (Sequence 29:2-62
+      (Sequence 29:2-20
         (Destructure 29:2-14
           (Identifier 29:2-8 value1)
           (Identifier 29:12-14 V1))
@@ -211,8 +211,8 @@
         (Identifier 33:36-40 Key3)
         (Identifier 33:42-48 value3)
       ])
-    (TakeRight 34:2-83
-      (TakeRight 34:2-31
+    (Sequence 34:2-83
+      (Sequence 34:2-31
         (Destructure 34:2-14
           (Identifier 34:2-8 value1)
           (Identifier 34:12-14 V1))
@@ -241,10 +241,10 @@
         (Identifier 39:52-56 Key3)
         (Identifier 39:58-64 value3)
       ])
-    (TakeRight 40:2-97
-      (TakeRight 40:2-45
-        (TakeRight 40:2-38
-          (TakeRight 40:2-21
+    (Sequence 40:2-97
+      (Sequence 40:2-45
+        (Sequence 40:2-38
+          (Sequence 40:2-21
             (Destructure 40:2-14
               (Identifier 40:2-8 value1)
               (Identifier 40:12-14 V1))

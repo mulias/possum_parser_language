@@ -36,8 +36,8 @@
       (Identifier 15:0-6 custom) [
         (Identifier 15:7-12 value)
       ])
-    (TakeRight 16:2-142
-      (TakeRight 16:2-89
+    (Sequence 16:2-142
+      (Sequence 16:2-89
         (Function 16:2-30
           (Identifier 16:2-7 maybe) [
             (Merge 16:8-29
@@ -78,7 +78,7 @@
       (Identifier 21:0-16 _with_root_table) [
         (Identifier 21:17-22 value)
       ])
-    (TakeRight 22:2-96
+    (Sequence 22:2-96
       (Destructure 22:2-43
         (Function 22:2-32
           (Identifier 22:2-13 _root_table) [
@@ -117,7 +117,7 @@
       (Identifier 28:0-14 _no_root_table) [
         (Identifier 28:15-20 value)
       ])
-    (TakeRight 29:2-102
+    (Sequence 29:2-102
       (Destructure 29:2-75
         (Or 29:2-65
           (Function 29:2-27
@@ -175,8 +175,8 @@
         (Identifier 38:7-12 value)
         (Identifier 38:14-17 Doc)
       ])
-    (TakeRight 39:2-144
-      (TakeRight 39:2-43
+    (Sequence 39:2-144
+      (Sequence 39:2-43
         (Destructure 39:2-29
           (Identifier 39:2-15 _table_header)
           (Identifier 39:19-29 HeaderPath))
@@ -203,8 +203,8 @@
         (Identifier 44:17-22 value)
         (Identifier 44:24-27 Doc)
       ])
-    (TakeRight 45:2-174
-      (TakeRight 45:2-53
+    (Sequence 45:2-174
+      (Sequence 45:2-53
         (Destructure 45:2-39
           (Identifier 45:2-25 _array_of_tables_header)
           (Identifier 45:29-39 HeaderPath))
@@ -302,9 +302,9 @@
         (Identifier 62:19-29 HeaderPath)
         (Identifier 62:31-34 Doc)
       ])
-    (TakeRight 63:2-191
-      (TakeRight 63:2-132
-        (TakeRight 63:2-52
+    (Sequence 63:2-191
+      (Sequence 63:2-132
+        (Sequence 63:2-52
           (Destructure 63:2-38
             (Function 63:2-20
               (Identifier 63:2-13 _table_pair) [
@@ -621,7 +621,7 @@
       (Identifier 142:0-22 _nonempty_inline_table) [
         (Identifier 142:23-28 value)
       ])
-    (TakeRight 143:2-155
+    (Sequence 143:2-155
       (Destructure 143:2-83
         (TakeRight 143:2-63
           (TakeRight 143:2-21
@@ -681,12 +681,12 @@
         (Identifier 153:19-24 value)
         (Identifier 153:26-29 Doc)
       ])
-    (TakeRight 154:2-144
-      (TakeRight 154:2-89
-        (TakeRight 154:2-72
-          (TakeRight 154:2-56
-            (TakeRight 154:2-50
-              (TakeRight 154:2-32
+    (Sequence 154:2-144
+      (Sequence 154:2-89
+        (Sequence 154:2-72
+          (Sequence 154:2-56
+            (Sequence 154:2-50
+              (Sequence 154:2-32
                 (Function 154:2-15
                   (Identifier 154:2-7 maybe) [
                     (Identifier 154:8-14 spaces)
@@ -1154,7 +1154,7 @@
   
   (DeclareGlobal 258:0-204
     (Identifier 258:0-21 number.binary_integer)
-    (TakeRight 259:2-180
+    (Sequence 259:2-180
       (String 259:2-6 "0b")
       (Return 259:9-180
         (Destructure 259:9-147
@@ -1198,7 +1198,7 @@
   
   (DeclareGlobal 265:0-200
     (Identifier 265:0-20 number.octal_integer)
-    (TakeRight 266:2-177
+    (Sequence 266:2-177
       (String 266:2-6 "0o")
       (Return 266:9-177
         (Destructure 266:9-145
@@ -1242,7 +1242,7 @@
   
   (DeclareGlobal 272:0-192
     (Identifier 272:0-18 number.hex_integer)
-    (TakeRight 273:2-171
+    (Sequence 273:2-171
       (String 273:2-6 "0x")
       (Return 273:9-171
         (Destructure 273:9-141
@@ -1378,7 +1378,7 @@
         (Identifier 294:22-25 Val)
         (Identifier 294:27-31 Type)
       ])
-    (TakeRight 295:2-126
+    (Sequence 295:2-126
       (Function 295:2-19
         (Identifier 295:2-14 _Doc.IsTable) [
           (Identifier 295:15-18 Doc)
@@ -1415,7 +1415,7 @@
         (Identifier 301:32-35 Key)
         (Identifier 301:37-47 ElementDoc)
       ])
-    (TakeRight 302:2-203
+    (Sequence 302:2-203
       (Destructure 302:2-70
         (Function 302:2-20
           (Identifier 302:2-10 _Doc.Get) [
@@ -1532,7 +1532,7 @@
               (Identifier 321:11-14 Key)
             ])
             (Identifier 321:19-27 PathRest)))
-        (TakeRight 321:31-343
+        (Sequence 321:31-343
           (Destructure 322:4-235
             (Conditional 322:4-223
               (Function 323:6-24
@@ -1540,7 +1540,7 @@
                   (Identifier 323:15-18 Doc)
                   (Identifier 323:20-23 Key)
                 ])
-              (TakeRight 323:27-149
+              (Sequence 323:27-149
                 (Function 324:8-40
                   (Identifier 324:8-20 _Doc.IsTable) [
                     (Function 324:21-39
@@ -1618,7 +1618,7 @@
           (Identifier 337:11-14 Doc)
           (Identifier 337:16-19 Key)
         ])
-      (TakeRight 338:2-42
+      (Sequence 338:2-42
         (Function 338:3-35
           (Identifier 338:3-15 _Doc.IsTable) [
             (Function 338:16-34
@@ -1643,7 +1643,7 @@
         (Identifier 341:24-27 Key)
         (Identifier 341:29-39 ElementDoc)
       ])
-    (TakeRight 342:2-167
+    (Sequence 342:2-167
       (Destructure 342:2-107
         (Conditional 342:2-93
           (Function 343:4-22
@@ -1706,10 +1706,10 @@
         (Identifier 352:22-25 Key)
         (Identifier 352:27-40 KeyPathAndVal)
       ])
-    (TakeRight 353:2-255
-      (TakeRight 353:2-184
-        (TakeRight 353:2-127
-          (TakeRight 353:2-102
+    (Sequence 353:2-255
+      (Sequence 353:2-184
+        (Sequence 353:2-127
+          (Sequence 353:2-102
             (Destructure 353:2-33
               (Identifier 353:2-15 KeyPathAndVal)
               (Array 353:19-33 [
@@ -1809,8 +1809,8 @@
           (Identifier 366:11-14 Doc)
           (Identifier 366:16-19 Key)
         ])
-      (TakeRight 366:23-374
-        (TakeRight 367:4-276
+      (Sequence 366:23-374
+        (Sequence 367:4-276
           (Destructure 367:4-33
             (Function 367:4-22
               (Identifier 367:4-12 _Doc.Get) [
@@ -1837,7 +1837,7 @@
                   (Identifier 370:53-56 Val)
                   (Identifier 370:58-65 Updater)
                 ])
-              (TakeRight 371:6-92
+              (Sequence 371:6-92
                 (Function 371:6-27
                   (Identifier 371:6-18 _Doc.IsTable) [
                     (Identifier 371:19-26 Current)
@@ -1863,7 +1863,7 @@
                 (Identifier 374:57-64 Updated)
               ])
           ]))
-      (TakeRight 375:6-158
+      (Sequence 375:6-158
         (Destructure 376:4-75
           (Function 376:4-63
             (Identifier 376:4-27 _Doc.UpdateAtHeaderPath) [
@@ -1895,9 +1895,9 @@
         (Identifier 380:46-49 Val)
         (Identifier 380:51-58 Updater)
       ])
-    (TakeRight 381:2-346
-      (TakeRight 381:2-215
-        (TakeRight 381:2-107
+    (Sequence 381:2-346
+      (Sequence 381:2-215
+        (Sequence 381:2-107
           (Destructure 381:2-42
             (Function 381:2-20
               (Identifier 381:2-12 _Doc.Value) [

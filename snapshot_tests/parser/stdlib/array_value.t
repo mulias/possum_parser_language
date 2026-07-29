@@ -6,7 +6,7 @@
       (Identifier 1:0-11 Array.First) [
         (Identifier 1:12-13 A)
       ])
-    (TakeRight 1:17-35
+    (Sequence 1:17-35
       (Destructure 1:17-31
         (Identifier 1:17-18 A)
         (Merge 1:22-31
@@ -21,7 +21,7 @@
       (Identifier 3:0-10 Array.Rest) [
         (Identifier 3:11-12 A)
       ])
-    (TakeRight 3:16-34
+    (Sequence 3:16-34
       (Destructure 3:16-30
         (Identifier 3:16-17 A)
         (Merge 3:21-30
@@ -36,7 +36,7 @@
       (Identifier 5:0-12 Array.Length) [
         (Identifier 5:13-14 A)
       ])
-    (TakeRight 5:18-36
+    (Sequence 5:18-36
       (Destructure 5:18-32
         (Identifier 5:18-19 A)
         (Repeat 5:23-32
@@ -346,7 +346,7 @@
         (Identifier 46:25-28 Acc)
       ])
     (Conditional 47:2-106
-      (TakeRight 47:2-45
+      (Sequence 47:2-45
         (Destructure 47:2-22
           (Identifier 47:2-4 Ks)
           (Merge 47:8-22
@@ -396,7 +396,7 @@
         (Identifier 53:24-27 Acc)
       ])
     (Conditional 54:2-123
-      (TakeRight 54:2-53
+      (Sequence 54:2-53
         (Destructure 54:2-26
           (Identifier 54:2-4 A1)
           (Merge 54:8-26
@@ -461,7 +461,7 @@
         (Identifier 62:20-23 Acc)
       ])
     (Conditional 63:2-141
-      (TakeRight 63:2-77
+      (Sequence 63:2-77
         (Destructure 63:2-38
           (Function 63:2-23
             (Identifier 63:2-20 _Table.FirstPerRow) [
@@ -492,8 +492,8 @@
       (Identifier 68:0-18 _Table.FirstPerRow) [
         (Identifier 68:19-20 T)
       ])
-    (TakeRight 69:2-91
-      (TakeRight 69:2-48
+    (Sequence 69:2-91
+      (Sequence 69:2-48
         (Destructure 69:2-21
           (Identifier 69:2-3 T)
           (Merge 69:7-21
@@ -523,7 +523,7 @@
         (Identifier 72:23-26 Acc)
       ])
     (Conditional 73:2-99
-      (TakeRight 73:2-44
+      (Sequence 73:2-44
         (Destructure 73:2-21
           (Identifier 73:2-3 T)
           (Merge 73:7-21

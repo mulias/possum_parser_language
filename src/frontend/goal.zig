@@ -417,7 +417,7 @@ fn convertParser(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
                 0,
                 region,
             ),
-            .TakeRight => self.seqPair(
+            .TakeRight, .Sequence => self.seqPair(
                 try self.convertParser(infix.left),
                 try self.convertParser(infix.right),
                 1,
@@ -726,7 +726,7 @@ fn convertValue(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
                 0,
                 region,
             ),
-            .TakeRight => self.seqPair(
+            .TakeRight, .Sequence => self.seqPair(
                 try self.convertValue(infix.left),
                 try self.convertValue(infix.right),
                 1,
