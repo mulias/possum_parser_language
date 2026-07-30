@@ -123,18 +123,26 @@ fn failureName(buf: []u8, prefix: []const u8, source: []const u8) ![]const u8 {
 const placeholder = Region.new(0, 0);
 
 // Grammar-directed generator over the parsed ast. Only parser-producible
-// shapes are emitted (DeclareGlobal at roots only, function heads are
-// identifiers, NumberString spellings from a valid pool), so the formatted
-// output must parse. Identifier and literal pools are deliberately tiny so
-// random programs collide into valid bindings often enough to reach the
-// pattern compiler.
+// shapes are emitted, so the formatted output must parse. Identifier and
+// literal pools are deliberately tiny so random programs collide into valid
+// bindings often enough to reach the pattern compiler.
+//
+// Generation follows the language's three shapes: parser expressions,
+// patterns, and constructed values. The shapes share leaves but admit
+// different operators.
 const Gen = struct {
     smith: *Smith,
     ast: *Ast,
     decls: ArrayList(Decl) = .empty,
     nodes_left: u32 = node_budget,
 
-    const Decl = struct { name: []const u8, arity: u8 };
+    const DeclKind = enum { parser, value };
+    const Decl = struct {
+        name: []const u8,
+        kind: DeclKind,
+        arity: u8,
+        params: [param_names.len]DeclKind,
+    };
     const Error = error{OutOfMemory};
 
     const max_depth = 6;
@@ -167,25 +175,47 @@ const Gen = struct {
 
     fn declaration(g: *Gen, name: []const u8) Error!void {
         const arity = g.smith.valueRangeAtMost(u8, 0, param_names.len);
+        var param_kinds: [param_names.len]DeclKind = undefined;
         const ident = try g.identNode(name);
         const head = if (arity == 0) ident else blk: {
             var params: ArrayList(*RNode) = .empty;
-            for (param_names[0..arity]) |slot| {
-                const spelling = slot[@intFromBool(g.smith.value(bool))];
-                try params.append(g.alc(), try g.identNode(spelling));
+            for (param_names[0..arity], 0..) |slot, i| {
+                const is_value = g.smith.value(bool);
+                param_kinds[i] = if (is_value) .value else .parser;
+                try params.append(g.alc(), try g.identNode(slot[@intFromBool(is_value)]));
             }
             break :blk try g.ast.createFunction(ident, params, placeholder);
         };
         // Recorded before the body so the body can call itself and earlier
         // declarations.
-        try g.decls.append(g.alc(), .{ .name = name, .arity = arity });
+        try g.decls.append(g.alc(), .{
+            .name = name,
+            .kind = .parser,
+            .arity = arity,
+            .params = param_kinds,
+        });
         const body = try g.expr(0);
         try g.ast.pushRoot(try g.ast.createDeclareGlobal(head, body, placeholder));
     }
 
+    // A value function declaration; parameters are values.
     fn valueDeclaration(g: *Gen, name: []const u8) Error!void {
-        const head = try g.identNode(name);
-        const body = try g.pattern(0);
+        const arity = g.smith.valueRangeAtMost(u8, 0, param_names.len);
+        const ident = try g.identNode(name);
+        const head = if (arity == 0) ident else blk: {
+            var params: ArrayList(*RNode) = .empty;
+            for (param_names[0..arity]) |slot| {
+                try params.append(g.alc(), try g.identNode(slot[1]));
+            }
+            break :blk try g.ast.createFunction(ident, params, placeholder);
+        };
+        try g.decls.append(g.alc(), .{
+            .name = name,
+            .kind = .value,
+            .arity = arity,
+            .params = @splat(.value),
+        });
+        const body = try g.value(0);
         try g.ast.pushRoot(try g.ast.createDeclareGlobal(head, body, placeholder));
     }
 
@@ -256,18 +286,18 @@ const Gen = struct {
             .or_ => g.ast.createInfix(.Or, try g.expr(depth + 1), try g.expr(depth + 1), placeholder),
             .merge => g.ast.createInfix(.Merge, try g.expr(depth + 1), try g.expr(depth + 1), placeholder),
             .repeat => g.ast.createInfix(.Repeat, try g.expr(depth + 1), try g.count(depth + 1), placeholder),
-            .return_ => g.ast.createInfix(.Return, try g.expr(depth + 1), try g.pattern(depth + 1), placeholder),
+            .return_ => g.ast.createInfix(.Return, try g.expr(depth + 1), try g.value(depth + 1), placeholder),
             .take_left => g.ast.createInfix(.TakeLeft, try g.expr(depth + 1), try g.expr(depth + 1), placeholder),
             .take_right => g.ast.createInfix(.TakeRight, try g.expr(depth + 1), try g.expr(depth + 1), placeholder),
             .subtract => g.ast.createInfix(.NumberSubtract, try g.count(depth + 1), try g.count(depth + 1), placeholder),
             .range => g.range(),
             .negation => g.ast.create(.{ .Negation = try g.count(depth + 1) }, placeholder),
-            .value_label => g.ast.create(.{ .ValueLabel = try g.pattern(depth + 1) }, placeholder),
+            .value_label => g.ast.create(.{ .ValueLabel = try g.value(depth + 1) }, placeholder),
             .conditional => g.ast.createConditional(try g.expr(depth + 1), try g.expr(depth + 1), try g.expr(depth + 1), placeholder),
             .array => g.array(depth, .expr_ctx),
             .object => g.object(depth, .expr_ctx),
             .template => g.template(depth, .expr_ctx),
-            .call => g.callRef(depth),
+            .call => g.call(depth, .parser),
         };
     }
 
@@ -321,17 +351,111 @@ const Gen = struct {
             .template => g.template(depth, .pat_ctx),
             .merge => g.ast.createInfix(.Merge, try g.pattern(depth + 1), try g.pattern(depth + 1), placeholder),
             .negated_number => g.ast.create(.{ .Negation = try g.number() }, placeholder),
-            .call => g.patternCall(depth),
+            .call => g.call(depth, null),
             .range => g.range(),
         };
     }
 
-    const Ctx = enum { expr_ctx, pat_ctx };
+    const ValKind = enum {
+        value_var,
+        number,
+        string,
+        boolean,
+        null_,
+        array,
+        object,
+        template,
+        merge,
+        subtract,
+        repeat,
+        or_,
+        take_left,
+        take_right,
+        sequence,
+        return_,
+        conditional,
+        destructure,
+        call,
+    };
+
+    // Constructed values: the parsing infixes act as control flow here, and
+    // a nested destructure is an ordinary value expression.
+    const val_weights = [_]Weight{
+        .value(ValKind, .value_var, 5),
+        .value(ValKind, .number, 3),
+        .value(ValKind, .string, 3),
+        .value(ValKind, .boolean, 1),
+        .value(ValKind, .null_, 1),
+        .value(ValKind, .array, 3),
+        .value(ValKind, .object, 3),
+        .value(ValKind, .template, 3),
+        .value(ValKind, .merge, 4),
+        .value(ValKind, .subtract, 2),
+        .value(ValKind, .repeat, 2),
+        .value(ValKind, .or_, 2),
+        .value(ValKind, .take_left, 1),
+        .value(ValKind, .take_right, 1),
+        .value(ValKind, .sequence, 1),
+        .value(ValKind, .return_, 1),
+        .value(ValKind, .conditional, 2),
+        .value(ValKind, .destructure, 4),
+        .value(ValKind, .call, 3),
+    };
+
+    fn value(g: *Gen, depth: u8) Error!*RNode {
+        if (depth >= max_depth or g.nodes_left == 0) return g.valueLeaf();
+        g.nodes_left -= 1;
+
+        return switch (g.smith.valueWeighted(ValKind, &val_weights)) {
+            .value_var => g.valueVar(),
+            .number => g.number(),
+            .string => g.string(),
+            .boolean => g.boolean(),
+            .null_ => g.ast.create(.Null, placeholder),
+            .array => g.array(depth, .val_ctx),
+            .object => g.object(depth, .val_ctx),
+            .template => g.template(depth, .val_ctx),
+            .merge => g.ast.createInfix(.Merge, try g.value(depth + 1), try g.value(depth + 1), placeholder),
+            .subtract => g.ast.createInfix(.NumberSubtract, try g.value(depth + 1), try g.value(depth + 1), placeholder),
+            .repeat => g.ast.createInfix(.Repeat, try g.value(depth + 1), try g.value(depth + 1), placeholder),
+            .or_ => g.ast.createInfix(.Or, try g.value(depth + 1), try g.value(depth + 1), placeholder),
+            .take_left => g.ast.createInfix(.TakeLeft, try g.value(depth + 1), try g.value(depth + 1), placeholder),
+            .take_right => g.ast.createInfix(.TakeRight, try g.value(depth + 1), try g.value(depth + 1), placeholder),
+            .sequence => g.ast.createInfix(.Sequence, try g.value(depth + 1), try g.value(depth + 1), placeholder),
+            .return_ => g.ast.createInfix(.Return, try g.value(depth + 1), try g.value(depth + 1), placeholder),
+            .conditional => g.ast.createConditional(try g.value(depth + 1), try g.value(depth + 1), try g.value(depth + 1), placeholder),
+            .destructure => g.ast.createInfix(.Destructure, try g.value(depth + 1), try g.pattern(depth + 1), placeholder),
+            .call => g.call(depth, .value),
+        };
+    }
+
+    const ValueLeafKind = enum { number, string, value_var, boolean, null_ };
+
+    const value_leaf_weights = [_]Weight{
+        .value(ValueLeafKind, .number, 3),
+        .value(ValueLeafKind, .value_var, 4),
+        .value(ValueLeafKind, .string, 3),
+        .value(ValueLeafKind, .boolean, 1),
+        .value(ValueLeafKind, .null_, 1),
+    };
+
+    fn valueLeaf(g: *Gen) Error!*RNode {
+        return switch (g.smith.valueWeighted(ValueLeafKind, &value_leaf_weights)) {
+            .number => g.number(),
+            .string => g.string(),
+            .value_var => g.valueVar(),
+            .boolean => g.boolean(),
+            .null_ => g.ast.create(.Null, placeholder),
+        };
+    }
+
+    const Ctx = enum { expr_ctx, pat_ctx, val_ctx };
 
     fn child(g: *Gen, depth: u8, ctx: Ctx) Error!*RNode {
         return switch (ctx) {
             .expr_ctx => g.expr(depth + 1),
             .pat_ctx => g.pattern(depth + 1),
+            .val_ctx => g.value(depth + 1),
         };
     }
 
@@ -448,13 +572,13 @@ const Gen = struct {
         };
     }
 
-    // A bare reference to an arity-0 declaration, or a number when none
-    // exists yet.
+    // A bare reference to an arity-0 parser declaration, or a number when
+    // none exists yet.
     fn bareRef(g: *Gen) Error!*RNode {
         var candidates: [decl_names.len][]const u8 = undefined;
         var n: usize = 0;
         for (g.decls.items) |decl| {
-            if (decl.arity == 0) {
+            if (decl.kind == .parser and decl.arity == 0) {
                 candidates[n] = decl.name;
                 n += 1;
             }
@@ -474,41 +598,32 @@ const Gen = struct {
         };
     }
 
-    // A call to a declared function with matching arity, or a bare
-    // reference when none exists.
-    fn callRef(g: *Gen, depth: u8) Error!*RNode {
-        var candidates: [decl_names.len]Decl = undefined;
+    // A call to a declared function of the wanted kind (either kind in
+    // pattern position), with each argument generated per the parameter's
+    // kind so calls pass the call check. Falls back when nothing callable
+    // of that kind is declared.
+    fn call(g: *Gen, depth: u8, want: ?DeclKind) Error!*RNode {
+        var candidates: [decl_names.len + value_decl_names.len]Decl = undefined;
         var n: usize = 0;
         for (g.decls.items) |decl| {
-            if (decl.arity > 0) {
-                candidates[n] = decl;
-                n += 1;
-            }
+            if (decl.arity == 0) continue;
+            if (want) |kind| if (decl.kind != kind) continue;
+            candidates[n] = decl;
+            n += 1;
         }
-        if (n == 0) return g.bareRef();
+        if (n == 0) {
+            return if (want) |kind| switch (kind) {
+                .parser => g.bareRef(),
+                .value => g.valueVar(),
+            } else g.valueVar();
+        }
         const decl = candidates[g.smith.index(n)];
         var args: ArrayList(*RNode) = .empty;
-        for (0..decl.arity) |_| {
-            try args.append(g.alc(), try g.expr(depth + 1));
-        }
-        return g.ast.createFunction(try g.identNode(decl.name), args, placeholder);
-    }
-
-    // A pattern-position function call with pattern arguments.
-    fn patternCall(g: *Gen, depth: u8) Error!*RNode {
-        var candidates: [decl_names.len]Decl = undefined;
-        var n: usize = 0;
-        for (g.decls.items) |decl| {
-            if (decl.arity > 0) {
-                candidates[n] = decl;
-                n += 1;
-            }
-        }
-        if (n == 0) return g.valueVar();
-        const decl = candidates[g.smith.index(n)];
-        var args: ArrayList(*RNode) = .empty;
-        for (0..decl.arity) |_| {
-            try args.append(g.alc(), try g.pattern(depth + 1));
+        for (decl.params[0..decl.arity]) |kind| {
+            try args.append(g.alc(), switch (kind) {
+                .parser => try g.expr(depth + 1),
+                .value => try g.value(depth + 1),
+            });
         }
         return g.ast.createFunction(try g.identNode(decl.name), args, placeholder);
     }
