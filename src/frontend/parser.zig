@@ -96,7 +96,7 @@ pub const Parser = struct {
         // Binding power of the operator to the right of `node`. If `node` is
         // the very end of the code then the token referenced here will be
         // `.Eof` which has precedence `.None` and binding power 0.
-        var rightOpBindingPower = operatorPrecedence(self.token.tokenType).bindingPower().left;
+        var rightOpBindingPower = self.infixBindingPower(self.token.tokenType);
 
         if (self.printDebug) self.writers.debugPrint("Binding power {d} < {d}\n", .{ leftOpBindingPower, rightOpBindingPower });
 
@@ -116,10 +116,23 @@ pub const Parser = struct {
         // farther out in the AST have higher binding power.
         while (leftOpBindingPower < rightOpBindingPower) {
             node = try self.infix(self.token.tokenType, node);
-            rightOpBindingPower = operatorPrecedence(self.token.tokenType).bindingPower().left;
+            rightOpBindingPower = self.infixBindingPower(self.token.tokenType);
         }
 
         return node;
+    }
+
+    // The binding power of the next token as an infix operator. `(` and `..`
+    // are whitespace-sensitive: preceded by whitespace they are not a call or
+    // range infix, so the expression ends and they can start a new statement.
+    fn infixBindingPower(self: *Parser, tokenType: TokenType) u4 {
+        return switch (tokenType) {
+            .LeftParen, .DotDot => if (self.tokenSkippedWhitespace)
+                0
+            else
+                operatorPrecedence(tokenType).bindingPower().left,
+            else => operatorPrecedence(tokenType).bindingPower().left,
+        };
     }
 
     fn prefix(self: *Parser, tokenType: TokenType) !*Ast.RNode {
@@ -162,20 +175,8 @@ pub const Parser = struct {
             .Equal,
             => self.binaryOp(leftNode),
             .QuestionMark => self.conditionalOp(leftNode),
-            .LeftParen => {
-                if (!self.tokenSkippedWhitespace) {
-                    return self.callOrDefineFunction(leftNode);
-                } else {
-                    return self.errorAtToken("expected infix operator");
-                }
-            },
-            .DotDot => {
-                if (!self.tokenSkippedWhitespace) {
-                    return self.fullOrLowerBoundedRange(leftNode);
-                } else {
-                    return self.errorAtToken("expected infix operator");
-                }
-            },
+            .LeftParen => self.callOrDefineFunction(leftNode),
+            .DotDot => self.fullOrLowerBoundedRange(leftNode),
             else => self.errorAtToken("expected infix operator"),
         };
     }
