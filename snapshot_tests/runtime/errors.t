@@ -49,6 +49,13 @@
   [1]
 
   $ possum -p 'p = 1 + 1 ; -p' -i '-11'
+  
+  Validation Error: Negation is only valid on a number in parser context
+  
+  program:1:13-14:
+  1 \xe2\x96\x8f p = 1 + 1 ; -p (esc)
+    \xe2\x96\x8f              ^ (esc)
+  
   [InvalidAst]
   [1]
 
