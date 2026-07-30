@@ -518,6 +518,16 @@ pub const Compiler = struct {
         return try self.emitCallFunctionConstant(constId, region);
     }
 
+    // A bare global reference in a pattern invokes the function with no
+    // arguments, so only a zero-arity function has a value to compare.
+    fn requireZeroArity(self: *Compiler, module_id: Module.Id, function: *const Elem.DynElem.Function, region: Region) Error!void {
+        if (function.arity != 0) {
+            const name = self.vm.strings.get(function.name);
+            try self.printError(module_id, region, "Function '{s}' expects {d} arguments but got 0", .{ name, function.arity });
+            return Error.FunctionCallTooFewArgs;
+        }
+    }
+
     // Compile-time split of an eq_global pattern comparand. A plain value
     // global compares directly (MatchCmp const). A zero-arity function
     // global evaluates per match: emit its call, then a MatchEval that
@@ -529,7 +539,7 @@ pub const Compiler = struct {
             return Error.UndefinedVariable;
         };
         if (global.isDynType(.Function)) {
-            if (global.asDyn().asFunction().arity != 0) return error.UnsupportedPattern;
+            try self.requireZeroArity(module_id, global.asDyn().asFunction(), region);
             try self.writeCallFunctionConstant(module_id, global, region);
             return try self.ir().push(self.vm.allocator, .{ .match_test = .{
                 .op = .MatchEval,
@@ -556,7 +566,7 @@ pub const Compiler = struct {
             return Error.UndefinedVariable;
         };
         if (global.isDynType(.Function)) {
-            if (global.asDyn().asFunction().arity != 0) return error.UnsupportedPattern;
+            try self.requireZeroArity(module_id, global.asDyn().asFunction(), region);
             try self.writeCallFunctionConstant(module_id, global, region);
         } else {
             try self.writeConstant(module_id, global, region);
@@ -2905,8 +2915,8 @@ pub const Compiler = struct {
                     try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.pathString(name)});
                     return Error.UndefinedVariable;
                 };
-                if (global.isDynType(.Function) and global.asDyn().asFunction().arity != 0) {
-                    return error.UnsupportedPattern;
+                if (global.isDynType(.Function)) {
+                    try self.requireZeroArity(module_id, global.asDyn().asFunction(), region);
                 }
                 const constant = try self.makeConstantU16(module_id, global, region);
                 return .{ .kind = @intFromEnum(RangeLimitKind.global), .arg = constant };
@@ -5252,7 +5262,7 @@ pub const Compiler = struct {
                     return Error.UndefinedVariable;
                 };
                 if (global.isDynType(.Function)) {
-                    if (global.asDyn().asFunction().arity != 0) return error.UnsupportedPattern;
+                    try self.requireZeroArity(module_id, global.asDyn().asFunction(), region);
                     try self.writeCallFunctionConstant(module_id, global, region);
                     try self.emitRangeBoundEval(reg, is_upper, fail_jumps, region);
                 } else {
@@ -5398,10 +5408,9 @@ pub const Compiler = struct {
                     try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.pathString(name)});
                     return Error.UndefinedVariable;
                 };
-                // Only zero-arity functions evaluate per match; the plan
-                // path rejects the rest at compile time too.
+                // Only zero-arity functions evaluate per match.
                 if (global.isDynType(.Function)) {
-                    if (global.asDyn().asFunction().arity != 0) return error.UnsupportedPattern;
+                    try self.requireZeroArity(module_id, global.asDyn().asFunction(), region);
                     try self.writeCallFunctionConstant(module_id, global, region);
                 } else {
                     try self.writeConstant(module_id, global, region);

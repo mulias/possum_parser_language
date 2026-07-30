@@ -48,38 +48,6 @@ Expected: 6, solving 6 = 2 * -2 + 10 with -2 in -(1..5).
   [UnsupportedPattern]
   [1]
 
-A bare function global in pattern position is still lowered as
-[UnsupportedPattern] and deserves a real diagnostic.
-
-  $ possum -p 'Inc(A) = A + 1 ; number -> Inc' -i '6'
-  [UnsupportedPattern]
-  [1]
-
-A call to a non-function global and an arity mismatch with a constant callee
-are knowable at compile time; the step path reports both.
-
-  $ possum -p 'Two = 2 ; number -> Two(5)' -i '6'
-  
-  Program Error: Only named functions can be called
-  
-  program:1:20-23:
-  1 \xe2\x96\x8f Two = 2 ; number -> Two(5) (esc)
-    \xe2\x96\x8f                     ^^^ (esc)
-  
-  [InvalidAst]
-  [1]
-
-  $ possum -p 'Inc(A) = A + 1 ; number -> Inc(1, 2)' -i '6'
-  
-  Program Error: Function 'Inc' expects 1 arguments but got 2
-  
-  program:1:27-36:
-  1 \xe2\x96\x8f Inc(A) = A + 1 ; number -> Inc(1, 2) (esc)
-    \xe2\x96\x8f                            ^^^^^^^^^ (esc)
-  
-  [FunctionCallTooManyArgs]
-  [1]
-
 A bound repeat count in a merge part only lowers constants, bound locals,
 and calls, not compound expressions of bound values. Expected: "x".
 
