@@ -178,3 +178,39 @@ Namespaced declarations still work:
 
   $ possum -p 'a.b = "x" ; a.b' -i 'x'
   "x"
+
+Value function arity
+
+  $ possum -p 'Inc(A) = A + 1 ; number -> Inc' -i '6'
+  
+  Program Error: Function 'Inc' expects 1 arguments but got 0
+  
+  program:1:27-30:
+  1 \xe2\x96\x8f Inc(A) = A + 1 ; number -> Inc (esc)
+    \xe2\x96\x8f                            ^^^ (esc)
+  
+  [FunctionCallTooFewArgs]
+  [1]
+
+  $ possum -p 'Two = 2 ; number -> Two(5)' -i '6'
+  
+  Program Error: Only named functions can be called
+  
+  program:1:20-23:
+  1 \xe2\x96\x8f Two = 2 ; number -> Two(5) (esc)
+    \xe2\x96\x8f                     ^^^ (esc)
+  
+  [InvalidAst]
+  [1]
+
+  $ possum -p 'Inc(A) = A + 1 ; number -> Inc(1, 2)' -i '6'
+  
+  Program Error: Function 'Inc' expects 1 arguments but got 2
+  
+  program:1:27-36:
+  1 \xe2\x96\x8f Inc(A) = A + 1 ; number -> Inc(1, 2) (esc)
+    \xe2\x96\x8f                            ^^^^^^^^^ (esc)
+  
+  [FunctionCallTooManyArgs]
+  [1]
+
