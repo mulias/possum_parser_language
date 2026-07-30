@@ -143,6 +143,8 @@ fn testStep(b: *Build, target: anytype, optimize: anytype) void {
             .target = target,
             .optimize = optimize,
         }),
+        // TODO: Vendored default runner with a fuzz-mode compile fix
+        .test_runner = .{ .path = b.path("src/test_runner.zig"), .mode = .server },
     });
 
     addStdlibImports(b, unit_tests);
