@@ -12,4 +12,5 @@ comptime {
     _ = @import("backend/liveness.zig");
     _ = @import("highlight.test.zig");
     _ = @import("frontend.test.zig");
+    _ = @import("fuzz.test.zig");
 }

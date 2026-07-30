@@ -12,3 +12,4 @@ zig-out/
 /docgen_tmp/
 /profiling/
 /local-docs/
+fuzz-failures/
