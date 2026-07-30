@@ -1465,6 +1465,10 @@ fn lowerPattern(
                         } });
                         try self.lowerPattern(pair.value, key_place, places, constraints);
                     },
+                    .true, .false, .null, .number_float, .number_string, .array, .object, .range => {
+                        try self.printError(pair.key.region, "Object key must be a string", .{});
+                        return Error.InvalidPatternNode;
+                    },
                     else => {
                         try self.pushConstraint(constraints, .{ .search_key = .{
                             .place = place,

@@ -2365,7 +2365,8 @@ pub const Compiler = struct {
     // Whether a search pair's key or value sub-pattern lowers to inline
     // steps: exactly one place (the found key or value). A key may bind, be
     // ignored, probe a known member by a bound local or module global (the
-    // eval bridge pushes it for MatchClaimKey), or be a computed sub-pattern
+    // eval bridge pushes it for MatchClaimKey), evaluate a call to its key
+    // ({X("a"): 1}, pushed the same way), or be a computed sub-pattern
     // ({"%(0 + N)": 1}) the scan matches against each candidate key in a
     // child window when the whole key set steps. A value may also compare
     // against a constant, a global, or an eval that reads the pair's key
@@ -2383,8 +2384,8 @@ pub const Compiler = struct {
         if (set.constraints.items.len > 1)
             return is_key and self.constraintsStepable(ast, set.constraints.items);
         return switch (set.constraints.items[0].kind) {
-            .bind, .eq_slot, .eq_global => true,
-            .eq_const, .eval_eq => !is_key,
+            .bind, .eq_slot, .eq_global, .eval_eq => true,
+            .eq_const => !is_key,
             else => is_key and self.constraintsStepable(ast, set.constraints.items),
         };
     }
@@ -3459,6 +3460,10 @@ pub const Compiler = struct {
                         },
                         .eq_global => |g| blk: {
                             try self.emitGlobalValuePush(module_id, g.name, step_region);
+                            break :blk true;
+                        },
+                        .eval_eq => |e| blk: {
+                            try self.writeGoal(module_id, ast, e.expr);
                             break :blk true;
                         },
                         else => false,
