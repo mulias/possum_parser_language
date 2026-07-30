@@ -1,10 +1,24 @@
   $ export PRINT_COMPILED_BYTECODE=true RUN_VM=false
 
   $ possum -p 'p = 1 ; -p' -i '-1'
+  
+  Validation Error: Negation is only valid on a number in parser context
+  
+  program:1:9-10:
+  1 \xe2\x96\x8f p = 1 ; -p (esc)
+    \xe2\x96\x8f          ^ (esc)
+  
   [InvalidAst]
   [1]
 
   $ possum -p 'p = 1 ; -p..' -i '-4'
+  
+  Validation Error: Negation is only valid on a number in parser context
+  
+  program:1:9-10:
+  1 \xe2\x96\x8f p = 1 ; -p.. (esc)
+    \xe2\x96\x8f          ^ (esc)
+  
   [InvalidAst]
   [1]
 
