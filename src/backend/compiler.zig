@@ -5283,6 +5283,14 @@ pub const Compiler = struct {
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
+        if (try self.constLimitElem(module_id, ast, lower)) |lo| {
+            if (try self.constLimitElem(module_id, ast, upper)) |hi| {
+                if (!try lo.isLessThanOrEqualInRangePattern(hi, self.vm.*)) {
+                    try self.printError(module_id, region, "Range lower bound must not be greater than upper bound", .{});
+                    return Error.InvalidAst;
+                }
+            }
+        }
         try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
             .op = .MatchType,
             .byte1 = reg,
@@ -5290,6 +5298,23 @@ pub const Compiler = struct {
         } }, region));
         try self.emitRangeBound(module_id, ast, lower, reg, false, fail_jumps, region);
         try self.emitRangeBound(module_id, ast, upper, reg, true, fail_jumps, region);
+    }
+
+    // A range end whose value is fixed at compile time: a constant-folding
+    // expr or a non-function global that folds to a valid range bound.
+    // Binders, reads, function globals, open ends, and invalid bounds are
+    // not compile-time constants and return null.
+    fn constLimitElem(self: *Compiler, module_id: Module.Id, ast: *const Ast, limit: Ast.Limit) Error!?Elem {
+        const elem = switch (limit) {
+            .expr => |id| if (self.constPatternNode(ast, id)) try self.goalPatternConstElem(ast, id) else return null,
+            .global => |name| blk: {
+                const global = self.resolveGlobal(module_id, name) orelse return null;
+                if (global.isDynType(.Function)) return null;
+                break :blk global;
+            },
+            else => return null,
+        };
+        return if (elem.isRangeBound(self.vm.*)) elem else null;
     }
 
     // Emit one end of a range as its own step(s), mirroring matchRangeLimit.

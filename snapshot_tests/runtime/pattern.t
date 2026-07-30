@@ -260,6 +260,60 @@ A part that is not a prefix of the value fails the match:
   $ possum -p '5 -> 2..7' -i '5'
   5
 
+Equal bounds are a valid single-value range.
+
+  $ possum -p '5 -> 5..5' -i '5'
+  5
+
+A range whose bounds are both known at compile time is rejected when the
+lower bound exceeds the upper bound.
+
+  $ possum -p '10 -> 10..2' -i '10'
+  
+  Program Error: Range lower bound must not be greater than upper bound
+  
+  program:1:6-11:
+  1 \xe2\x96\x8f 10 -> 10..2 (esc)
+    \xe2\x96\x8f       ^^^^^ (esc)
+  
+  [InvalidAst]
+  [1]
+
+A codepoint range is checked the same way.
+
+  $ possum -p '"m" -> `z`..`a`' -i 'm'
+  
+  Program Error: Range lower bound must not be greater than upper bound
+  
+  program:1:7-15:
+  1 \xe2\x96\x8f "m" -> `z`..`a` (esc)
+    \xe2\x96\x8f        ^^^^^^^^ (esc)
+  
+  [InvalidAst]
+  [1]
+
+When a bound is only known at runtime the inverted range is not a compile
+error; it matches nothing and fails.
+
+  $ possum -p '(2 -> N) & (10 -> N..2)' -i '2'
+  
+  Parse Failure: expected 10
+  
+  input:1:1:
+  
+  1 \xe2\x96\x8f 2 (esc)
+    \xe2\x96\x8f  ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:12-14:
+  
+  1 \xe2\x96\x8f (2 -> N) & (10 -> N..2) (esc)
+    \xe2\x96\x8f             ^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
   $ possum -p '8 -> (0 + N)' -i '8'
   8
 
