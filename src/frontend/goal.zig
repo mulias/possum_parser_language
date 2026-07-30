@@ -84,11 +84,6 @@ pub fn init(
     };
 }
 
-// Build the goal ast directly from the parsed ast: the same context
-// validation, thunking, and alt/seq/template desugaring the canonicalizer
-// performs, emitting goal nodes and pattern trees. Context violations the
-// canonicalizer rejects are unreachable here — it runs first and aborts —
-// so their branches return InvalidAst without a message.
 pub fn build(self: *Goal, parsed: ParsedAst) Error!void {
     for (parsed.roots.items) |root| try self.convertRoot(root);
 }
@@ -481,9 +476,9 @@ fn convertParser(self: *Goal, rnode: *ParsedAst.RNode) Error!NodeId {
 }
 
 // The number_string fields for a parser-context number literal or its
-// negation, mirroring the canonicalizer: a NumberFloat prints to a
-// string tagged negative when below zero, a bare negation flips a
-// non-negated literal, and a double negation is rejected.
+// negation: a NumberFloat prints to a string tagged negative when below
+// zero, a bare negation flips a non-negated literal, and a double
+// negation is rejected.
 fn parserNumberFields(self: *Goal, rnode: *ParsedAst.RNode) Error!Ast.NumberString {
     return switch (rnode.node) {
         .NumberFloat => |f| .{
@@ -496,10 +491,16 @@ fn parserNumberFields(self: *Goal, rnode: *ParsedAst.RNode) Error!Ast.NumberStri
         },
         .Negation => |inner| blk: {
             const fields = try self.parserNumberFields(inner);
-            if (fields.negated) break :blk Error.InvalidAst;
+            if (fields.negated) {
+                try self.printError(rnode.region, "Double negation is not valid in parser context", .{});
+                break :blk Error.InvalidAst;
+            }
             break :blk .{ .number = fields.number, .negated = true };
         },
-        else => Error.InvalidAst,
+        else => blk: {
+            try self.printError(rnode.region, "Negation is only valid on a number in parser context", .{});
+            break :blk Error.InvalidAst;
+        },
     };
 }
 

@@ -41,6 +41,13 @@ Merge and negation.
     (merge (call "a") (call "b"))
 
   $ possum -p '-int' -i ''
+  
+  Validation Error: Negation is only valid on a number in parser context
+  
+  program:1:1-4:
+  1 \xe2\x96\x8f -int (esc)
+    \xe2\x96\x8f  ^^^ (esc)
+  
   [InvalidAst]
   [1]
 
