@@ -37,6 +37,11 @@ pub const Compiler = struct {
     printBytecode: bool = false,
     global_map: name_resolver.GlobalMap = .{},
     constant_map: AutoHashMap(ConstantMapKey, usize) = .{},
+    // Declarations currently being classified. goalLiteralElem declares a
+    // referenced global on demand; a target already on this stack is a
+    // container cycle (`V = [W] ; W = [V]`), which stays a function
+    // instead of recursing.
+    classifying: AutoHashMap(GlobalKey, void) = .{},
     main: ?*Elem.DynElem.Function = null,
     // The search-key claim layout for the match arm currently being
     // stepped. Each object place that a search pair matches against gets a
@@ -117,6 +122,7 @@ pub const Compiler = struct {
     pub fn deinit(self: *Compiler) void {
         self.frontend.deinit();
         self.constant_map.deinit(self.vm.allocator);
+        self.classifying.deinit(self.vm.allocator);
         self.global_map.deinit(self.vm.allocator);
         self.functions.deinit(self.vm.allocator);
         self.scopes.deinit(self.vm.allocator);
@@ -252,7 +258,7 @@ pub const Compiler = struct {
             .declaration => {
                 const ast = self.goalAst(decl_key.module_id);
                 const goal_decl = goalDeclaration(ast, decl_key.name);
-                const kind = try self.classifyDecl(ast, goal_decl);
+                const kind = try self.classifyDecl(decl_key, ast, goal_decl);
 
                 if (self.findGlobal(decl_key.module_id, decl_key.name) == null) {
                     try self.declareFromKind(decl_key, goal_decl, kind);
@@ -301,7 +307,7 @@ pub const Compiler = struct {
             .declaration => {
                 const ast = self.goalAst(dep_key.module_id);
                 const goal_decl = goalDeclaration(ast, dep_key.name);
-                try self.declareFromKind(dep_key, goal_decl, try self.classifyDecl(ast, goal_decl));
+                try self.declareFromKind(dep_key, goal_decl, try self.classifyDecl(dep_key, ast, goal_decl));
             },
             .anonymous_function => {
                 _ = try self.declareAnonFunction(dep_key);
@@ -342,8 +348,10 @@ pub const Compiler = struct {
 
     // A parameterless alias body inlines to a value elem; a bare-identifier
     // body is an alias to another declaration; everything else is a function.
-    fn classifyDecl(self: *Compiler, ast: *const Ast, decl: *const Ast.Declaration) !DeclKind {
-        if (try self.getAliasBody(ast, decl)) |elem| {
+    fn classifyDecl(self: *Compiler, key: GlobalKey, ast: *const Ast, decl: *const Ast.Declaration) !DeclKind {
+        try self.classifying.put(self.vm.allocator, key, {});
+        defer _ = self.classifying.remove(key);
+        if (try self.getAliasBody(self.frontend.getNode(key), ast, decl)) |elem| {
             return .{ .alias_value = elem };
         }
         if (ast.aliasTargetName(decl) != null) {
@@ -585,12 +593,12 @@ pub const Compiler = struct {
     // A parameterless declaration whose body is a constant literal inlines to
     // that value elem. Parser-position literals are wrapped in an invoking
     // call in the goal ast; value-position literals stand bare.
-    fn getAliasBody(self: *Compiler, ast: *const Ast, decl: *const Ast.Declaration) !?Elem {
+    fn getAliasBody(self: *Compiler, node: *const Frontend.DependencyGraphNode, ast: *const Ast, decl: *const Ast.Declaration) !?Elem {
         if (decl.params.items.len != 0) return null;
-        return self.goalLiteralElem(ast, decl.body);
+        return self.goalLiteralElem(node, ast, decl.body);
     }
 
-    fn goalLiteralElem(self: *Compiler, ast: *const Ast, id: Ast.NodeId) !?Elem {
+    fn goalLiteralElem(self: *Compiler, node: *const Frontend.DependencyGraphNode, ast: *const Ast, id: Ast.NodeId) Error!?Elem {
         return switch (ast.goals.items[id].node) {
             .true => Elem.boolean(true),
             .false => Elem.boolean(false),
@@ -599,9 +607,53 @@ pub const Compiler = struct {
             .number_string => |ns| try self.numberStringNodeToElem(ns.number, ns.negated),
             .string => |s| Elem.string(try self.vm.strings.insert(s)),
             .call => |call| if (call.args.len == 0)
-                try self.goalLiteralElem(ast, call.callee)
+                try self.goalLiteralElem(node, ast, call.callee)
             else
                 null,
+            // A reference to another value declaration shares its elem,
+            // declaring the target on demand. A target that is mid-
+            // classification is a container cycle and stays unresolved, so
+            // this declaration falls back to a function.
+            .ident => |ident| blk: {
+                if (ident.resolution != .global) break :blk null;
+                const target = node.dependencyNamed(ident.name) orelse break :blk null;
+                if (self.classifying.contains(target)) break :blk null;
+                try self.ensureDeclared(target);
+                const global = self.findGlobal(target.module_id, target.name) orelse break :blk null;
+                if (global.isDynType(.Function)) break :blk null;
+                break :blk global;
+            },
+            // A fully-literal, non-empty container builds its constant elem.
+            // An empty container stays a function so each use pushes a fresh
+            // container, mirroring writeGoalArray/writeGoalObject.
+            .array => |elems| blk: {
+                if (elems.items.len == 0) break :blk null;
+                var array = try Elem.DynElem.Array.create(self.vm, elems.items.len);
+                try self.vm.pushTempDyn(&array.dyn);
+                defer self.vm.dropTempDyn();
+                for (elems.items) |elem_id| {
+                    const child = (try self.goalLiteralElem(node, ast, elem_id)) orelse break :blk null;
+                    if (child.isType(.Dyn)) try self.vm.pushTempDyn(child.asDyn());
+                    defer if (child.isType(.Dyn)) self.vm.dropTempDyn();
+                    try array.append(self.vm, child);
+                }
+                break :blk array.dyn.elem();
+            },
+            .object => |pairs| blk: {
+                if (pairs.items.len == 0) break :blk null;
+                var object = try Elem.DynElem.Object.create(self.vm, pairs.items.len);
+                try self.vm.pushTempDyn(&object.dyn);
+                defer self.vm.dropTempDyn();
+                for (pairs.items) |pair| {
+                    const key = (try self.goalLiteralElem(node, ast, pair.key)) orelse break :blk null;
+                    if (!key.isType(.String)) break :blk null;
+                    const value = (try self.goalLiteralElem(node, ast, pair.value)) orelse break :blk null;
+                    if (value.isType(.Dyn)) try self.vm.pushTempDyn(value.asDyn());
+                    defer if (value.isType(.Dyn)) self.vm.dropTempDyn();
+                    try object.put(self.vm, key.asString(), value);
+                }
+                break :blk object.dyn.elem();
+            },
             else => null,
         };
     }
@@ -1116,7 +1168,15 @@ pub const Compiler = struct {
                     return Error.UndefinedVariable;
                 };
                 if (args.len == 0) {
-                    try self.writeCallFunctionConstant(module_id, global, call_region);
+                    // A zero-arg call of a container global (an inlined
+                    // value declaration) is just the value. Scalars keep the
+                    // call: a parser-cased alias like `v = "a"` is invoked
+                    // as a parser, which callFunction dispatches at runtime.
+                    if (global.isDynType(.Array) or global.isDynType(.Object)) {
+                        try self.writeConstant(module_id, global, call_region);
+                    } else {
+                        try self.writeCallFunctionConstant(module_id, global, call_region);
+                    }
                     return;
                 }
                 if (!global.isDynType(.Function)) {

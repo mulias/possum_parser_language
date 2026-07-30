@@ -1952,27 +1952,20 @@ and the solvable takes the unclaimed rest (MatchClaimRest).
   0002    | End
   ========================================
   
-  ==================2:A===================
-  A = {"a": 1}
-  ========================================
-  0000    | GetConstant 0: {"a": 1}
-  0002    | End
-  ========================================
-  
   ================2:@main=================
   const({"a": 1, "q": 5, "r": 6}) -> (A + {"q": Q} + R) $ [Q, R]
   ========================================
   0000    | PushVar Q
   0002    | PushVar R
-  0004    | GetConstant 1: const
-  0006    | GetConstant 2: {"a": 1, "q": 5, "r": 6}
+  0004    | GetConstant 0: const
+  0006    | GetConstant 1: {"a": 1, "q": 5, "r": 6}
   0008    | CallFunction 1
   0010    | JumpIfFailure 10 -> 56
   0013    | MatchWindowEnter 7 fail->54
   0017    | MatchScrutinee r0
   0019    | MatchType r0 object
   0022    | MatchClaimSeed r2 <- []
-  0026    | CallFunctionConstant 4: A
+  0026    | GetConstant 3: {"a": 1}
   0028    | MatchClaimObject claims=r2 <- members(<pop>) in r0
   0031    | PushString "q"
   0033    | MatchClaimKey key=r3 val=r4 src=r0 claims=r2
@@ -1984,7 +1977,7 @@ and the solvable takes the unclaimed rest (MatchClaimRest).
   0054    | MatchFail
   0055    | MatchWindowExit
   0056    | TakeRight 56 -> 69
-  0059    | GetConstantMutable 5: [_, _]
+  0059    | GetConstantMutable 4: [_, _]
   0061    | GetLocalMove l0
   0063    | InsertAtIndex 0
   0065    | GetLocalMove l1
@@ -2005,34 +1998,20 @@ past the MatchRefail on full coverage.
   0002    | End
   ========================================
   
-  ==================2:A===================
-  A = {"a": 1}
-  ========================================
-  0000    | GetConstant 0: {"a": 1}
-  0002    | End
-  ========================================
-  
-  ==================2:B===================
-  B = {"q": 2}
-  ========================================
-  0000    | GetConstant 1: {"q": 2}
-  0002    | End
-  ========================================
-  
   ================2:@main=================
   const({"a": 1, "q": 2, "z": 3}) -> (A + B + {"z": 3}) $ "ok"
   ========================================
-  0000    | GetConstant 2: const
-  0002    | GetConstant 3: {"a": 1, "q": 2, "z": 3}
+  0000    | GetConstant 0: const
+  0002    | GetConstant 1: {"a": 1, "q": 2, "z": 3}
   0004    | CallFunction 1
   0006    | JumpIfFailure 6 -> 63
   0009    | MatchWindowEnter 7 fail->61
   0013    | MatchScrutinee r0
   0015    | MatchType r0 object
   0018    | MatchClaimSeed r2 <- []
-  0022    | CallFunctionConstant 5: A
+  0022    | GetConstant 3: {"a": 1}
   0024    | MatchClaimObject claims=r2 <- members(<pop>) in r0
-  0027    | CallFunctionConstant 6: B
+  0027    | GetConstant 4: {"q": 2}
   0029    | MatchClaimObject claims=r2 <- members(<pop>) in r0
   0032    | PushString "z"
   0034    | MatchClaimKey key=r3 val=r4 src=r0 claims=r2

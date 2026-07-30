@@ -134,23 +134,16 @@
   0002    | End
   ========================================
   
-  ==================2:A===================
-  A = [1,2,3]
-  ========================================
-  0000    | GetConstant 0: [1, 2, 3]
-  0002    | End
-  ========================================
-  
   ================2:@main=================
   const([...A, ...A])
   ========================================
-  0000    | GetConstant 1: const
+  0000    | GetConstant 0: const
   0002    | PushEmptyArray
   0003    | JumpIfFailure 3 -> 9
-  0006    | CallFunctionConstant 2: A
+  0006    | GetConstant 1: [1, 2, 3]
   0008    | Merge
   0009    | JumpIfFailure 9 -> 15
-  0012    | CallFunctionConstant 2: A
+  0012    | GetConstant 1: [1, 2, 3]
   0014    | Merge
   0015    | CallTailFunction 1
   0017    | End
