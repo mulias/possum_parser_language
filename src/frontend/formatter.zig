@@ -327,6 +327,11 @@ test "string escaping" {
     try expectFormat("\"tab\\tquote\\\"\"", "\"tab\\tquote\\\"\"\n");
 }
 
+test "statement starting with a group or range parses after another statement" {
+    try expectStable("x = 1\n(a -> B) -> C");
+    try expectStable("x = 1\n..9");
+}
+
 test "output is stable under reparse" {
     try expectStable("as_number(maybe(\"-\") + _number_integer_part)");
     try expectStable("a + b + c | d & e ? f : g");
