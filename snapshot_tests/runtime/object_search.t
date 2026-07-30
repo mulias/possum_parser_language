@@ -233,3 +233,81 @@ the binding:
 
   $ possum -p 'const({"id_7": "7"}) -> {"id_%(N)": N, ..._} $ N' -i ''
   "7"
+
+A function-call key evaluates to a string that probes its member directly:
+
+  $ possum -p 'X(I) = I ; const({"a": 5}) -> {X("a"): W} $ W' -i ''
+  5
+
+  $ possum -p 'X(I) = I ; const({"b": 5}) -> {X("a"): W} $ W' -i ''
+  
+  Parse Failure: value {"b": 5} did not match pattern {X("a"): W}
+  
+  input:1:0:
+  
+  1 \xe2\x96\x8f (esc)
+    \xe2\x96\x8f^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:30-41:
+  
+  1 \xe2\x96\x8f X(I) = I ; const({"b": 5}) -> {X("a"): W} $ W (esc)
+    \xe2\x96\x8f                               ^^^^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+A call key that evaluates to a non-string is a runtime error, like a bound
+key that is not a string. The probe cannot look up a non-string member.
+
+  $ possum -p 'X(I) = I ; const({"1": 5}) -> {X(1): W} $ W' -i ''
+  
+  Runtime Error: Object key must be a string
+  
+  
+  program:1:31-35:
+  
+  1 \xe2\x96\x8f X(I) = I ; const({"1": 5}) -> {X(1): W} $ W (esc)
+    \xe2\x96\x8f                                ^^^^ (esc)
+  
+  [RuntimeError]
+  [1]
+
+An object key that can never be a string is rejected at goal construction.
+A non-string literal:
+
+  $ possum -p '10 -> {2: W}' -i ''
+  
+  Validation Error: Object key must be a string
+  
+  program:1:7-8:
+  1 \xe2\x96\x8f 10 -> {2: W} (esc)
+    \xe2\x96\x8f        ^ (esc)
+  
+  [InvalidPatternNode]
+  [1]
+
+A container or range key is rejected the same way:
+
+  $ possum -p '10 -> {[1]: W}' -i ''
+  
+  Validation Error: Object key must be a string
+  
+  program:1:7-10:
+  1 \xe2\x96\x8f 10 -> {[1]: W} (esc)
+    \xe2\x96\x8f        ^^^ (esc)
+  
+  [InvalidPatternNode]
+  [1]
+
+  $ possum -p '10 -> {1..2: W}' -i ''
+  
+  Validation Error: Object key must be a string
+  
+  program:1:7-11:
+  1 \xe2\x96\x8f 10 -> {1..2: W} (esc)
+    \xe2\x96\x8f        ^^^^ (esc)
+  
+  [InvalidPatternNode]
+  [1]
