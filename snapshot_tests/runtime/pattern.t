@@ -115,6 +115,23 @@ in a child window; the rest takes the unclaimed members.
     {"xq": 1}
   ]
 
+A search value that is a single-place sub-pattern — a template or a
+range — matches the found member in its own window; the scan retries
+members the value rejects.
+
+  $ possum -p 'const({"b": 5, "a": "xyz"}) -> {W: "x%(T)", ...R} $ [W, T, R]' -i ''
+  [
+    "a",
+    "yz",
+    {"b": 5}
+  ]
+
+  $ possum -p 'const({"b": 5, "a": "xay"}) -> {W: 3..9, ...R} $ [W, R]' -i ''
+  [
+    "b",
+    {"a": "xay"}
+  ]
+
   $ possum -p '"123" -> "%(A)"' -i '123'
   "123"
 

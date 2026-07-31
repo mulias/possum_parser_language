@@ -2082,15 +2082,14 @@ pub const Compiler = struct {
     }
 
     // A search value that is not a shallow leaf lowers to inline steps when
-    // it is a genuine container destructure (more than the scrutinee place)
-    // whose whole ConstraintSet steps. It matches in a nested window whose
-    // scrutinee is the found member. The scan binds the candidate key
+    // its whole ConstraintSet steps — a container destructure, a template,
+    // a range, or any other stepable shape. It matches in a nested window
+    // whose scrutinee is the found member. The scan binds the candidate key
     // before the value window, so the value may read it — an eval that
     // reads the key (`{A: Id(A)}`) or an element that compares against it
     // (`{A: [A, B]}`) both step.
     fn searchValueStructuralStepable(self: *Compiler, ast: *const Ast, set_id: Ast.SetId) bool {
         const set = &ast.constraint_sets.items[set_id];
-        if (set.places.items.len < 2) return false;
         return self.constraintsStepable(ast, set.constraints.items);
     }
 
