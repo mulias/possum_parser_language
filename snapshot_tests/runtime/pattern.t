@@ -168,6 +168,38 @@ suffix. Order-independent types (number, object) subtract both groups.
   $ possum -p 'A = {"a": 1} ; C = {"c": 3} ; const({"a": 1, "b": 2, "c": 3}) -> (A + X + C) $ X' -i ''
   {"b": 2}
 
+A string-typed merge whose non-solvable parts are calls keeps its
+solve_merge shape (literal+binder shapes decompose into str_prefix/slice
+steps earlier) and solves through the same runtime-typed residual.
+
+  $ possum -p 'Sfx(N) = "s%(N)" ; json -> [A, ("x" + B + Sfx(A))] $ B' -i '[1, "xys1"]'
+  "y"
+
+  $ possum -p 'Pre(N) = "p%(N)" ; json -> [A, (Pre(A) + B)] $ B' -i '[2, "p2yz"]'
+  "yz"
+
+A part that evaluates to a non-string can never merge into a string, so
+the match fails:
+
+  $ possum -p 'Inc(N) = N + 1 ; json -> [A, ("x" + B + Inc(A))] $ B' -i '[1, "xy2"]'
+  
+  Parse Failure: value [1, "xy2"] did not match pattern [A, ("x" + B + Inc(A))]
+  
+  input:1:10:
+  
+  1 \xe2\x96\x8f [1, "xy2"] (esc)
+    \xe2\x96\x8f           ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:25-48:
+  
+  1 \xe2\x96\x8f Inc(N) = N + 1 ; json -> [A, ("x" + B + Inc(A))] $ B (esc)
+    \xe2\x96\x8f                          ^^^^^^^^^^^^^^^^^^^^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
 A part that is not a prefix of the value fails the match:
 
   $ possum -p 'P = "" $ "zzz" ; ("" $ "abcdef") -> (P + X) $ X' -i ''

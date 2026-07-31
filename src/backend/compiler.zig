@@ -2027,7 +2027,7 @@ pub const Compiler = struct {
                     !self.mergeNegatedNonNumber(ast, c.ty, c.parts.items) and
                     !self.arrayMergeStepable(ast, c.ty, c.parts.items, c.solvable_index) and
                     !self.objectMergeStepable(ast, c.ty, c.parts.items, c.solvable_index) and
-                    !self.untypedMergeStepable(ast, c.ty, c.parts.items, c.solvable_index)) return false;
+                    !self.mergeEvalStepable(ast, c.ty, c.parts.items, c.solvable_index)) return false;
             },
             .solve_repeat => |c| {
                 if (self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index) == null) return false;
@@ -2553,19 +2553,24 @@ pub const Compiler = struct {
         };
     }
 
-    // An untyped merge (no part names the type statically) steps when it has
-    // at most one solvable leftover — a bind, bound read, or placeholder —
-    // and every other part is an evaluable value. At match time the parts
-    // merge into one value whose runtime type selects the residual
-    // (MatchMergeEval): number subtract, string/array
-    // prefix/suffix, object key removal, or boolean OR. A structural
-    // leftover is not stepable.
-    fn untypedMergeStepable(self: *Compiler, ast: *const Ast, ty: ?Ast.ValueType, parts: []const Ast.Part, solvable_index: ?u32) bool {
-        if (ty != null) return false;
+    // An untyped or string-typed merge steps when it has at most one
+    // solvable leftover — a bind, bound read, or placeholder — and every
+    // other part is an evaluable value. At match time the parts merge into
+    // one value whose runtime type selects the residual (MatchMergeEval):
+    // number subtract, string/array prefix/suffix, object key removal, or
+    // boolean OR. A structural leftover is not stepable. String-typed
+    // merges reach here because literal+binder shapes decompose in the
+    // frontend (str_prefix/slice); only call-part shapes survive as
+    // solve_merge, and the runtime-typed residual solves them the same way.
+    fn mergeEvalStepable(self: *Compiler, ast: *const Ast, ty: ?Ast.ValueType, parts: []const Ast.Part, solvable_index: ?u32) bool {
+        if (ty != null and ty != .string) return false;
         if (parts.len < 2) return false;
         const si = solvable_index orelse {
             // No solvable: every part evaluates, so the merge is just an
             // equality test — value must equal the parts merged together.
+            // A typed no-solvable merge is the unresolvable-cycle
+            // heuristic's domain (hasUnresolvableCycle), so it stays out.
+            if (ty != null) return false;
             for (parts) |part| {
                 if (!self.evaluableMergePart(ast, part)) return false;
             }
@@ -2573,7 +2578,7 @@ pub const Compiler = struct {
         };
         // Exactly one solvable, at any index; every other part evaluates.
         // The parts before it are a prefix and the parts after a suffix, so
-        // the residual strips both ends (see emitUntypedMergeSolve).
+        // the residual strips both ends (see emitMergeEvalSolve).
         switch (parts[si]) {
             .bind, .read, .placeholder => {},
             else => return false,
@@ -3497,8 +3502,8 @@ pub const Compiler = struct {
                             &fail_jumps,
                             step_region,
                         );
-                    } else if (c.ty == null) {
-                        try self.emitUntypedMergeSolve(module_id, ast, c.parts.items, c.solvable_index, reg, dead_reg, &fail_jumps, step_region);
+                    } else if (c.ty == null or c.ty == .string) {
+                        try self.emitMergeEvalSolve(module_id, ast, c.parts.items, c.solvable_index, reg, dead_reg, &fail_jumps, step_region);
                     } else {
                         try self.emitMergeSolve(module_id, ast, c.ty, c.parts.items, reg, dead_reg, false, &fail_jumps, step_region);
                     }
@@ -4589,7 +4594,7 @@ pub const Compiler = struct {
     // With no solvable, every part evaluates: merge them all into one value
     // and MatchEval compares it against the scrutinee — the merge holds only
     // when the value equals the parts joined together.
-    fn emitUntypedMergeSolve(
+    fn emitMergeEvalSolve(
         self: *Compiler,
         module_id: Module.Id,
         ast: *const Ast,
