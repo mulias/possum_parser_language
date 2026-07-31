@@ -990,6 +990,10 @@ pub const Compiler = struct {
                     spans = @max(spans, @as(u32, if (arrayMergeHasStructural(ast, c.parts.items, c.solvable_index)) 4 else 3));
                 } else if (self.objectMergeStepable(ast, c.ty, c.parts.items, c.solvable_index)) {
                     object_search = 5;
+                } else if (!self.mergeEvalStepable(ast, c.ty, c.parts.items, c.solvable_index) and
+                    self.stringMergeCursorStepable(ast, c.ty, c.parts.items))
+                {
+                    spans = @max(spans, 4);
                 }
             },
             else => {},
@@ -2027,7 +2031,8 @@ pub const Compiler = struct {
                     !self.mergeNegatedNonNumber(ast, c.ty, c.parts.items) and
                     !self.arrayMergeStepable(ast, c.ty, c.parts.items, c.solvable_index) and
                     !self.objectMergeStepable(ast, c.ty, c.parts.items, c.solvable_index) and
-                    !self.mergeEvalStepable(ast, c.ty, c.parts.items, c.solvable_index)) return false;
+                    !self.mergeEvalStepable(ast, c.ty, c.parts.items, c.solvable_index) and
+                    !self.stringMergeCursorStepable(ast, c.ty, c.parts.items)) return false;
             },
             .solve_repeat => |c| {
                 if (self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index) == null) return false;
@@ -2594,6 +2599,39 @@ pub const Compiler = struct {
         return true;
     }
 
+    // Whether a string-typed merge lowers to the span-cursor template
+    // path: each part matches a substring in place — a string constant, a
+    // codepoint-range or spliced template sub-pattern — and at most one
+    // solvable (a merge-level bind/placeholder or a template hole) takes
+    // the residual span. Evaluated parts stay off this path: the span ops
+    // stringify values (template semantics), but a merge part that is not
+    // a string must fail, which mergeEvalStepable's runtime residual
+    // already handles.
+    fn stringMergeCursorStepable(self: *Compiler, ast: *const Ast, ty: ?Ast.ValueType, parts: []const Ast.Part) bool {
+        if ((ty orelse return false) != .string) return false;
+        var solvables: u32 = 0;
+        for (parts) |part| switch (part) {
+            .bind, .placeholder => solvables += 1,
+            .expr => |id| if (!constStringNode(ast, id)) return false,
+            .sub => |set_id| {
+                if (templateSubTemplate(ast, set_id)) |segments| {
+                    solvables += self.templateSegmentsSolvableCount(ast, segments) orelse return false;
+                } else if (templateRangeLimits(ast, set_id) != null) {
+                    // A codepoint range chomps one character; a numeric
+                    // range would cast, which is template semantics, not
+                    // merge semantics.
+                    if (self.templateRangeNumeric(ast, set_id)) return false;
+                } else return false;
+            },
+            else => return false,
+        };
+        return solvables <= 1;
+    }
+
+    fn constStringNode(ast: *const Ast, id: Ast.NodeId) bool {
+        return ast.goals.items[id].node == .string;
+    }
+
     // Whether an object merge lowers to inline claim steps: every
     // non-solvable part is either a structural object whose set has the
     // constrained-pair repeat shape (its members probed and claimed one at
@@ -2862,6 +2900,9 @@ pub const Compiler = struct {
         // A structural sub-pattern cast from the byte range by its root
         // type. Handled in the cast phase; gated until then.
         solvable_cast,
+        // A template sub-pattern: concatenation is associative, so its
+        // segments splice inline into the enclosing segment list.
+        splice,
         // Rejects the whole template.
         gate,
     };
@@ -2876,7 +2917,9 @@ pub const Compiler = struct {
                 .value
             else
                 .gate,
-            .sub => |set_id| if (templateRangeLimits(ast, set_id) != null)
+            .sub => |set_id| if (templateSubTemplate(ast, set_id) != null)
+                .splice
+            else if (templateRangeLimits(ast, set_id) != null)
                 // A codepoint range compares one character in place; a
                 // numeric range spans an unknown number of digits (and an
                 // optional sign), so it casts the whole substring — the
@@ -2897,6 +2940,38 @@ pub const Compiler = struct {
             .global => .value,
             .local => .gate,
         };
+    }
+
+    // A sub-pattern that is itself a template — a single match_template on
+    // place 0 — whose segments splice inline into the enclosing template
+    // or string merge.
+    fn templateSubTemplate(ast: *const Ast, set_id: Ast.SetId) ?[]const Ast.Segment {
+        const set = &ast.constraint_sets.items[set_id];
+        if (set.constraints.items.len != 1) return null;
+        return switch (set.constraints.items[0].kind) {
+            .match_template => |c| if (c.place == 0) c.segments.items else null,
+            else => null,
+        };
+    }
+
+    // The number of solvable segments a part contributes, recursing through
+    // spliced sub-templates; null rejects the enclosing template.
+    fn templatePartSolvableCount(self: *Compiler, ast: *const Ast, part: Ast.Part) ?u32 {
+        return switch (self.templatePartKind(ast, part)) {
+            .literal_fold, .value, .char_range => 0,
+            .solvable_raw, .solvable_cast => 1,
+            .splice => self.templateSegmentsSolvableCount(ast, templateSubTemplate(ast, part.sub).?),
+            .gate => null,
+        };
+    }
+
+    fn templateSegmentsSolvableCount(self: *Compiler, ast: *const Ast, segments: []const Ast.Segment) ?u32 {
+        var count: u32 = 0;
+        for (segments) |segment| switch (segment) {
+            .literal => {},
+            .part => |part| count += self.templatePartSolvableCount(ast, part) orelse return null,
+        };
+        return count;
     }
 
     // Whether a template solvable sub-pattern is a number or boolean merge
@@ -3011,17 +3086,9 @@ pub const Compiler = struct {
         };
         if (only_static and specials == 1 and literal_bytes <= 255) return .static;
 
-        // Path B: every segment must be a fixed step or the single
-        // solvable.
-        var solvable_count: u32 = 0;
-        for (segments) |segment| switch (segment) {
-            .literal => {},
-            .part => |part| switch (self.templatePartKind(ast, part)) {
-                .literal_fold, .value, .char_range => {},
-                .solvable_raw, .solvable_cast => solvable_count += 1,
-                .gate => return null,
-            },
-        };
+        // Path B: every segment (through spliced sub-templates) must be a
+        // fixed step or the single solvable.
+        const solvable_count = self.templateSegmentsSolvableCount(ast, segments) orelse return null;
         if (solvable_count > 1) return null;
         return .cursor;
     }
@@ -3199,6 +3266,10 @@ pub const Compiler = struct {
             .solve_merge => |c| {
                 if (self.arrayMergeStepable(ast, c.ty, c.parts.items, c.solvable_index)) {
                     span_block = @max(span_block, @as(u8, if (arrayMergeHasStructural(ast, c.parts.items, c.solvable_index)) 4 else 3));
+                } else if (!self.mergeEvalStepable(ast, c.ty, c.parts.items, c.solvable_index) and
+                    self.stringMergeCursorStepable(ast, c.ty, c.parts.items))
+                {
+                    span_block = @max(span_block, 4);
                 }
             },
             else => {},
@@ -3506,8 +3577,19 @@ pub const Compiler = struct {
                             &fail_jumps,
                             step_region,
                         );
-                    } else if (c.ty == null or c.ty == .string) {
+                    } else if (c.ty == null or (c.ty == .string and self.mergeEvalStepable(ast, c.ty, c.parts.items, c.solvable_index))) {
                         try self.emitMergeEvalSolve(module_id, ast, c.parts.items, c.solvable_index, reg, dead_reg, &fail_jumps, step_region);
+                    } else if (c.ty == .string) {
+                        try self.emitStringMergeCursor(
+                            module_id,
+                            ast,
+                            c.parts.items,
+                            reg,
+                            .{ .front = span_front, .end = span_end, .rest = span_rest, .char = span_char },
+                            dead_reg,
+                            &fail_jumps,
+                            step_region,
+                        );
                     } else {
                         try self.emitMergeSolve(module_id, ast, c.ty, c.parts.items, reg, dead_reg, false, &fail_jumps, step_region);
                     }
@@ -5026,14 +5108,32 @@ pub const Compiler = struct {
             .byte2 = 2,
         } }, region));
 
-        // Normalize segments: fold constants into adjacent literal runs
-        // (interned eagerly) and classify the rest.
         var effs = ArrayList(EffSeg).empty;
         defer effs.deinit(allocator);
         var lit = ArrayList(u8).empty;
         defer lit.deinit(allocator);
         var solvable_index: ?usize = null;
 
+        try self.collectTemplateSegs(module_id, ast, segments, &effs, &lit, &solvable_index, region);
+        try self.flushTemplateLit(module_id, &effs, &lit, region);
+        try self.emitCursorSegs(module_id, ast, effs.items, solvable_index, reg, regs, dead_reg, fail_jumps, region);
+    }
+
+    // Normalize segments: fold constants into adjacent literal runs
+    // (interned eagerly), splice sub-templates inline, and classify the
+    // rest. Adjacent literal bytes accumulate in `lit` across splice
+    // boundaries; the caller flushes the final run.
+    fn collectTemplateSegs(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        segments: []const Ast.Segment,
+        effs: *ArrayList(EffSeg),
+        lit: *ArrayList(u8),
+        solvable_index: *?usize,
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
         for (segments) |segment| switch (segment) {
             .literal => |s| try lit.appendSlice(allocator, s),
             .part => |part| switch (self.templatePartKind(ast, part)) {
@@ -5044,29 +5144,100 @@ pub const Compiler = struct {
                     try lit.appendSlice(allocator, bytes);
                 },
                 .value => {
-                    try self.flushTemplateLit(module_id, &effs, &lit, region);
+                    try self.flushTemplateLit(module_id, effs, lit, region);
                     try effs.append(allocator, .{ .value = part });
                 },
                 .char_range => {
-                    try self.flushTemplateLit(module_id, &effs, &lit, region);
+                    try self.flushTemplateLit(module_id, effs, lit, region);
                     try effs.append(allocator, .{ .char_range = part.sub });
                 },
                 .solvable_raw, .solvable_cast => {
-                    try self.flushTemplateLit(module_id, &effs, &lit, region);
-                    solvable_index = effs.items.len;
+                    try self.flushTemplateLit(module_id, effs, lit, region);
+                    solvable_index.* = effs.items.len;
                     try effs.append(allocator, .{ .solvable = part });
                 },
+                .splice => try self.collectTemplateSegs(module_id, ast, templateSubTemplate(ast, part.sub).?, effs, lit, solvable_index, region),
                 .gate => unreachable,
             },
         };
+    }
+
+    // A string-typed merge on the cursor path: the parts normalize to the
+    // same segment list a template produces — string constants fold to
+    // literal runs, sub-templates splice, codepoint ranges chomp one
+    // character — and the single solvable takes the residual span.
+    fn emitStringMergeCursor(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        parts: []const Ast.Part,
+        reg: u8,
+        regs: TemplateRegs,
+        dead_reg: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+
+        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+            .op = .MatchType,
+            .byte1 = reg,
+            .byte2 = 2,
+        } }, region));
+
+        var effs = ArrayList(EffSeg).empty;
+        defer effs.deinit(allocator);
+        var lit = ArrayList(u8).empty;
+        defer lit.deinit(allocator);
+        var solvable_index: ?usize = null;
+
+        for (parts) |part| switch (part) {
+            .bind, .placeholder => {
+                try self.flushTemplateLit(module_id, &effs, &lit, region);
+                solvable_index = effs.items.len;
+                try effs.append(allocator, .{ .solvable = part });
+            },
+            .expr => |id| {
+                const elem = try self.goalPatternConstElem(ast, id);
+                const bytes = (try elem.stringBytes(self.vm)).?;
+                try lit.appendSlice(allocator, bytes);
+            },
+            .sub => |set_id| {
+                if (templateSubTemplate(ast, set_id)) |segments| {
+                    try self.collectTemplateSegs(module_id, ast, segments, &effs, &lit, &solvable_index, region);
+                } else {
+                    try self.flushTemplateLit(module_id, &effs, &lit, region);
+                    try effs.append(allocator, .{ .char_range = set_id });
+                }
+            },
+            else => unreachable,
+        };
         try self.flushTemplateLit(module_id, &effs, &lit, region);
+        try self.emitCursorSegs(module_id, ast, effs.items, solvable_index, reg, regs, dead_reg, fail_jumps, region);
+    }
+
+    // The cursor-path emission over normalized segments, shared by
+    // templates and string merges.
+    fn emitCursorSegs(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        effs: []const EffSeg,
+        solvable_index: ?usize,
+        reg: u8,
+        regs: TemplateRegs,
+        dead_reg: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
 
         // Whole-string template: the solvable is the only segment, so front
         // is 0 and end is the byte length by construction. The cursors and
         // the rest substring are pure overhead — the source value is the
         // rest — so skip MatchSpanInit/MatchSpanRest and act on reg directly.
-        if (solvable_index != null and solvable_index.? == 0 and effs.items.len == 1) {
-            switch (effs.items[0].solvable) {
+        if (solvable_index != null and solvable_index.? == 0 and effs.len == 1) {
+            switch (effs[0].solvable) {
                 .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
                     .op = .MatchBind,
                     .byte1 = ls.slot,
@@ -5086,22 +5257,22 @@ pub const Compiler = struct {
             .end = regs.end,
         } }, region);
 
-        const before_end = solvable_index orelse effs.items.len;
+        const before_end = solvable_index orelse effs.len;
 
         // Before-segments: chomp the front cursor forward, in source order.
-        for (effs.items[0..before_end]) |seg| {
+        for (effs[0..before_end]) |seg| {
             try self.emitTemplateSegment(module_id, ast, seg, reg, regs, false, fail_jumps, region);
         }
 
         // After-segments: chomp the end cursor backward, in reverse order.
         if (solvable_index) |si| {
-            var i = effs.items.len;
+            var i = effs.len;
             while (i > si + 1) {
                 i -= 1;
-                try self.emitTemplateSegment(module_id, ast, effs.items[i], reg, regs, true, fail_jumps, region);
+                try self.emitTemplateSegment(module_id, ast, effs[i], reg, regs, true, fail_jumps, region);
             }
 
-            switch (effs.items[si].solvable) {
+            switch (effs[si].solvable) {
                 .bind => |ls| {
                     try self.emitTemplateRest(reg, regs, region);
                     _ = try self.ir().push(allocator, .{ .match_bytes = .{

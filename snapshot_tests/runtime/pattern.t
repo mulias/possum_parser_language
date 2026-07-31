@@ -203,6 +203,33 @@ steps earlier) and solves through the same runtime-typed residual.
   $ possum -p 'Pre(N) = "p%(N)" ; json -> [A, (Pre(A) + B)] $ B' -i '[2, "p2yz"]'
   "yz"
 
+A string merge whose parts match substrings in place — string constants,
+template sub-patterns — takes the span-cursor path: fixed parts chomp
+from both ends and the solvable binds the residual span. A template
+part's holes keep template semantics (a constant hole stringifies).
+
+  $ possum -p 'many(char) -> ("x" + B + "c%(1)") $ B' -i 'xbyc1'
+  "by"
+
+  $ possum -p 'many(char) -> ("x" + "y" + "z")' -i 'xyz'
+  "xyz"
+
+A template hole that is itself a template splices its segments inline;
+concatenation is associative, so the nested hole binds the same span.
+
+  $ possum -p '"bw" -> "%("b%(W)")" $ W' -i 'bw'
+  "w"
+
+  $ possum -p 'many(char) -> "a%("b%(C)d")e" $ C' -i 'abcde'
+  "c"
+
+A merge-level solvable alongside a solvable template hole needs two
+residuals, which the single-cursor scheduler cannot split:
+
+  $ possum -p 'many(char) -> ("a%(C)c" + R) $ [C, R]' -i 'abcde'
+  [UnsupportedPattern]
+  [1]
+
 A part that evaluates to a non-string can never merge into a string, so
 the match fails:
 
