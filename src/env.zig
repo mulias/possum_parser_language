@@ -1,5 +1,4 @@
 const std = @import("std");
-const Allocator = std.mem.Allocator;
 const builtin = @import("builtin");
 const GoalStage = @import("frontend/goal_ast.zig").Stage;
 

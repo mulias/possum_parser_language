@@ -14,29 +14,31 @@ const Ast = std.zig.Ast;
 
 const max_file_size = 4 * 1024 * 1024;
 
-pub fn main() !void {
+pub fn main(init: std.process.Init) !void {
     var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
+
+    const io = init.io;
 
     var errors: u32 = 0;
     var counter = IdentifierCounter{};
     var detector = DeadFilesDetector{};
 
-    const paths = try listFilePaths(arena);
+    const paths = try listFilePaths(arena, io);
 
     for (paths) |path| {
         if (!std.mem.endsWith(u8, path, ".zig")) continue;
 
-        const source = std.fs.cwd().readFileAllocOptions(
-            arena,
+        const source = std.Io.Dir.cwd().readFileAllocOptions(
+            io,
             path,
-            max_file_size,
-            null,
+            arena,
+            .limited(max_file_size),
             .of(u8),
             0,
         ) catch |err| switch (err) {
-            error.FileTooBig => {
+            error.StreamTooLong => {
                 std.debug.print("{s}: error: file exceeds {d} byte limit\n", .{ path, max_file_size });
                 errors += 1;
                 continue;
@@ -235,16 +237,15 @@ const DeadFilesDetector = struct {
 };
 
 /// Lists all files tracked in the repository.
-fn listFilePaths(arena: std.mem.Allocator) ![]const []const u8 {
-    const run_result = try std.process.Child.run(.{
-        .allocator = arena,
+fn listFilePaths(arena: std.mem.Allocator, io: std.Io) ![]const []const u8 {
+    const run_result = try std.process.run(arena, io, .{
         .argv = &.{ "git", "ls-files", "-z" },
-        .max_output_bytes = 16 * 1024 * 1024,
+        .stdout_limit = .limited(16 * 1024 * 1024),
     });
 
-    if (run_result.term != .Exited or run_result.term.Exited != 0) return error.GitFailed;
+    if (run_result.term != .exited or run_result.term.exited != 0) return error.GitFailed;
 
-    var paths = std.ArrayListUnmanaged([]const u8){};
+    var paths: std.ArrayList([]const u8) = .empty;
     var lines = std.mem.splitScalar(u8, run_result.stdout, 0);
     while (lines.next()) |line| {
         if (line.len == 0) continue;
