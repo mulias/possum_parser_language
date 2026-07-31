@@ -1276,6 +1276,41 @@ register so the solvable binds the span carved out between them.
   0038    | End
   ========================================
 
+A string-typed merge with call parts lowers to the same runtime-typed
+residual strips as an untyped one.
+
+  $ possum -p 'C = "" $ "z" ; ("" $ "xyz") -> ("x" + M + C) $ M' -i ''
+  
+  ==================2:C===================
+  C = "" $ "z"
+  ========================================
+  0000    | PushEmptyString
+  0001    | TakeRight 1 -> 6
+  0004    | PushString "z"
+  0006    | End
+  ========================================
+  
+  ================2:@main=================
+  ("" $ "xyz") -> ("x" + M + C) $ M
+  ========================================
+  0000    | PushVar M
+  0002    | PushString "xyz"
+  0004    | JumpIfFailure 4 -> 33
+  0007    | MatchWindowEnter 2 fail->31
+  0011    | MatchScrutinee r0
+  0013    | PushString "x"
+  0015    | MatchMergeEval r1 <- r0 - <pop>
+  0019    | CallFunctionConstant 0: C
+  0021    | MatchMergeEval r1 <- r1 - <pop> (back)
+  0025    | MatchBind l0 r1
+  0028    | Jump 28 -> 32
+  0031    | MatchFail
+  0032    | MatchWindowExit
+  0033    | TakeRight 33 -> 38
+  0036    | GetLocalMove l0
+  0038    | End
+  ========================================
+
 
   $ possum -p '"1" -> "%(1)"' -i '1'
   
