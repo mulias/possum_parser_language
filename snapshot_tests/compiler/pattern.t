@@ -1276,6 +1276,34 @@ register so the solvable binds the span carved out between them.
   0038    | End
   ========================================
 
+A string merge of constant and template parts lowers to the span-cursor
+path: the template part's segments splice inline with the merge's own
+literals, and the solvable binds the residual span.
+
+  $ possum -p '("" $ "xbyc1") -> ("x" + M + "c%(1)") $ M' -i ''
+  
+  ================2:@main=================
+  ("" $ "xbyc1") -> ("x" + M + "c%(1)") $ M
+  ========================================
+  0000    | PushVar M
+  0002    | PushString "xbyc1"
+  0004    | JumpIfFailure 4 -> 47
+  0007    | MatchWindowEnter 6 fail->45
+  0011    | MatchScrutinee r0
+  0013    | MatchType r0 string
+  0016    | MatchSpanInit r0 front=r2 end=r3
+  0020    | MatchStrLit r0 cursor=r2 opp=r3 front "x"
+  0027    | MatchStrLit r0 cursor=r3 opp=r2 back "c1"
+  0034    | MatchSpanRest r4 r0[r2..r3]
+  0039    | MatchBind l0 r4
+  0042    | Jump 42 -> 46
+  0045    | MatchFail
+  0046    | MatchWindowExit
+  0047    | TakeRight 47 -> 52
+  0050    | GetLocalMove l0
+  0052    | End
+  ========================================
+
 A string-typed merge with call parts lowers to the same runtime-typed
 residual strips as an untyped one.
 
