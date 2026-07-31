@@ -45,8 +45,7 @@ $ possum -p 'json -> [F, F(1)]' -i '[1, 2]'
 Expected: 6, solving 6 = 2 * -2 + 10 with -2 in -(1..5).
 
   $ possum -p 'number -> (2 * -(1..5) + 10)' -i '6'
-  [UnsupportedPattern]
-  [1]
+  6
 
 A bound repeat count in a merge part only lowers constants, bound locals,
 and calls, not compound expressions of bound values. Expected: "x".

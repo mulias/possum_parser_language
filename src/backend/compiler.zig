@@ -81,6 +81,7 @@ pub const Compiler = struct {
 
     const Error = error{
         UnsupportedPattern,
+        UnresolvablePatternCycle,
         NegatedNonNumber,
         InvalidAst,
         MaxFunctionArgs,
@@ -1916,6 +1917,51 @@ pub const Compiler = struct {
             try self.writeMatchSteps(module_id, ast, set.places.items, set.constraints.items, .input, region);
             return;
         }
+        return self.rejectUnstepable(module_id, set.constraints.items, region);
+    }
+
+    // A typed solve_merge whose parts are all values — yet with no
+    // solvable part and no binder — is the residue of an unresolvable
+    // scheduling cycle: each merge's eval reads a slot another stuck merge
+    // was expected to bind, so the fixpoint never orders them, falls back
+    // to source order, and leaves a merge with nothing to solve for and
+    // reads that stay unbound.
+    //
+    // A merge with a solvable-shaped part (a binder, or a nested structural
+    // sub-pattern such as a range or repeat) does have something to solve;
+    // it is an unlowered feature, not a cycle. Binding analysis records a
+    // leftover binder in solvable_index, so a null index with a bind or
+    // placeholder part cannot occur — the sub-pattern check is what
+    // separates the solvable-but-unlowered merges from genuine cycles.
+    fn hasUnresolvableCycle(constraints: []const Ast.Constraint) bool {
+        for (constraints) |constraint| switch (constraint.kind) {
+            .solve_merge => |c| {
+                if (c.ty == null or c.solvable_index != null) continue;
+                var has_solvable_part = false;
+                for (c.parts.items) |part| switch (part) {
+                    .bind, .placeholder, .sub => has_solvable_part = true,
+                    else => {},
+                };
+                if (!has_solvable_part) return true;
+            },
+            else => {},
+        };
+        return false;
+    }
+
+    // Turn an unstepable constraint set into an error: a genuine
+    // scheduling cycle gets its own diagnostic; anything else is a pattern
+    // the match-step lowering does not yet support.
+    fn rejectUnstepable(self: *Compiler, module_id: Module.Id, constraints: []const Ast.Constraint, region: Region) Error {
+        if (hasUnresolvableCycle(constraints)) {
+            self.printError(
+                module_id,
+                region,
+                "unresolvable cycle in pattern: its constraints each depend on a value another binds, so no evaluation order exists",
+                .{},
+            ) catch |e| return e;
+            return error.UnresolvablePatternCycle;
+        }
         return error.UnsupportedPattern;
     }
 
@@ -1936,7 +1982,7 @@ pub const Compiler = struct {
         if (self.armStepable(ast, arm)) {
             try self.writeMatchSteps(module_id, ast, match.places.items, arm.constraints.items, .input, region);
         } else {
-            return error.UnsupportedPattern;
+            return self.rejectUnstepable(module_id, arm.constraints.items, region);
         }
     }
 
@@ -2393,8 +2439,13 @@ pub const Compiler = struct {
     const NumMergeStep = struct {
         part_index: usize,
         negate: bool,
-        kind: enum { bind, read, placeholder },
+        // bind/read/placeholder take the residual into a slot; sub feeds it
+        // as the scrutinee of a nested structural sub-pattern (a repeat or
+        // range) matched in a child window.
+        kind: enum { bind, read, placeholder, sub },
         slot: u8,
+        // The sub-pattern's constraint set, valid only when kind == .sub.
+        sub_set: Ast.SetId,
         // A non-leftover part evaluates at match time (a bound read,
         // global, or call) rather than folding to a compile-time constant,
         // so the residual subtracts it with a MatchSubtractEval step.
@@ -2414,11 +2465,25 @@ pub const Compiler = struct {
         ty: ?Ast.ValueType,
         parts: []const Ast.Part,
     ) ?NumMergeStep {
-        _ = self;
         if ((ty orelse return null) != .number) return null;
         var found: ?NumMergeStep = null;
         var has_runtime = false;
         for (parts, 0..) |part, i| {
+            // A structural sub-pattern part (anything but the single-negated
+            // -value shape handled below) is the leftover: the residual
+            // feeds it as a scrutinee in a child window. Like a bind it must
+            // be the sole unbound part, and its set must lower to steps.
+            if (part == .sub) structural: {
+                const set = &ast.constraint_sets.items[part.sub];
+                if (set.constraints.items.len == 1 and set.constraints.items[0].kind == .negated) break :structural;
+                if (found) |f| {
+                    if (f.kind != .read or f.negate) return null;
+                    has_runtime = true;
+                }
+                if (!self.constraintsStepable(ast, set.constraints.items)) return null;
+                found = .{ .part_index = i, .negate = false, .kind = .sub, .slot = 0, .sub_set = part.sub, .has_runtime_part = false };
+                continue;
+            }
             var negate = false;
             const inner = switch (part) {
                 .sub => |set_id| blk: {
@@ -2444,8 +2509,8 @@ pub const Compiler = struct {
                         has_runtime = true;
                     }
                     found = switch (inner) {
-                        .bind => |l| .{ .part_index = i, .negate = negate, .kind = .bind, .slot = l.slot, .has_runtime_part = false },
-                        .placeholder => .{ .part_index = i, .negate = negate, .kind = .placeholder, .slot = 0, .has_runtime_part = false },
+                        .bind => |l| .{ .part_index = i, .negate = negate, .kind = .bind, .slot = l.slot, .sub_set = 0, .has_runtime_part = false },
+                        .placeholder => .{ .part_index = i, .negate = negate, .kind = .placeholder, .slot = 0, .sub_set = 0, .has_runtime_part = false },
                         else => unreachable,
                     };
                 },
@@ -2453,7 +2518,7 @@ pub const Compiler = struct {
                 // claims that role; otherwise it is a summed runtime value.
                 .read => |l| {
                     if (found == null) {
-                        found = .{ .part_index = i, .negate = negate, .kind = .read, .slot = l.slot, .has_runtime_part = false };
+                        found = .{ .part_index = i, .negate = negate, .kind = .read, .slot = l.slot, .sub_set = 0, .has_runtime_part = false };
                     } else {
                         if (negate) return null;
                         has_runtime = true;
@@ -4408,21 +4473,11 @@ pub const Compiler = struct {
         // `0 + leftover` (no negation) is the identity: the leftover equals
         // the scrutinee. Bind or compare it directly instead of recomputing
         // a float, so a NumberString keeps its exact text (json numbers like
-        // "123e65" round-trip). This mirrors the plan's value.merge(-0).
-        if (src_is_number and sum == 0 and !step.negate) {
-            switch (step.kind) {
-                .bind => _ = try self.ir().push(allocator, .{ .match_bytes = .{
-                    .op = .MatchBind,
-                    .byte1 = step.slot,
-                    .byte2 = src_reg,
-                } }, region),
-                .read => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
-                    .reg = src_reg,
-                    .kind = .slot,
-                    .arg = step.slot,
-                } }, region)),
-                .placeholder => {},
-            }
+        // "123e65" round-trip). This mirrors the plan's value.merge(-0). A
+        // structural sub leftover keeps the MatchMergeNum step, whose number
+        // check the child window relies on.
+        if (src_is_number and sum == 0 and !step.negate and step.kind != .sub) {
+            try self.emitNumMergeLeftover(module_id, ast, step, src_reg, fail_jumps, region);
             return;
         }
         const constant = try self.makeConstantU16(module_id, Elem.numberFloat(sum), region);
@@ -4432,19 +4487,7 @@ pub const Compiler = struct {
             .constant = constant,
             .negate = step.negate,
         } }, region));
-        switch (step.kind) {
-            .bind => _ = try self.ir().push(allocator, .{ .match_bytes = .{
-                .op = .MatchBind,
-                .byte1 = step.slot,
-                .byte2 = dead_reg,
-            } }, region),
-            .read => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
-                .reg = dead_reg,
-                .kind = .slot,
-                .arg = step.slot,
-            } }, region)),
-            .placeholder => {},
-        }
+        try self.emitNumMergeLeftover(module_id, ast, step, dead_reg, fail_jumps, region);
     }
 
     // The residual of a number merge whose non-leftover parts include a
@@ -4496,18 +4539,39 @@ pub const Compiler = struct {
                 .byte2 = dead_reg,
             } }, region));
         }
+        try self.emitNumMergeLeftover(module_id, ast, step, dead_reg, fail_jumps, region);
+    }
+
+    // Consume a number merge's residual (already isolated in `reg`) with its
+    // leftover part: a bind writes the slot, a read compares against it, a
+    // placeholder discards it, and a structural sub matches it as the
+    // scrutinee of a child window (a nested repeat/range solve).
+    fn emitNumMergeLeftover(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        step: NumMergeStep,
+        reg: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
         switch (step.kind) {
             .bind => _ = try self.ir().push(allocator, .{ .match_bytes = .{
                 .op = .MatchBind,
                 .byte1 = step.slot,
-                .byte2 = dead_reg,
+                .byte2 = reg,
             } }, region),
             .read => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
-                .reg = dead_reg,
+                .reg = reg,
                 .kind = .slot,
                 .arg = step.slot,
             } }, region)),
             .placeholder => {},
+            .sub => {
+                const set = &ast.constraint_sets.items[step.sub_set];
+                try self.writeMatchSteps(module_id, ast, set.places.items, set.constraints.items, .{ .sub = .{ .src_reg = reg, .on_fail = .{ .arm = fail_jumps } } }, region);
+            },
         }
     }
 
