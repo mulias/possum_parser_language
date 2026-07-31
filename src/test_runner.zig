@@ -9,7 +9,6 @@ const builtin = @import("builtin");
 
 const std = @import("std");
 const Io = std.Io;
-const fatal = std.process.fatal;
 const testing = std.testing;
 const assert = std.debug.assert;
 const panic = std.debug.panic;

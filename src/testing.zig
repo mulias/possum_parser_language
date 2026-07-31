@@ -1,5 +1,4 @@
 const std = @import("std");
-const ArrayList = std.ArrayListUnmanaged;
 const Elem = @import("runtime.zig").Elem;
 const VM = @import("runtime.zig").VM;
 const Writers = @import("writer.zig").Writers;

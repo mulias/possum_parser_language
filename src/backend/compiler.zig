@@ -14,7 +14,6 @@ const name_resolver = @import("name_resolver.zig");
 const NameResolver = name_resolver.NameResolver;
 const OpCode = runtime.OpCode;
 const RangeLimitKind = runtime.RangeLimitKind;
-const MatchCmpKind = runtime.MatchCmpKind;
 const MatchCastKind = runtime.MatchCastKind;
 const Region = @import("../region.zig").Region;
 const FrontendStrings = Frontend.StringTable;
