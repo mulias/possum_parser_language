@@ -2419,7 +2419,12 @@ pub const Compiler = struct {
     // don't arise — a literal key is a has_key place.
     fn searchSetStepable(self: *Compiler, ast: *const Ast, set_id: Ast.SetId, is_key: bool) bool {
         const set = &ast.constraint_sets.items[set_id];
-        if (set.places.items.len != 1) return false;
+        // A multi-place key set — a decomposed string merge like
+        // {"a" + B: 1}, whose slice place carries the bind — steps as a
+        // child window like any other computed key. A multi-place value
+        // takes the structural path (searchValueStructuralStepable).
+        if (set.places.items.len != 1)
+            return is_key and self.constraintsStepable(ast, set.constraints.items);
         if (set.constraints.items.len == 0) return true;
         // A key sub-pattern that isn't a shallow leaf — a computed key like
         // "%(0 + N)" — steps as its own child window: the scan matches each
