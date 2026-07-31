@@ -104,8 +104,16 @@
   29
 
   $ possum -p 'const({"ab": 2}) -> {"a" + B: 2} $ B' -i ''
-  [UnsupportedPattern]
-  [1]
+  "b"
+
+A computed key that binds scans the members, matching each candidate key
+in a child window; the rest takes the unclaimed members.
+
+  $ possum -p 'const({"xq": 1, "ab": 2}) -> {"a" + B: 2, ...R} $ [B, R]' -i ''
+  [
+    "b",
+    {"xq": 1}
+  ]
 
   $ possum -p '"123" -> "%(A)"' -i '123'
   "123"
