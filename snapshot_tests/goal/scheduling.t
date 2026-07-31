@@ -141,7 +141,14 @@ from the stuck set is future work.
         B~1
       ]))
   
-  [UnsupportedPattern]
+  
+  Program Error: unresolvable cycle in pattern: its constraints each depend on a value another binds, so no evaluation order exists
+  
+  program:1:33-73:
+  1 \xe2\x96\x8f Inc(N) = N + 1 ; main = input -> [("a" + A + Inc(B)), ("b" + B + Inc(A))] $ [A, B] (esc)
+    \xe2\x96\x8f                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ (esc)
+  
+  [UnresolvablePatternCycle]
   [1]
 
 
