@@ -904,7 +904,7 @@ pub const VM = struct {
                 // Count by runtime type — array elements, object members,
                 // or string bytes — and compare against the immediate
                 // (mode 0: equal; mode 1: at least). Any other type, or a
-                // failed comparison, takes the fail jump. The emitted
+                // failed comparison, fails to the window. The emitted
                 // is_type test usually pins the type first.
                 const slot = self.readByte();
                 const n = self.readByte();
@@ -1269,7 +1269,7 @@ pub const VM = struct {
             .MatchCmp => {
                 // Compare the register against a comparand — a module
                 // constant, a bound frame local, or another scratch
-                // register — and take the fail jump when they differ.
+                // register — and fail to the window when they differ.
                 // Absorbs the former MatchConst (constant), MatchSlot
                 // (slot), MatchStrCovered (reg: cursors meeting), and the
                 // constant case of MatchGlobal.
@@ -1716,9 +1716,8 @@ pub const VM = struct {
             },
             .MatchEval => {
                 // The preceding expression left its result on the stack;
-                // compare it against the place register, mirroring the plan
-                // interpreter's eval_eq. Roots a Dyn result while comparing,
-                // like MatchGlobal.
+                // compare it against the place register. Roots a Dyn result
+                // while comparing.
                 const register = self.readByte();
                 _ = self.readByte();
                 const evaluated = self.pop();
@@ -1912,8 +1911,8 @@ pub const VM = struct {
                 // Scan src's string codepoint by codepoint against the
                 // range bounds and write the codepoint count into the
                 // destination register for the count steps that follow.
-                // An invalid sequence or out-of-range codepoint takes the
-                // fail jump. Bounds are the non-evaluated range-bound
+                // An invalid sequence or out-of-range codepoint fails to
+                // the window. Bounds are the non-evaluated range-bound
                 // subset (none/const/read).
                 const src = self.readByte();
                 const dst = self.readByte();
@@ -2840,10 +2839,9 @@ pub const VM = struct {
         self.stack.items[self.cur_frame.elemsOffset + slot + 1] = elem;
     }
 
-    // Read/write a match scratch (place/register) slot. Transitional
-    // dual-mode: window-mode functions address the innermost match window;
-    // frame-mode functions fall back to frame-local slots. Bound-variable
-    // operands never route here — they stay frame locals via get/setLocal.
+    // Read/write a match scratch (place/register) slot in the innermost
+    // match window. Bound-variable operands never route here — they stay
+    // frame locals via get/setLocal.
     pub fn getScratch(self: *VM, slot: usize) Elem {
         return self.match_regs.items[self.current_window_base + slot];
     }
@@ -2852,10 +2850,6 @@ pub const VM = struct {
         self.match_regs.items[self.current_window_base + slot] = elem;
     }
 
-    // Compare `literal` at the cursor within a string template and return
-    // the advanced cursor, or null when it doesn't fit before the opposite
-    // cursor or the bytes differ. Forward (back=false) chomps from `cur`
-    // toward higher indices; backward chomps toward lower indices.
     // Element-wise array analogue of matchStrChomp: compare the segment's
     // elements against src at the cursor (forward from `cur`, or backward
     // ending at `cur`), bounded by the opposite cursor, and return the
@@ -2875,6 +2869,10 @@ pub const VM = struct {
         return cur + seg.len;
     }
 
+    // Compare `literal` at the cursor within a string template and return
+    // the advanced cursor, or null when it doesn't fit before the opposite
+    // cursor or the bytes differ. Forward (back=false) chomps from `cur`
+    // toward higher indices; backward chomps toward lower indices.
     fn matchStrChomp(bytes: []const u8, cur: usize, opp: usize, back: bool, literal: []const u8) ?usize {
         if (back) {
             if (cur < opp + literal.len) return null;
@@ -2915,9 +2913,6 @@ pub const VM = struct {
         return .{ .start = cur, .end = cur + len, .next_cursor = cur + len };
     }
 
-    // A repeat range bound resolved to its codepoint: none is open, and
-    // const and read bounds must be strings (runtime error otherwise). A
-    // string that isn't a single codepoint imposes no limit.
     fn repeatRangeCountBound(self: *VM, kind: RangeLimitKind, arg: u16) !?f64 {
         const limit: Elem = switch (kind) {
             .none => return null,
@@ -2929,6 +2924,9 @@ pub const VM = struct {
             self.runtimeError("Repeat count range bound must be a number", .{});
     }
 
+    // A repeat range bound resolved to its codepoint: none is open, and
+    // const and read bounds must be strings (runtime error otherwise). A
+    // string that isn't a single codepoint imposes no limit.
     fn repeatRangeCodepoint(self: *VM, kind: RangeLimitKind, arg: u16) !?u21 {
         const limit: Elem = switch (kind) {
             .none => return null,
@@ -2942,11 +2940,6 @@ pub const VM = struct {
         return self.runtimeError("Range bound must be a codepoint", .{});
     }
 
-    // How many times pattern_value repeats (merges with itself) to make
-    // value, or null when it can't. Strings and arrays divide by the
-    // pattern's length and compare chunks in place; numbers divide (the
-    // count may be fractional or negative); objects and booleans only
-    // match themselves, with identity-element canonical counts.
     // The residual X of `part + X` (from_end false) or `X + part` (from_end
     // true) such that merging them equals value, dispatched on part's runtime
     // type (the merge type). For strings and arrays the side
@@ -3038,6 +3031,11 @@ pub const VM = struct {
         return null;
     }
 
+    // How many times pattern_value repeats (merges with itself) to make
+    // value, or null when it can't. Strings and arrays divide by the
+    // pattern's length and compare chunks in place; numbers divide (the
+    // count may be fractional or negative); objects and booleans only
+    // match themselves, with identity-element canonical counts.
     fn repeatValueCount(self: *VM, value: Elem, pattern_value: Elem) !?f64 {
         if (try pattern_value.stringBytes(self)) |pattern_str| {
             const value_str = (try value.stringBytes(self)) orelse return null;

@@ -72,8 +72,8 @@ pub const OpCode = enum(u8) {
     JumpIfFailure,
     JumpIfZero,
     // Match step ops: pattern constraints compiled inline. Registers are
-    // frame slots above the locals; semidet steps carry a fail-jump
-    // offset like Or. MatchScrutinee copies the value under test (stack
+    // match window registers; semidet steps fail to the innermost window's
+    // shared fail block. MatchScrutinee copies the value under test (stack
     // top) into its register; projections copy container children into
     // registers; MatchBind copies a register into a local slot; MatchFail
     // is the shared failure tail that swaps the value for the failure
@@ -1002,7 +1002,7 @@ pub const OpCode = enum(u8) {
             .CreateClosure,
             .InsertAtIndex,
             .InsertKeyVal,
-            => self.byteInstruciton(chunk, writer, offset),
+            => self.byteInstruction(chunk, writer, offset),
             .ParseChar,
             => self.charInstruction(chunk, writer, offset),
             .PushString,
@@ -1022,7 +1022,7 @@ pub const OpCode = enum(u8) {
             .PushVar4,
             => self.varInstruction(chunk, vm, writer, offset, 4),
             .PushInteger,
-            => self.pushNumberInstruciton(chunk, writer, offset),
+            => self.pushNumberInstruction(chunk, writer, offset),
             .PushNegInteger,
             => self.pushNegNumberInstruction(chunk, writer, offset),
             .PushNumberStringChar,
@@ -1499,7 +1499,7 @@ pub const OpCode = enum(u8) {
         return offset + 4;
     }
 
-    fn byteInstruciton(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+    fn byteInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
         const byte = chunk.read(offset + 1);
         try writer.print("{s} {}\n", .{ @tagName(self), byte });
         return offset + 2;
@@ -1517,7 +1517,7 @@ pub const OpCode = enum(u8) {
         return offset + 2;
     }
 
-    fn pushNumberInstruciton(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
+    fn pushNumberInstruction(self: OpCode, chunk: *Chunk, writer: *Writer, offset: usize) !usize {
         const byte = chunk.read(offset + 1);
         try writer.print("{s} {}\n", .{ @tagName(self), @as(f64, @floatFromInt(byte)) });
         return offset + 2;

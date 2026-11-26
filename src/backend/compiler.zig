@@ -2638,8 +2638,8 @@ pub const Compiler = struct {
     // a time by the repeat-group steps) or a runtime object value (a bound
     // read, module global, or evaluable expression, claimed whole by
     // MatchClaimObject), and the solvable part, if any, is a bind or
-    // placeholder taking the unclaimed rest. Repeat parts (a solve_repeat
-    // inside a sub set) are not claimed yet and reject the merge.
+    // placeholder taking the unclaimed rest. A sub set holding a single
+    // object repeat (objectMergeRepeatPart) is also accepted.
     fn objectMergeStepable(self: *Compiler, ast: *const Ast, ty: ?Ast.ValueType, parts: []const Ast.Part, solvable_index: ?u32) bool {
         if ((ty orelse return false) != .object) return false;
         for (parts, 0..) |part, i| {
@@ -4294,7 +4294,7 @@ pub const Compiler = struct {
     // Test the derived repeat count in `reg` against the count operand:
     // nothing for a placeholder, a bind or comparison for locals,
     // constant equality, or a single-place count sub-set of leaf tests.
-    // repeatCountStepable admits exactly these shapes.
+    // repeatCountSetStepable admits exactly these sub-set shapes.
     fn emitRepeatCountSteps(
         self: *Compiler,
         module_id: Module.Id,
