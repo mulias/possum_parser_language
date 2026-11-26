@@ -145,7 +145,7 @@ fn liveOut(insns: []const Ir.Insn, live_in: []const SlotSet, fail_targets: []con
     // Semidet match ops fail to the innermost window's shared fail block.
     // Their fallthrough successor is `i + 1`; MatchRefail has no
     // fallthrough — it always cascades to the enclosing window.
-    if (Ir.opFailsToWindow(op)) {
+    if (op.failsToWindow()) {
         const target = fail_targets[i];
         std.debug.assert(target != Ir.unpatched_jump);
         var out = live_in[target];
