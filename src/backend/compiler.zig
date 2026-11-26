@@ -3288,10 +3288,7 @@ pub const Compiler = struct {
         // exit bound. Only reserved when an object_search repeat or a
         // claim_members merge is present (object_search block == 5).
         const os_claim = repeat_reg + repeat_block + span_block;
-        const os_key = os_claim + 1;
-        const os_val = os_claim + 2;
-        const os_cursor = os_claim + 3;
-        const os_target = os_claim + 4;
+        const os_regs: ClaimRegs = .{ .claim = os_claim, .key = os_claim + 1, .val = os_claim + 2, .cursor = os_claim + 3, .target = os_claim + 4 };
 
         // Record the claim array register of each object-merge repeat so a
         // members_rest on the same place subtracts the claim array
@@ -3537,7 +3534,7 @@ pub const Compiler = struct {
                             c.solvable_index,
                             reg,
                             dead_reg,
-                            .{ .claim = os_claim, .key = os_key, .val = os_val, .cursor = os_cursor, .target = os_target },
+                            os_regs,
                             bind_mode,
                             &fail_jumps,
                             step_region,
@@ -3782,29 +3779,12 @@ pub const Compiler = struct {
                             // The exit bound is the whole member count; the
                             // group loop claims pair_count members per group
                             // and stops once the claim array reaches it.
-                            try self.emitMemberCount(src_reg, os_target, &fail_jumps, step_region);
+                            try self.emitMemberCount(src_reg, os_regs.target, &fail_jumps, step_region);
 
                             // The guard exits before the first group when the
                             // object is empty (count 0); otherwise group 0
                             // binds and the loop compares.
-                            const guard = try self.ir().push(allocator, .{ .match_claim_done = .{
-                                .op = .MatchClaimDoneCount,
-                                .claim = os_claim,
-                                .src = os_target,
-                                .target = Ir.unpatched_jump,
-                            } }, step_region);
-                            try self.emitObjectRepeatGroup(module_id, ast, c.pattern.sub, src_reg, os_claim, os_key, os_val, os_cursor, .bind, &fail_jumps, step_region);
-                            const loop_head = self.ir().nextIndex();
-                            const loop_done = try self.ir().push(allocator, .{ .match_claim_done = .{
-                                .op = .MatchClaimDoneCount,
-                                .claim = os_claim,
-                                .src = os_target,
-                                .target = Ir.unpatched_jump,
-                            } }, step_region);
-                            try self.emitObjectRepeatGroup(module_id, ast, c.pattern.sub, src_reg, os_claim, os_key, os_val, os_cursor, .compare, &fail_jumps, step_region);
-                            try self.emitJumpBack(.JumpBack, loop_head, step_region);
-                            self.patchJump(guard);
-                            self.patchJump(loop_done);
+                            try self.emitObjectGroupLoop(module_id, ast, c.pattern.sub, src_reg, os_regs, .bind, &fail_jumps, step_region);
                         },
                         // A bare binder: push the known count (the product
                         // of the scalar factors), solve the representative
@@ -3875,15 +3855,8 @@ pub const Compiler = struct {
                         // seed + groups × pair_len by the divisibility check).
                         const seed_constant = try self.hasKeyListConstant(module_id, constraints, c.place, step_region);
                         _ = try self.ir().push(allocator, .{ .match_const = .{ .op = .MatchClaimSeed, .byte1 = os_claim, .byte2 = 0, .constant = seed_constant } }, step_region);
-                        try self.emitMemberCount(src_reg, os_target, &fail_jumps, step_region);
-                        const guard = try self.ir().push(allocator, .{ .match_claim_done = .{ .op = .MatchClaimDoneCount, .claim = os_claim, .src = os_target, .target = Ir.unpatched_jump } }, step_region);
-                        try self.emitObjectRepeatGroup(module_id, ast, chunk_set_id, src_reg, os_claim, os_key, os_val, os_cursor, .bind, &fail_jumps, step_region);
-                        const loop_head = self.ir().nextIndex();
-                        const loop_done = try self.ir().push(allocator, .{ .match_claim_done = .{ .op = .MatchClaimDoneCount, .claim = os_claim, .src = os_target, .target = Ir.unpatched_jump } }, step_region);
-                        try self.emitObjectRepeatGroup(module_id, ast, chunk_set_id, src_reg, os_claim, os_key, os_val, os_cursor, .compare, &fail_jumps, step_region);
-                        try self.emitJumpBack(.JumpBack, loop_head, step_region);
-                        self.patchJump(guard);
-                        self.patchJump(loop_done);
+                        try self.emitMemberCount(src_reg, os_regs.target, &fail_jumps, step_region);
+                        try self.emitObjectGroupLoop(module_id, ast, chunk_set_id, src_reg, os_regs, .bind, &fail_jumps, step_region);
                     } else {
                         // Shape C: the count is a known product; seed the
                         // const keys, load the target claim size past them,
@@ -3898,14 +3871,9 @@ pub const Compiler = struct {
                             .pair_len = pair_len,
                             .claim = os_claim,
                         } }, step_region));
-                        const guard = try self.ir().push(allocator, .{ .match_claim_done = .{ .op = .MatchClaimDoneCount, .claim = os_claim, .src = repeat_reg, .target = Ir.unpatched_jump } }, step_region);
-                        try self.emitObjectRepeatGroup(module_id, ast, chunk_set_id, src_reg, os_claim, os_key, os_val, os_cursor, .bind, &fail_jumps, step_region);
-                        const loop_head = self.ir().nextIndex();
-                        const loop_done = try self.ir().push(allocator, .{ .match_claim_done = .{ .op = .MatchClaimDoneCount, .claim = os_claim, .src = repeat_reg, .target = Ir.unpatched_jump } }, step_region);
-                        try self.emitObjectRepeatGroup(module_id, ast, chunk_set_id, src_reg, os_claim, os_key, os_val, os_cursor, .compare, &fail_jumps, step_region);
-                        try self.emitJumpBack(.JumpBack, loop_head, step_region);
-                        self.patchJump(guard);
-                        self.patchJump(loop_done);
+                        var count_regs = os_regs;
+                        count_regs.target = repeat_reg;
+                        try self.emitObjectGroupLoop(module_id, ast, chunk_set_id, src_reg, count_regs, .bind, &fail_jumps, step_region);
                     }
                 },
                 else => unreachable,
@@ -4665,6 +4633,33 @@ pub const Compiler = struct {
 
     const ClaimRegs = struct { claim: u8, key: u8, val: u8, cursor: u8, target: u8 };
 
+    // Claim member groups until the claim array reaches the size in
+    // regs.target: a guard exits before the first group when it already
+    // does, the first group runs in first_mode, and the loop's later groups
+    // compare against the first group's binds.
+    fn emitObjectGroupLoop(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        chunk_set_id: Ast.SetId,
+        src_reg: u8,
+        regs: ClaimRegs,
+        first_mode: BindMode,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        const done: Ir.Operand = .{ .match_claim_done = .{ .op = .MatchClaimDoneCount, .claim = regs.claim, .src = regs.target, .target = Ir.unpatched_jump } };
+        const guard = try self.ir().push(allocator, done, region);
+        try self.emitObjectRepeatGroup(module_id, ast, chunk_set_id, src_reg, regs.claim, regs.key, regs.val, regs.cursor, first_mode, fail_jumps, region);
+        const loop_head = self.ir().nextIndex();
+        const loop_done = try self.ir().push(allocator, done, region);
+        try self.emitObjectRepeatGroup(module_id, ast, chunk_set_id, src_reg, regs.claim, regs.key, regs.val, regs.cursor, .compare, fail_jumps, region);
+        try self.emitJumpBack(.JumpBack, loop_head, region);
+        self.patchJump(guard);
+        self.patchJump(loop_done);
+    }
+
     // An object merge solved on the shared claim array: each part claims
     // members of src exclusively — a structural part via the repeat-group
     // probe/scan/claim steps, an evaluated part whole via MatchClaimObject —
@@ -4716,14 +4711,7 @@ pub const Compiler = struct {
                         .pair_len = pair_len,
                         .claim = regs.claim,
                     } }, region));
-                    const guard = try self.ir().push(allocator, .{ .match_claim_done = .{ .op = .MatchClaimDoneCount, .claim = regs.claim, .src = regs.target, .target = Ir.unpatched_jump } }, region);
-                    try self.emitObjectRepeatGroup(module_id, ast, chunk_set_id, src_reg, regs.claim, regs.key, regs.val, regs.cursor, bind_mode, fail_jumps, region);
-                    const loop_head = self.ir().nextIndex();
-                    const loop_done = try self.ir().push(allocator, .{ .match_claim_done = .{ .op = .MatchClaimDoneCount, .claim = regs.claim, .src = regs.target, .target = Ir.unpatched_jump } }, region);
-                    try self.emitObjectRepeatGroup(module_id, ast, chunk_set_id, src_reg, regs.claim, regs.key, regs.val, regs.cursor, .compare, fail_jumps, region);
-                    try self.emitJumpBack(.JumpBack, loop_head, region);
-                    self.patchJump(guard);
-                    self.patchJump(loop_done);
+                    try self.emitObjectGroupLoop(module_id, ast, chunk_set_id, src_reg, regs, bind_mode, fail_jumps, region);
                 } else {
                     try self.emitObjectRepeatGroup(module_id, ast, set_id, src_reg, regs.claim, regs.key, regs.val, regs.cursor, bind_mode, fail_jumps, region);
                 },
