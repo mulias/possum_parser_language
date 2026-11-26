@@ -3474,44 +3474,10 @@ pub const Compiler = struct {
                         .constant = constant,
                     } }, step_region));
                 },
-                .eq_const => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
-                    const elem = try self.goalPatternConstElem(ast, c.value);
-                    const constant = try self.makeConstantU16(module_id, elem, step_region);
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
-                        .reg = placeReg(c.place),
-                        .kind = .constant,
-                        .arg = constant,
-                    } }, step_region));
-                },
-                .eq_global => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
-                    const reg = placeReg(c.place);
-                    try fail_jumps.append(allocator, try self.emitEqGlobalStep(module_id, c.name, reg, step_region));
-                },
-                .bind => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
-                    switch (bind_mode) {
-                        .bind => _ = try self.ir().push(allocator, .{ .match_bytes = .{
-                            .op = .MatchBind,
-                            .byte1 = c.slot,
-                            .byte2 = placeReg(c.place),
-                        } }, step_region),
-                        // Compare against the value the first chunk bound.
-                        .compare => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
-                            .reg = placeReg(c.place),
-                            .kind = .slot,
-                            .arg = c.slot,
-                        } }, step_region)),
-                    }
-                },
-                .eq_slot => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
-                        .reg = placeReg(c.place),
-                        .kind = .slot,
-                        .arg = c.slot,
-                    } }, step_region));
+                .eq_const, .eq_global, .bind, .eq_slot, .in_range => {
+                    const place = constraintPrimaryPlace(constraint.kind).?;
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, place, step_region);
+                    try self.emitLeafStep(module_id, ast, constraint.kind, placeReg(place), bind_mode, &fail_jumps, step_region);
                 },
                 // Evaluate the expression (a call, mirroring the plan's
                 // eval_eq) and compare its result against the place. Every
@@ -3525,11 +3491,6 @@ pub const Compiler = struct {
                         .byte1 = placeReg(c.place),
                         .byte2 = 0,
                     } }, step_region));
-                },
-                .in_range => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
-                    const reg = placeReg(c.place);
-                    try self.emitInRangeStep(module_id, ast, reg, c.lower, c.upper, &fail_jumps, step_region);
                 },
                 .negated => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
@@ -4148,7 +4109,6 @@ pub const Compiler = struct {
         fail_jumps: *ArrayList(Ir.Index),
         region: Region,
     ) Error!void {
-        const allocator = self.vm.allocator;
         const chunk_set = &ast.constraint_sets.items[chunk_set_id];
         // The projected member place for this key, if the pattern names one
         // (a placeholder value projects nothing).
@@ -4163,37 +4123,7 @@ pub const Compiler = struct {
         for (chunk_set.constraints.items) |constraint| {
             const place = constraintPrimaryPlace(constraint.kind) orelse continue;
             if (place != vp) continue;
-            switch (constraint.kind) {
-                .bind => |c| switch (bind_mode) {
-                    .bind => _ = try self.ir().push(allocator, .{ .match_bytes = .{
-                        .op = .MatchBind,
-                        .byte1 = c.slot,
-                        .byte2 = val_dst,
-                    } }, region),
-                    .compare => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
-                        .reg = val_dst,
-                        .kind = .slot,
-                        .arg = c.slot,
-                    } }, region)),
-                },
-                .eq_const => |c| {
-                    const elem = try self.goalPatternConstElem(ast, c.value);
-                    const constant = try self.makeConstantU16(module_id, elem, region);
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
-                        .reg = val_dst,
-                        .kind = .constant,
-                        .arg = constant,
-                    } }, region));
-                },
-                .eq_slot => |c| try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
-                    .reg = val_dst,
-                    .kind = .slot,
-                    .arg = c.slot,
-                } }, region)),
-                .eq_global => |c| try fail_jumps.append(allocator, try self.emitEqGlobalStep(module_id, c.name, val_dst, region)),
-                .in_range => |c| try self.emitInRangeStep(module_id, ast, val_dst, c.lower, c.upper, fail_jumps, region),
-                else => unreachable,
-            }
+            try self.emitLeafStep(module_id, ast, constraint.kind, val_dst, bind_mode, fail_jumps, region);
         }
     }
 
@@ -4293,33 +4223,61 @@ pub const Compiler = struct {
         fail_jumps: *ArrayList(Ir.Index),
         region: Region,
     ) Error!void {
-        const allocator = self.vm.allocator;
         switch (count) {
             .placeholder, .bind, .read => try self.emitLeftoverPart(count, reg, fail_jumps, region),
-            .expr => |id| try self.emitRepeatCountConst(module_id, ast, id, reg, fail_jumps, region),
+            .expr => |id| try self.emitEqConstStep(module_id, ast, id, reg, fail_jumps, region),
             .sub => |set_id| {
                 const set = &ast.constraint_sets.items[set_id];
-                for (set.constraints.items) |constraint| switch (constraint.kind) {
-                    .eq_const => |c| try self.emitRepeatCountConst(module_id, ast, c.value, reg, fail_jumps, region),
-                    .bind => |c| _ = try self.ir().push(allocator, .{ .match_bytes = .{
-                        .op = .MatchBind,
-                        .byte1 = c.slot,
-                        .byte2 = reg,
-                    } }, region),
-                    .eq_slot => |c| try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
-                        .reg = reg,
-                        .kind = .slot,
-                        .arg = c.slot,
-                    } }, region)),
-                    .in_range => |c| try self.emitInRangeStep(module_id, ast, reg, c.lower, c.upper, fail_jumps, region),
-                    else => unreachable,
-                };
+                for (set.constraints.items) |constraint| {
+                    std.debug.assert(constraint.kind != .eq_global);
+                    try self.emitLeafStep(module_id, ast, constraint.kind, reg, .bind, fail_jumps, region);
+                }
             },
             .local, .global => unreachable,
         }
     }
 
-    fn emitRepeatCountConst(
+    // A leaf test of the value in reg: constant, bound-local, or global
+    // equality, a range, or a bind (a bound-local comparison in compare
+    // mode).
+    fn emitLeafStep(
+        self: *Compiler,
+        module_id: Module.Id,
+        ast: *const Ast,
+        kind: Ast.Constraint.Kind,
+        reg: u8,
+        bind_mode: BindMode,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        switch (kind) {
+            .bind => |c| switch (bind_mode) {
+                .bind => _ = try self.ir().push(allocator, .{ .match_bytes = .{
+                    .op = .MatchBind,
+                    .byte1 = c.slot,
+                    .byte2 = reg,
+                } }, region),
+                // Compare against the value the first chunk bound.
+                .compare => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                    .reg = reg,
+                    .kind = .slot,
+                    .arg = c.slot,
+                } }, region)),
+            },
+            .eq_slot => |c| try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                .reg = reg,
+                .kind = .slot,
+                .arg = c.slot,
+            } }, region)),
+            .eq_const => |c| try self.emitEqConstStep(module_id, ast, c.value, reg, fail_jumps, region),
+            .eq_global => |c| try fail_jumps.append(allocator, try self.emitEqGlobalStep(module_id, c.name, reg, region)),
+            .in_range => |c| try self.emitInRangeStep(module_id, ast, reg, c.lower, c.upper, fail_jumps, region),
+            else => unreachable,
+        }
+    }
+
+    fn emitEqConstStep(
         self: *Compiler,
         module_id: Module.Id,
         ast: *const Ast,
