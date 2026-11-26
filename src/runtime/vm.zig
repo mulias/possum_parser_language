@@ -1411,13 +1411,8 @@ pub const VM = struct {
                 const pair_len: usize = self.readByte();
                 const claim = self.readByte();
                 const count_elem = self.pop();
-                if (!count_elem.isNumber()) {
+                const count_float = numberFloatOf(count_elem, self.strings) orelse
                     return self.runtimeError("Repeat count must be a number", .{});
-                }
-                const count_float = if (count_elem.isFloat())
-                    count_elem.asFloat()
-                else
-                    count_elem.asNumberString().toNumberFloat(self.strings).asFloat();
                 self.reclaimElem(count_elem);
                 if (count_float < 0 or @trunc(count_float) != count_float) {
                     self.cur_frame.ip = self.current_window_fail;
@@ -1461,16 +1456,10 @@ pub const VM = struct {
                 const src = self.readByte();
                 const constant_idx = self.readShort();
                 const negate = self.readByte() != 0;
-                const value = self.getScratch(src);
-                var src_float: f64 = undefined;
-                if (value.isFloat()) {
-                    src_float = value.asFloat();
-                } else if (value.isType(.NumberString)) {
-                    src_float = value.asNumberString().toNumberFloat(self.strings).asFloat();
-                } else {
+                const src_float = numberFloatOf(self.getScratch(src), self.strings) orelse {
                     self.cur_frame.ip = self.current_window_fail;
                     return;
-                }
+                };
                 const sum = self.getConstant(constant_idx).asFloat();
                 const residual = if (negate) sum - src_float else src_float - sum;
                 self.storeScratch(dst, Elem.numberFloat(residual));
@@ -1673,13 +1662,8 @@ pub const VM = struct {
                 const src = self.readByte();
                 const chunk_dst = self.readByte();
                 const count_elem = self.pop();
-                if (!count_elem.isNumber()) {
+                const count_float = numberFloatOf(count_elem, self.strings) orelse
                     return self.runtimeError("Repeat count must be a number", .{});
-                }
-                const count_float = if (count_elem.isFloat())
-                    count_elem.asFloat()
-                else
-                    count_elem.asNumberString().toNumberFloat(self.strings).asFloat();
                 self.reclaimElem(count_elem);
                 if (count_float < 0 or @trunc(count_float) != count_float) {
                     self.cur_frame.ip = self.current_window_fail;
@@ -1735,15 +1719,11 @@ pub const VM = struct {
                     }
                     const array = try Elem.DynElem.Array.copy(self, elems[0..chunk_len]);
                     break :blk array.dyn.elem();
-                } else if (value.isNumber()) blk: {
+                } else if (numberFloatOf(value, self.strings)) |value_float| blk: {
                     if (count == 0) {
                         self.cur_frame.ip = self.current_window_fail;
                         return;
                     }
-                    const value_float = if (value.isFloat())
-                        value.asFloat()
-                    else
-                        value.asNumberString().toNumberFloat(self.strings).asFloat();
                     break :blk Elem.numberFloat(value_float / count_float);
                 } else {
                     self.cur_frame.ip = self.current_window_fail;
@@ -2963,14 +2943,8 @@ pub const VM = struct {
             return if (value.isEql(pattern_value, self.*)) 1 else null;
         }
         if (pattern_value.isNumber() and value.isNumber()) {
-            const pattern_float = if (pattern_value.isFloat())
-                pattern_value.asFloat()
-            else
-                pattern_value.asNumberString().toNumberFloat(self.strings).asFloat();
-            const value_float = if (value.isFloat())
-                value.asFloat()
-            else
-                value.asNumberString().toNumberFloat(self.strings).asFloat();
+            const pattern_float = numberFloatOf(pattern_value, self.strings).?;
+            const value_float = numberFloatOf(value, self.strings).?;
             if (pattern_float == 0) {
                 // 0 * N = 0 for any N >= 1; 1 is the canonical answer
                 return if (value_float == 0) 1 else null;
