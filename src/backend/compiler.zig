@@ -3590,19 +3590,9 @@ pub const Compiler = struct {
                     } else false;
 
                     if (known_key) {
-                        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_claim_key = .{
-                            .op = .MatchClaimKey,
-                            .key_dst = key_reg,
-                            .val_dst = value_reg,
-                            .src = src_reg,
-                            .claim = group.reg,
-                        } }, step_region));
+                        try self.emitClaimKey(src_reg, group.reg, key_reg, value_reg, &fail_jumps, step_region);
                         try self.writeMatchSteps(module_id, ast, value_set.places.items, value_set.constraints.items, .{ .sub = .{ .src_reg = value_reg, .on_fail = .{ .arm = &fail_jumps } } }, step_region);
-                        _ = try self.ir().push(allocator, .{ .match_test = .{
-                            .op = .MatchClaimAdd,
-                            .byte1 = group.reg,
-                            .byte2 = key_reg,
-                        } }, step_region);
+                        try self.emitClaimAdd(group.reg, key_reg, step_region);
                         continue;
                     }
 
@@ -3612,16 +3602,7 @@ pub const Compiler = struct {
                     // rejected candidate exits that window and loops back.
                     // The accepted pair claims its key so later pairs and
                     // the rest skip the member.
-                    try self.emitUnaryOp(.MatchIterInit, cursor_reg, step_region);
-                    const loop = self.ir().nextIndex();
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_claim_scan = .{
-                        .op = .MatchClaimScan,
-                        .key_dst = key_reg,
-                        .val_dst = value_reg,
-                        .src = src_reg,
-                        .cursor = cursor_reg,
-                        .claim = group.reg,
-                    } }, step_region));
+                    const loop = try self.emitClaimScan(src_reg, group.reg, key_reg, value_reg, cursor_reg, &fail_jumps, step_region);
                     // Match the candidate key before the value window so the
                     // value may read the key's binds ({A: Id(A)}, {A: [A, B]}).
                     // A leaf bind binds the key directly; a computed key (a
@@ -3644,11 +3625,7 @@ pub const Compiler = struct {
                         try self.writeMatchSteps(module_id, ast, key_set.places.items, key_set.constraints.items, .{ .sub = .{ .src_reg = key_reg, .on_fail = .{ .retry = loop } } }, step_region);
                     }
                     try self.writeMatchSteps(module_id, ast, value_set.places.items, value_set.constraints.items, .{ .sub = .{ .src_reg = value_reg, .on_fail = .{ .retry = loop } } }, step_region);
-                    _ = try self.ir().push(allocator, .{ .match_test = .{
-                        .op = .MatchClaimAdd,
-                        .byte1 = group.reg,
-                        .byte2 = key_reg,
-                    } }, step_region);
+                    try self.emitClaimAdd(group.reg, key_reg, step_region);
                 },
                 .solve_repeat => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
@@ -3991,6 +3968,45 @@ pub const Compiler = struct {
         } }, region));
     }
 
+    // Probe src for the popped known key into key_dst/val_dst; fails when
+    // the member is absent or already claimed.
+    fn emitClaimKey(self: *Compiler, src: u8, claim: u8, key_dst: u8, val_dst: u8, fail_jumps: *ArrayList(Ir.Index), region: Region) Error!void {
+        const allocator = self.vm.allocator;
+        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_claim_key = .{
+            .op = .MatchClaimKey,
+            .key_dst = key_dst,
+            .val_dst = val_dst,
+            .src = src,
+            .claim = claim,
+        } }, region));
+    }
+
+    // Reset the cursor and scan src for the next unclaimed member into
+    // key_dst/val_dst. Returns the scan op's index, the retry target for a
+    // rejected candidate.
+    fn emitClaimScan(self: *Compiler, src: u8, claim: u8, key_dst: u8, val_dst: u8, cursor: u8, fail_jumps: *ArrayList(Ir.Index), region: Region) Error!Ir.Index {
+        const allocator = self.vm.allocator;
+        try self.emitUnaryOp(.MatchIterInit, cursor, region);
+        const loop = self.ir().nextIndex();
+        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_claim_scan = .{
+            .op = .MatchClaimScan,
+            .key_dst = key_dst,
+            .val_dst = val_dst,
+            .src = src,
+            .cursor = cursor,
+            .claim = claim,
+        } }, region));
+        return loop;
+    }
+
+    fn emitClaimAdd(self: *Compiler, claim: u8, key: u8, region: Region) Error!void {
+        _ = try self.ir().push(self.vm.allocator, .{ .match_test = .{
+            .op = .MatchClaimAdd,
+            .byte1 = claim,
+            .byte2 = key,
+        } }, region);
+    }
+
     // One group of a constrained-pair object repeat: match each search pair
     // against a fresh unclaimed member of src, then claim it. A placeholder
     // or first-group binding key scans (MatchClaimScan, retrying past
@@ -4022,19 +4038,9 @@ pub const Compiler = struct {
             .has_key => |c| {
                 const key_sid = try self.vm.strings.insert(self.frontend.strings.get(c.sid));
                 try self.writeConstant(module_id, Elem.string(key_sid), region);
-                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_claim_key = .{
-                    .op = .MatchClaimKey,
-                    .key_dst = key_dst,
-                    .val_dst = val_dst,
-                    .src = src_reg,
-                    .claim = claim_reg,
-                } }, region));
+                try self.emitClaimKey(src_reg, claim_reg, key_dst, val_dst, fail_jumps, region);
                 try self.emitObjectRepeatConstValue(module_id, ast, chunk_set_id, c.sid, val_dst, bind_mode, fail_jumps, region);
-                _ = try self.ir().push(allocator, .{ .match_test = .{
-                    .op = .MatchClaimAdd,
-                    .byte1 = claim_reg,
-                    .byte2 = key_dst,
-                } }, region);
+                try self.emitClaimAdd(claim_reg, key_dst, region);
             },
             .search_key => |c| {
                 const key_set = &ast.constraint_sets.items[c.key];
@@ -4048,28 +4054,13 @@ pub const Compiler = struct {
                     // Rebound known key: read its slot and probe directly.
                     // A member group 0 already claimed under this key fails.
                     try self.emitUnaryOp(.GetLocal, key_bind.?, region);
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_claim_key = .{
-                        .op = .MatchClaimKey,
-                        .key_dst = key_dst,
-                        .val_dst = val_dst,
-                        .src = src_reg,
-                        .claim = claim_reg,
-                    } }, region));
+                    try self.emitClaimKey(src_reg, claim_reg, key_dst, val_dst, fail_jumps, region);
                     if (value_set.constraints.items.len > 0) {
                         try self.writeMatchSteps(module_id, ast, value_set.places.items, value_set.constraints.items, .{ .sub = .{ .src_reg = val_dst, .on_fail = .{ .arm = fail_jumps }, .bind_mode = bind_mode } }, region);
                     }
                 } else {
                     // Scan for the first unclaimed member the value accepts.
-                    try self.emitUnaryOp(.MatchIterInit, cursor_reg, region);
-                    const loop = self.ir().nextIndex();
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_claim_scan = .{
-                        .op = .MatchClaimScan,
-                        .key_dst = key_dst,
-                        .val_dst = val_dst,
-                        .src = src_reg,
-                        .cursor = cursor_reg,
-                        .claim = claim_reg,
-                    } }, region));
+                    const loop = try self.emitClaimScan(src_reg, claim_reg, key_dst, val_dst, cursor_reg, fail_jumps, region);
                     if (bind_mode == .bind and key_bind != null) {
                         _ = try self.ir().push(allocator, .{ .match_bytes = .{
                             .op = .MatchBind,
@@ -4081,11 +4072,7 @@ pub const Compiler = struct {
                         try self.writeMatchSteps(module_id, ast, value_set.places.items, value_set.constraints.items, .{ .sub = .{ .src_reg = val_dst, .on_fail = .{ .retry = loop }, .bind_mode = bind_mode } }, region);
                     }
                 }
-                _ = try self.ir().push(allocator, .{ .match_test = .{
-                    .op = .MatchClaimAdd,
-                    .byte1 = claim_reg,
-                    .byte2 = key_dst,
-                } }, region);
+                try self.emitClaimAdd(claim_reg, key_dst, region);
             },
             // The chunk's structural gates (enforced by MatchType +
             // MatchRepeatInit and the group loop's arity) and the const-key
