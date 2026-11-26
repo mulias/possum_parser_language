@@ -805,6 +805,7 @@ pub const Ir = struct {
             .MatchMergeNum,
             .MatchClaimScan,
             .MatchClaimKey,
+            .MatchClaimObject,
             .MatchClaimCount,
             .MatchCountLoad,
             .MatchBound,
