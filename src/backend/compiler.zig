@@ -573,6 +573,7 @@ pub const Compiler = struct {
             try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.pathString(name)});
             return Error.UndefinedVariable;
         };
+        // Only zero-arity functions evaluate per match.
         if (global.isDynType(.Function)) {
             try self.requireZeroArity(module_id, global.asDyn().asFunction(), region);
             try self.writeCallFunctionConstant(module_id, global, region);
@@ -3657,7 +3658,7 @@ pub const Compiler = struct {
                         // count from the place's value, and solve the
                         // count factors against the derived count.
                         .value => {
-                            try self.writeRepeatOperand(module_id, ast, c.pattern, step_region);
+                            try self.emitEvaluablePartValue(module_id, ast, c.pattern, step_region);
                             try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
                                 .op = .MatchRepeatValue,
                                 .byte1 = src_reg,
@@ -4190,24 +4191,6 @@ pub const Compiler = struct {
         const set = &ast.constraint_sets.items[set_id];
         if (set.constraints.items.len == 0) return null;
         return &set.constraints.items[0];
-    }
-
-    // Push a repeat operand's value onto the stack for the repeat step
-    // to pop: a constant expression or a bound local read. repeatShape
-    // admits only these.
-    fn writeRepeatOperand(
-        self: *Compiler,
-        module_id: Module.Id,
-        ast: *const Ast,
-        part: Ast.Part,
-        region: Region,
-    ) Error!void {
-        switch (part) {
-            .expr => |id| try self.writeGoal(module_id, ast, id),
-            .read => |ls| try self.emitUnaryOp(.GetLocal, ls.slot, region),
-            .global => |name| try self.emitGlobalValuePush(module_id, name, region),
-            else => unreachable,
-        }
     }
 
     // Test the derived repeat count in `reg` against the count operand:
@@ -5663,19 +5646,7 @@ pub const Compiler = struct {
     ) Error!void {
         switch (part) {
             .read => |ls| try self.emitUnaryOp(.GetLocal, ls.slot, region),
-            .global => |name| {
-                const global = self.resolveGlobal(module_id, name) orelse {
-                    try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.pathString(name)});
-                    return Error.UndefinedVariable;
-                };
-                // Only zero-arity functions evaluate per match.
-                if (global.isDynType(.Function)) {
-                    try self.requireZeroArity(module_id, global.asDyn().asFunction(), region);
-                    try self.writeCallFunctionConstant(module_id, global, region);
-                } else {
-                    try self.writeConstant(module_id, global, region);
-                }
-            },
+            .global => |name| try self.emitGlobalValuePush(module_id, name, region),
             .expr => |id| try self.writeGoal(module_id, ast, id),
             else => unreachable,
         }
