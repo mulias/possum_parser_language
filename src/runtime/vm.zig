@@ -158,6 +158,13 @@ fn numberFloatOf(elem: Elem, strings: StringTable) ?f64 {
     return null;
 }
 
+// A repeat count as a non-negative integer, or null when it is negative
+// or fractional.
+fn repeatCountOf(count: f64) ?usize {
+    if (count < 0 or @trunc(count) != count) return null;
+    return @intFromFloat(count);
+}
+
 // Print the source text of a region on one line for a report headline,
 // clipped at the first newline or excerpt_max_len bytes.
 fn printSourceExcerpt(source: []const u8, region: Region, writer: *Writer) !void {
@@ -1414,12 +1421,12 @@ pub const VM = struct {
                 const count_float = numberFloatOf(count_elem, self.strings) orelse
                     return self.runtimeError("Repeat count must be a number", .{});
                 self.reclaimElem(count_elem);
-                if (count_float < 0 or @trunc(count_float) != count_float) {
+                const count = repeatCountOf(count_float) orelse {
                     self.cur_frame.ip = self.current_window_fail;
                     return;
-                }
+                };
                 const base = self.getScratch(claim).asDyn().asArray().elems.items.len;
-                const target = base + @as(usize, @intFromFloat(count_float)) * pair_len;
+                const target = base + count * pair_len;
                 self.storeScratchUsize(dst, target);
             },
             .MatchClaimDoneCount => {
@@ -1665,11 +1672,10 @@ pub const VM = struct {
                 const count_float = numberFloatOf(count_elem, self.strings) orelse
                     return self.runtimeError("Repeat count must be a number", .{});
                 self.reclaimElem(count_elem);
-                if (count_float < 0 or @trunc(count_float) != count_float) {
+                const count = repeatCountOf(count_float) orelse {
                     self.cur_frame.ip = self.current_window_fail;
                     return;
-                }
-                const count: usize = @intFromFloat(count_float);
+                };
                 const value = self.getScratch(src);
                 const chunk_elem: Elem = if (try value.stringBytes(self)) |bytes| blk: {
                     const chunk_len = if (count == 0) 0 else bytes.len / count;
