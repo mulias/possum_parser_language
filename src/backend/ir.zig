@@ -789,46 +789,6 @@ pub const Ir = struct {
         };
     }
 
-    // Whether a match op jumps to the innermost open window's shared fail
-    // block when it fails: every semidet match op and MatchRefail.
-    // MatchRepeatNext is excluded — its branch operand is a success
-    // (loop-done) exit, not a failure.
-    pub fn opFailsToWindow(op: OpCode) bool {
-        return switch (op) {
-            .MatchType,
-            .MatchCount,
-            .MatchCmp,
-            .MatchCast,
-            .MatchKey,
-            .MatchMergeBool,
-            .MatchStrEnd,
-            .MatchMergeNum,
-            .MatchClaimScan,
-            .MatchClaimKey,
-            .MatchClaimObject,
-            .MatchClaimCount,
-            .MatchCountLoad,
-            .MatchBound,
-            .MatchRepeatRange,
-            .MatchRepeatRangeDivide,
-            .MatchRepeatInit,
-            .MatchStrLit,
-            .MatchSpanVal,
-            .MatchSpanChunk,
-            .MatchStrChar,
-            .MatchEval,
-            .MatchRangeBound,
-            .MatchRepeatValue,
-            .MatchRepeatChunk,
-            .MatchSubtractEval,
-            .MatchMergeEval,
-            .MatchDivideEval,
-            .MatchRefail,
-            => true,
-            else => false,
-        };
-    }
-
     // For each instruction, the IR index of the fail block it jumps to on
     // failure, or unpatched_jump for instructions that don't fail to a
     // window. A forward walk tracks open windows: MatchWindowEnter pushes
@@ -847,7 +807,7 @@ pub const Ir = struct {
             const op = operandOp(insn.operand);
             if (op == .MatchWindowEnter) {
                 try stack.append(allocator, insn.operand.w_enter.target);
-            } else if (opFailsToWindow(op) and stack.items.len > 0) {
+            } else if (op.failsToWindow() and stack.items.len > 0) {
                 targets[i] = stack.getLast();
             }
         }
