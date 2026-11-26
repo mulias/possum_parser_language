@@ -3126,12 +3126,7 @@ pub const Compiler = struct {
             .local, .solve => return error.UnsupportedPattern,
             .expr => |id| {
                 if (self.constPatternNode(ast, id)) {
-                    const elem = try self.goalPatternConstElem(ast, id);
-                    if (!elem.isRangeBound(self.vm.*)) {
-                        try self.printError(module_id, region, "Range bound must be an integer or codepoint", .{});
-                        return Error.InvalidAst;
-                    }
-                    const constant = try self.makeConstantU16(module_id, elem, region);
+                    const constant = try self.rangeBoundConstant(module_id, ast, id, region);
                     return .{ .kind = @intFromEnum(RangeLimitKind.const_elem), .arg = constant };
                 }
                 eval_out.* = id;
@@ -3147,6 +3142,17 @@ pub const Compiler = struct {
             return Error.TooManyConstants;
         }
         return @intCast(idx);
+    }
+
+    // The constant index of a constant range limit expression, which must
+    // be an integer or codepoint.
+    fn rangeBoundConstant(self: *Compiler, module_id: Module.Id, ast: *const Ast, id: Ast.NodeId, region: Region) Error!u16 {
+        const elem = try self.goalPatternConstElem(ast, id);
+        if (!elem.isRangeBound(self.vm.*)) {
+            try self.printError(module_id, region, "Range bound must be an integer or codepoint", .{});
+            return Error.InvalidAst;
+        }
+        return self.makeConstantU16(module_id, elem, region);
     }
 
     // How a match's window slot 0 is loaded and where a mismatch goes.
@@ -5496,12 +5502,7 @@ pub const Compiler = struct {
             .local, .solve => return error.UnsupportedPattern,
             .expr => |id| {
                 if (self.constPatternNode(ast, id)) {
-                    const elem = try self.goalPatternConstElem(ast, id);
-                    if (!elem.isRangeBound(self.vm.*)) {
-                        try self.printError(module_id, region, "Range bound must be an integer or codepoint", .{});
-                        return Error.InvalidAst;
-                    }
-                    const constant = try self.makeConstantU16(module_id, elem, region);
+                    const constant = try self.rangeBoundConstant(module_id, ast, id, region);
                     try self.emitMatchBound(reg, is_upper, RangeLimitKind.const_elem, constant, fail_jumps, region);
                 } else {
                     try self.writeGoal(module_id, ast, id);
