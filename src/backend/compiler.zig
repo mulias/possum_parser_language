@@ -936,27 +936,46 @@ pub const Compiler = struct {
         _ = self.scopes.pop();
     }
 
-    // The scratch register count one stepable arm's match steps use:
-    // places, the dead register, one claim array register per searched
-    // place plus a shared key + value + cursor register when the arm
-    // searches at all, a shared repeat block when it repeats at all (the
-    // count register, plus loop base and element registers for array-chunk
-    // repeats), and the cursor-template block (front, end, rest dst, char).
-    // A pure-place arm — no search/repeat/cursor-template pool — is exactly
-    // places.len + 1.
-    fn armStepScratchWidth(self: *Compiler, ast: *const Ast, places: []const Ast.PlaceDef, constraints: []const Ast.Constraint) u32 {
+    // The register layout of one stepable arm's match window: each place
+    // is its own register (placeReg), then the dead register, then the
+    // blocks below in order. A pure-place arm — no search/repeat/span/
+    // object-claim block — has width exactly places.len + 1.
+    const WindowLayout = struct {
+        dead: u8,
+        // The search claim block: one claim array register per object
+        // place the arm searches (seeded with the place's const keys before
+        // the steps run), from search_claims up, then a shared key, value,
+        // and cursor register reused across pairs. Empty when the arm does
+        // not search.
+        search_claims: u8,
+        search_key: u8,
+        search_value: u8,
+        search_cursor: u8,
+        // The repeat block holds a repeat's derived count or solved chunk
+        // while its tests and binds run, plus the loop base and the
+        // materialized-chunk register for array-chunk repeats; repeats in
+        // one arm reuse it sequentially.
+        repeat: u8,
+        // The span-cursor block: front and end cursors, the rest
+        // destination, and a character register for template range
+        // segments. Cursor templates and array merges share it: a template
+        // needs all four, an array merge only the first three.
+        span: u8,
+        // The object-repeat claim block: the claim array, then a key,
+        // value, and cursor register shared across the group loop's pairs,
+        // then a target register holding the group loop's exit bound.
+        // Always positioned, but counted in width only when an
+        // object_search repeat, a claim_members merge, or an object merge
+        // needs it.
+        object_claim: ClaimRegs,
+        width: u32,
+    };
+
+    fn windowLayout(self: *Compiler, ast: *const Ast, places: []const Ast.PlaceDef, constraints: []const Ast.Constraint) WindowLayout {
         var search_groups: u32 = 0;
-        var repeats: u32 = 0;
-        // The span-cursor block (front/end cursors, rest destination, and a
-        // character register for template range segments), shared by cursor
-        // templates and array merges: a template needs all four, an array
-        // merge only the first three.
-        var spans: u32 = 0;
-        // A constrained-pair object repeat's claim block: the claim array,
-        // plus a shared key, value, and cursor register reused across the
-        // group's pairs and iterations, plus a target register holding the
-        // group-loop's member-count exit bound.
-        var object_search: u32 = 0;
+        var repeat_block: u32 = 0;
+        var span_block: u32 = 0;
+        var object_claim_block: u32 = 0;
         for (constraints, 0..) |constraint, i| switch (constraint.kind) {
             // One claim array register per distinct searched place.
             .search_key => |c| {
@@ -970,37 +989,59 @@ pub const Compiler = struct {
             },
             .solve_repeat => |c| {
                 const shape = self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index).?;
-                repeats = @max(repeats, @as(u32, switch (shape) {
+                repeat_block = @max(repeat_block, @as(u32, switch (shape) {
                     .array => 3,
                     .object, .object_search => 2,
                     else => 1,
                 }));
-                if (shape == .object_search) object_search = 5;
+                if (shape == .object_search) object_claim_block = 5;
             },
             // The count register lives in the repeat block; the claim array
-            // plus a shared key/val/cursor use the object_search block.
+            // plus a shared key/val/cursor use the object claim block.
             .claim_members => {
-                repeats = @max(repeats, 1);
-                object_search = 5;
+                repeat_block = @max(repeat_block, 1);
+                object_claim_block = 5;
             },
             .match_template => |c| {
-                if (self.templateStepable(ast, c.segments.items) == .cursor) spans = @max(spans, 4);
+                if (self.templateStepable(ast, c.segments.items) == .cursor) span_block = @max(span_block, 4);
             },
             .solve_merge => |c| {
                 if (self.arrayMergeStepable(ast, c.ty, c.parts.items, c.solvable_index)) {
-                    spans = @max(spans, @as(u32, if (arrayMergeHasStructural(ast, c.parts.items, c.solvable_index)) 4 else 3));
+                    span_block = @max(span_block, @as(u32, if (arrayMergeHasStructural(ast, c.parts.items, c.solvable_index)) 4 else 3));
                 } else if (self.objectMergeStepable(ast, c.ty, c.parts.items, c.solvable_index)) {
-                    object_search = 5;
+                    object_claim_block = 5;
                 } else if (!self.mergeEvalStepable(ast, c.ty, c.parts.items, c.solvable_index) and
                     self.stringMergeCursorStepable(ast, c.ty, c.parts.items))
                 {
-                    spans = @max(spans, 4);
+                    span_block = @max(span_block, 4);
                 }
             },
             else => {},
         };
-        const extra: u32 = if (search_groups > 0) search_groups + 3 else 0;
-        return @as(u32, @intCast(places.len + 1)) + extra + repeats + spans + object_search;
+        const dead: u32 = @intCast(places.len);
+        const search_claims = dead + 1;
+        const search_key = search_claims + search_groups;
+        const search_block: u32 = if (search_groups > 0) search_groups + 3 else 0;
+        const repeat = search_claims + search_block;
+        const span = repeat + repeat_block;
+        const object_claim = span + span_block;
+        return .{
+            .dead = @intCast(dead),
+            .search_claims = @intCast(search_claims),
+            .search_key = @intCast(search_key),
+            .search_value = @intCast(search_key + 1),
+            .search_cursor = @intCast(search_key + 2),
+            .repeat = @intCast(repeat),
+            .span = @intCast(span),
+            .object_claim = .{
+                .claim = @intCast(object_claim),
+                .key = @intCast(object_claim + 1),
+                .val = @intCast(object_claim + 2),
+                .cursor = @intCast(object_claim + 3),
+                .target = @intCast(object_claim + 4),
+            },
+            .width = object_claim + object_claim_block,
+        };
     }
 
     fn writeGoal(self: *Compiler, module_id: Module.Id, ast: *const Ast, id: Ast.NodeId) Error!void {
@@ -3208,43 +3249,30 @@ pub const Compiler = struct {
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
-        // Match scratch is addressed relative to the per-match window: each
-        // place id is its own window slot (placeReg), with the search,
-        // repeat, and template pools allocated above.
-        const dead_reg: u8 = @intCast(places.len);
+        // Match scratch is addressed relative to the per-match window.
+        const layout = self.windowLayout(ast, places, constraints);
+        const dead_reg = layout.dead;
 
         const materialized = try allocator.alloc(bool, places.len);
         defer allocator.free(materialized);
         @memset(materialized, false);
 
-        // Lay out the search claim block above the dead register: one claim
-        // array register per object place the arm searches (seeded with the
-        // place's const keys before the steps run), then a shared key,
-        // value, and cursor register reused across pairs.
+        // One search group per searched place, in first-search order, each
+        // with its claim array register.
         var search_groups = ArrayList(ClaimGroup).empty;
         defer search_groups.deinit(allocator);
         for (constraints) |constraint| switch (constraint.kind) {
             .search_key => |c| {
                 if (findClaimGroup(search_groups.items, c.place) == null) {
-                    try search_groups.append(allocator, .{ .src = c.place, .reg = 0 });
+                    try search_groups.append(allocator, .{ .src = c.place, .reg = layout.search_claims + @as(u8, @intCast(search_groups.items.len)) });
                 }
             },
             else => {},
         };
-        var claim_next: u8 = dead_reg + 1;
-        for (search_groups.items) |*group| {
-            group.reg = claim_next;
-            claim_next += 1;
-        }
-        const key_reg = claim_next;
-        const value_reg = claim_next + 1;
-        const cursor_reg = claim_next + 2;
-        // The repeat block holds a repeat's derived count or solved chunk
-        // while its tests and binds run, plus the loop base and the
-        // materialized-chunk register for array-chunk repeats; repeats in
-        // one arm reuse it sequentially. It sits above the search block
-        // when one exists.
-        const repeat_reg: u8 = if (search_groups.items.len > 0) cursor_reg + 1 else claim_next;
+        const key_reg = layout.search_key;
+        const value_reg = layout.search_value;
+        const cursor_reg = layout.search_cursor;
+        const repeat_reg = layout.repeat;
         const repeat_base_reg = repeat_reg + 1;
         const repeat_chunk_reg = repeat_reg + 2;
         // Save/restore rather than clear: a nested sub-pattern's
@@ -3254,47 +3282,12 @@ pub const Compiler = struct {
         self.arm_search_groups = search_groups.items;
         defer self.arm_search_groups = prev_search_groups;
 
-        // The span-cursor block sits above the repeat block: front and end
-        // cursors, the rest destination, and a character register for
-        // template range segments. Cursor templates and array merges share
-        // it; its size mirrors armStepScratchWidth's accounting.
-        var repeat_block: u8 = 0;
-        var span_block: u8 = 0;
-        for (constraints) |constraint| switch (constraint.kind) {
-            .solve_repeat => |c| {
-                const shape = self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index).?;
-                repeat_block = @max(repeat_block, @as(u8, switch (shape) {
-                    .array => 3,
-                    .object, .object_search => 2,
-                    else => 1,
-                }));
-            },
-            .claim_members => repeat_block = @max(repeat_block, 1),
-            .match_template => |c| {
-                if (self.templateStepable(ast, c.segments.items) == .cursor) span_block = @max(span_block, 4);
-            },
-            .solve_merge => |c| {
-                if (self.arrayMergeStepable(ast, c.ty, c.parts.items, c.solvable_index)) {
-                    span_block = @max(span_block, @as(u8, if (arrayMergeHasStructural(ast, c.parts.items, c.solvable_index)) 4 else 3));
-                } else if (!self.mergeEvalStepable(ast, c.ty, c.parts.items, c.solvable_index) and
-                    self.stringMergeCursorStepable(ast, c.ty, c.parts.items))
-                {
-                    span_block = @max(span_block, 4);
-                }
-            },
-            else => {},
-        };
-        const span_front = repeat_reg + repeat_block;
+        const span_front = layout.span;
         const span_end = span_front + 1;
         const span_rest = span_front + 2;
         const span_char = span_front + 3;
-        // The object-repeat claim block sits above the span block: the claim
-        // array, then a key, value, and cursor register shared across the
-        // group loop's pairs, then a target register holding the member-count
-        // exit bound. Only reserved when an object_search repeat or a
-        // claim_members merge is present (object_search block == 5).
-        const os_claim = repeat_reg + repeat_block + span_block;
-        const os_regs: ClaimRegs = .{ .claim = os_claim, .key = os_claim + 1, .val = os_claim + 2, .cursor = os_claim + 3, .target = os_claim + 4 };
+        const os_regs = layout.object_claim;
+        const os_claim = os_regs.claim;
 
         // Record the claim array register of each object-merge repeat so a
         // members_rest on the same place subtracts the claim array
@@ -3352,7 +3345,7 @@ pub const Compiler = struct {
         // arm's skip path jumps past the whole match, so no window is open
         // there; success and failure both converge on the MatchWindowExit
         // emitted after the steps.
-        const width = self.armStepScratchWidth(ast, places, constraints);
+        const width = layout.width;
         if (width > 255) {
             try self.printError(module_id, region, "Pattern too large to compile.", .{});
             return Error.MaxFunctionLocals;
