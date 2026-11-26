@@ -950,7 +950,7 @@ pub const VM = struct {
                     self.cur_frame.ip = self.current_window_fail;
                     return;
                 }
-                self.storeScratch(count_dst, Elem.numberFloat(@floatFromInt(container_len / chunk_len)));
+                self.storeScratchUsize(count_dst, container_len / chunk_len);
                 self.storeScratch(base, Elem.numberFloat(-len));
             },
             .MatchRepeatNext => {
@@ -1068,7 +1068,7 @@ pub const VM = struct {
                 else
                     (try value.stringBytes(self)).?.len;
                 self.storeScratch(front, Elem.numberFloat(0));
-                self.storeScratch(end, Elem.numberFloat(@floatFromInt(len)));
+                self.storeScratchUsize(end, len);
             },
             .MatchStrLit => {
                 // Compare the literal at the cursor, bounded by the opposite
@@ -1081,13 +1081,13 @@ pub const VM = struct {
                 const constant_idx = self.readShort();
                 const literal = self.strings.get(self.getConstant(constant_idx).asString());
                 const bytes = (try self.getScratch(src).stringBytes(self)).?;
-                const cur: usize = @intFromFloat(self.getScratch(cursor).asFloat());
-                const opp_v: usize = @intFromFloat(self.getScratch(opp).asFloat());
+                const cur = self.getScratchUsize(cursor);
+                const opp_v = self.getScratchUsize(opp);
                 const new_cursor = matchStrChomp(bytes, cur, opp_v, back, literal) orelse {
                     self.cur_frame.ip = self.current_window_fail;
                     return;
                 };
-                self.storeScratch(cursor, Elem.numberFloat(@floatFromInt(new_cursor)));
+                self.storeScratchUsize(cursor, new_cursor);
             },
             .MatchSpanVal => {
                 // The preceding expression left the segment value on the
@@ -1109,11 +1109,11 @@ pub const VM = struct {
                         &[_]Elem{}
                     else
                         null;
-                    const cur: usize = @intFromFloat(self.getScratch(cursor).asFloat());
-                    const opp_v: usize = @intFromFloat(self.getScratch(opp).asFloat());
+                    const cur = self.getScratchUsize(cursor);
+                    const opp_v = self.getScratchUsize(opp);
                     const new_cursor = if (seg) |s| matchArrayChomp(self.*, src_elems, cur, opp_v, back, s) else null;
                     if (new_cursor) |nc| {
-                        self.storeScratch(cursor, Elem.numberFloat(@floatFromInt(nc)));
+                        self.storeScratchUsize(cursor, nc);
                     }
                     self.reclaimElem(evaluated);
                     if (new_cursor == null) self.cur_frame.ip = self.current_window_fail;
@@ -1127,11 +1127,11 @@ pub const VM = struct {
                 }
                 const literal = (try str_elem.stringBytes(self)).?;
                 const bytes = (try self.getScratch(src).stringBytes(self)).?;
-                const cur: usize = @intFromFloat(self.getScratch(cursor).asFloat());
-                const opp_v: usize = @intFromFloat(self.getScratch(opp).asFloat());
+                const cur = self.getScratchUsize(cursor);
+                const opp_v = self.getScratchUsize(opp);
                 const new_cursor = matchStrChomp(bytes, cur, opp_v, back, literal);
                 if (new_cursor) |nc| {
-                    self.storeScratch(cursor, Elem.numberFloat(@floatFromInt(nc)));
+                    self.storeScratchUsize(cursor, nc);
                 }
                 if (rooted) self.dropTempDyn();
                 self.reclaimElem(evaluated);
@@ -1149,8 +1149,8 @@ pub const VM = struct {
                 const opp = self.readByte();
                 const back = self.readByte() != 0;
                 const bytes = (try self.getScratch(src).stringBytes(self)).?;
-                const cur: usize = @intFromFloat(self.getScratch(cursor).asFloat());
-                const opp_v: usize = @intFromFloat(self.getScratch(opp).asFloat());
+                const cur = self.getScratchUsize(cursor);
+                const opp_v = self.getScratchUsize(opp);
                 const span = matchStrChar(bytes, cur, opp_v, back) orelse {
                     self.cur_frame.ip = self.current_window_fail;
                     return;
@@ -1160,7 +1160,7 @@ pub const VM = struct {
                 @memcpy(buf[0..char_bytes.len], char_bytes);
                 const char_elem = Elem.string(try self.strings.insert(buf[0..char_bytes.len]));
                 self.storeScratch(dst, char_elem);
-                self.storeScratch(cursor, Elem.numberFloat(@floatFromInt(span.next_cursor)));
+                self.storeScratchUsize(cursor, span.next_cursor);
             },
             .MatchSpanRest => {
                 // The span [front..end) — the solvable's raw range — into
@@ -1172,8 +1172,8 @@ pub const VM = struct {
                 const front = self.readByte();
                 const end = self.readByte();
                 const value = self.getScratch(src);
-                const start: usize = @intFromFloat(self.getScratch(front).asFloat());
-                const stop: usize = @intFromFloat(self.getScratch(end).asFloat());
+                const start = self.getScratchUsize(front);
+                const stop = self.getScratchUsize(end);
                 const rest: Elem = blk: {
                     if (value.isDynType(.Array)) {
                         const slice = try Elem.DynElem.Array.copy(self, value.asDyn().asArray().elems.items[start..stop]);
@@ -1203,8 +1203,8 @@ pub const VM = struct {
                 const back = self.readByte() != 0;
                 const len = self.readByte();
                 const src_elems = self.getScratch(src).asDyn().asArray().elems.items;
-                const cur: usize = @intFromFloat(self.getScratch(cursor).asFloat());
-                const opp_v: usize = @intFromFloat(self.getScratch(opp).asFloat());
+                const cur = self.getScratchUsize(cursor);
+                const opp_v = self.getScratchUsize(opp);
                 const start: usize = if (back) blk: {
                     if (cur < opp_v + len) {
                         self.cur_frame.ip = self.current_window_fail;
@@ -1220,7 +1220,7 @@ pub const VM = struct {
                 };
                 const slice = try Elem.DynElem.Array.copy(self, src_elems[start .. start + len]);
                 self.storeScratch(dst, slice.dyn.elem());
-                self.storeScratch(cursor, Elem.numberFloat(@floatFromInt(if (back) start else start + len)));
+                self.storeScratchUsize(cursor, if (back) start else start + len);
             },
             .MatchCmp => {
                 // Compare the register against a comparand — a module
@@ -1316,7 +1316,7 @@ pub const VM = struct {
                 const member_keys = object.members.keys();
                 const member_values = object.members.values();
                 const claims = self.getScratch(claim).asDyn().asArray().elems.items;
-                var idx: usize = @intFromFloat(self.getScratch(cursor).asFloat());
+                var idx = self.getScratchUsize(cursor);
                 outer: while (idx < member_keys.len) : (idx += 1) {
                     const sid = member_keys[idx];
                     for (claims) |c| {
@@ -1324,7 +1324,7 @@ pub const VM = struct {
                     }
                     self.storeScratchDerived(key_dst, Elem.string(sid));
                     self.storeScratchDerived(val_dst, member_values[idx]);
-                    self.storeScratch(cursor, Elem.numberFloat(@floatFromInt(idx + 1)));
+                    self.storeScratchUsize(cursor, idx + 1);
                     break;
                 } else {
                     self.cur_frame.ip = self.current_window_fail;
@@ -1443,7 +1443,7 @@ pub const VM = struct {
                     return;
                 }
                 const count = (members - seed) / pair_len;
-                self.storeScratch(count_dst, Elem.numberFloat(@floatFromInt(count)));
+                self.storeScratchUsize(count_dst, count);
             },
             .MatchCountLoad => {
                 // Pop the evaluated count product and write the target claim
@@ -1469,7 +1469,7 @@ pub const VM = struct {
                 }
                 const base = self.getScratch(claim).asDyn().asArray().elems.items.len;
                 const target = base + @as(usize, @intFromFloat(count_float)) * pair_len;
-                self.storeScratch(dst, Elem.numberFloat(@floatFromInt(target)));
+                self.storeScratchUsize(dst, target);
             },
             .MatchClaimDoneCount => {
                 // Count-driven group-loop head: exit once the claim array
@@ -1480,7 +1480,7 @@ pub const VM = struct {
                 const count_reg = self.readByte();
                 const offset = self.readShort();
                 const claimed = self.getScratch(claim).asDyn().asArray().elems.items.len;
-                const target: usize = @intFromFloat(self.getScratch(count_reg).asFloat());
+                const target = self.getScratchUsize(count_reg);
                 if (claimed >= target) {
                     self.cur_frame.ip += offset;
                 }
@@ -1849,7 +1849,7 @@ pub const VM = struct {
                     break :blk count;
                 };
                 if (scanned) |count| {
-                    self.storeScratch(dst, Elem.numberFloat(@floatFromInt(count)));
+                    self.storeScratchUsize(dst, count);
                 } else {
                     self.cur_frame.ip = self.current_window_fail;
                 }
@@ -2768,6 +2768,15 @@ pub const VM = struct {
     fn storeScratchDerived(self: *VM, slot: usize, elem: Elem) void {
         elem.retain();
         self.storeScratch(slot, elem);
+    }
+
+    // Cursors, counts, and claim targets are held as float numbers.
+    fn getScratchUsize(self: *VM, slot: usize) usize {
+        return @intFromFloat(self.getScratch(slot).asFloat());
+    }
+
+    fn storeScratchUsize(self: *VM, slot: usize, n: usize) void {
+        self.storeScratch(slot, Elem.numberFloat(@floatFromInt(n)));
     }
 
     // Element-wise array analogue of matchStrChomp: compare the segment's
