@@ -46,9 +46,10 @@ pub const Ir = struct {
         call_tail_function_constant: u24,
         jump: struct { op: OpCode, target: Index },
         jump_back: struct { op: OpCode, target: Index },
-        // Match step operands. Registers are frame slots. Semidet steps
-        // carry no fail target: on failure they jump to the innermost open
-        // window's shared fail block, recorded on MatchWindowEnter (w_enter).
+        // Match step operands. Registers are match window registers.
+        // Semidet steps carry no fail target: on failure they jump to the
+        // innermost open window's shared fail block, recorded on
+        // MatchWindowEnter (w_enter).
         // MatchBind (local, src), MatchElem (dst, src, index, dir), and
         // MatchSlice (dst, src, front, back).
         match_bytes: struct { op: OpCode, byte1: u8, byte2: u8, byte3: u8 = 0, byte4: u8 = 0 },
@@ -68,16 +69,15 @@ pub const Ir = struct {
         // MatchCount (register, immediate count, mode): semidet size test.
         // Counts array elements, object members, or string bytes and
         // compares against the immediate; mode 0 is equal, mode 1 at
-        // least. Carries a forward fail-jump target.
+        // least.
         match_count: struct { reg: u8, n: u8, mode: u8 },
         // MatchCmp (register, comparand kind, arg): semidet equality test.
         // kind selects the comparand — constant (arg = constant index),
         // slot (arg = bound local slot), or reg (arg = another scratch
-        // register). Carries a forward fail-jump target.
+        // register).
         match_cmp: struct { reg: u8, kind: MatchCmpKind, arg: u16 },
         // MatchCast (dst, src, target type): semidet parse of src's string
-        // bytes into dst as a number, boolean, or JSON document. Carries a
-        // forward fail-jump target.
+        // bytes into dst as a number, boolean, or JSON document.
         match_cast: struct { dst: u8, src: u8, ty: MatchCastKind },
         // MatchKey/MatchMergeBool (dst, src, constant) and MatchStrEnd
         // (slot, direction, constant). byte2 is the src register or the
@@ -85,8 +85,7 @@ pub const Ir = struct {
         match_const: struct { op: OpCode, byte1: u8, byte2: u8 = 0, constant: u16 },
         // MatchMergeNum (dst, src, folded-constant sum, negate): the
         // residual of a number merge. negate flips src − sum to sum − src
-        // for a leftover under an odd negation count. Carries a forward
-        // fail-jump target.
+        // for a leftover under an odd negation count.
         match_merge_num: struct { dst: u8, src: u8, constant: u16, negate: bool },
         // MatchClaimScan (key_dst, val_dst, src, cursor, claim): semidet
         // member search. Scans src's members from the cursor for the first

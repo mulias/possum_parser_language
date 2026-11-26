@@ -41,8 +41,8 @@ $ possum -p 'json -> [F, F(1)]' -i '[1, 2]'
   [ParserFailure]
   [1]
 
-...but a negated range count inside a merge part is not lowered yet.
-Expected: 6, solving 6 = 2 * -2 + 10 with -2 in -(1..5).
+A negated range count inside a merge part lowers, solving 6 = 2 * -2 + 10
+with -2 in -(1..5).
 
   $ possum -p 'number -> (2 * -(1..5) + 10)' -i '6'
   6
