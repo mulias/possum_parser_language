@@ -992,15 +992,7 @@ pub const VM = struct {
                     break :blk array.dyn.elem();
                 } else blk: {
                     const bytes = (try value.stringBytes(self)).?;
-                    const rest = bytes[front .. bytes.len - back];
-                    if (value.isType(.InputSubstring)) {
-                        const start = value.asInputSubstring().start;
-                        if (try Elem.inputSubstringFromRange(start + front, start + bytes.len - back)) |elem| {
-                            break :blk elem;
-                        }
-                    }
-                    const str = try Elem.DynElem.String.copy(self, rest);
-                    break :blk str.dyn.elem();
+                    break :blk try self.substringOf(value, bytes, front, bytes.len - back);
                 };
                 self.storeScratch(dst, sliced);
             },
@@ -1159,13 +1151,7 @@ pub const VM = struct {
                         const slice = try Elem.DynElem.Array.copy(self, value.asDyn().asArray().elems.items[start..stop]);
                         break :blk slice.dyn.elem();
                     }
-                    const bytes = (try value.stringBytes(self)).?;
-                    if (value.isType(.InputSubstring)) {
-                        const base = value.asInputSubstring().start;
-                        if (try Elem.inputSubstringFromRange(base + start, base + stop)) |elem| break :blk elem;
-                    }
-                    const str = try Elem.DynElem.String.copy(self, bytes[start..stop]);
-                    break :blk str.dyn.elem();
+                    break :blk try self.substringOf(value, (try value.stringBytes(self)).?, start, stop);
                 };
                 self.storeScratch(dst, rest);
             },
@@ -1722,14 +1708,7 @@ pub const VM = struct {
                             }
                         }
                     }
-                    if (value.isType(.InputSubstring)) {
-                        const start = value.asInputSubstring().start;
-                        if (try Elem.inputSubstringFromRange(start, start + chunk_len)) |elem| {
-                            break :blk elem;
-                        }
-                    }
-                    const str = try Elem.DynElem.String.copy(self, bytes[0..chunk_len]);
-                    break :blk str.dyn.elem();
+                    break :blk try self.substringOf(value, bytes, 0, chunk_len);
                 } else if (value.isDynType(.Array)) blk: {
                     const elems = value.asDyn().asArray().elems.items;
                     const chunk_len = if (count == 0) 0 else elems.len / count;
@@ -2755,6 +2734,17 @@ pub const VM = struct {
         return rest;
     }
 
+    // The substring [start..end) of a stringy value's bytes: an
+    // InputSubstring range when the value is one, else a fresh copy.
+    fn substringOf(self: *VM, value: Elem, bytes: []const u8, start: usize, end: usize) !Elem {
+        if (value.isType(.InputSubstring)) {
+            const base = value.asInputSubstring().start;
+            if (try Elem.inputSubstringFromRange(base + start, base + end)) |elem| return elem;
+        }
+        const str = try Elem.DynElem.String.copy(self, bytes[start..end]);
+        return str.dyn.elem();
+    }
+
     // Element-wise array analogue of matchStrChomp: compare the segment's
     // elements against src at the cursor (forward from `cur`, or backward
     // ending at `cur`), bounded by the opposite cursor, and return the
@@ -2885,15 +2875,7 @@ pub const VM = struct {
             if (!std.mem.eql(u8, part_at, part_bytes)) return null;
             const rest_start: usize = if (from_end) 0 else split;
             const rest_end: usize = if (from_end) split else value_bytes.len;
-            const rest = value_bytes[rest_start..rest_end];
-            if (value.isType(.InputSubstring)) {
-                const start = value.asInputSubstring().start;
-                if (try Elem.inputSubstringFromRange(start + rest_start, start + rest_end)) |elem| {
-                    return elem;
-                }
-            }
-            const str = try Elem.DynElem.String.copy(self, rest);
-            return str.dyn.elem();
+            return try self.substringOf(value, value_bytes, rest_start, rest_end);
         }
         // Array: part's elements must be a prefix (or suffix); X is the rest.
         if (value.isDynType(.Array) and part.isDynType(.Array)) {
