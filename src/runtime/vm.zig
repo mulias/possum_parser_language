@@ -858,11 +858,7 @@ pub const VM = struct {
             .MatchScrutinee => {
                 const region = self.cur_frame.function.chunk.regions.items[self.cur_frame.ip];
                 const slot = self.readByte();
-                const value = self.peek(0);
-                const previous = self.getScratch(slot);
-                value.retain();
-                self.setScratch(slot, value);
-                previous.release();
+                self.storeScratchDerived(slot, self.peek(0));
                 // MatchScrutinee opens a root destructure (child windows load
                 // via MatchSubScrutinee); trace it and record its window base
                 // so the matching MatchWindowExit closes it.
@@ -878,11 +874,7 @@ pub const VM = struct {
                 // window opened (window_bases' top).
                 const dst = self.readByte();
                 const src = self.readByte();
-                const value = self.match_regs.items[self.window_bases.getLast() + src];
-                const previous = self.getScratch(dst);
-                value.retain();
-                self.setScratch(dst, value);
-                previous.release();
+                self.storeScratchDerived(dst, self.match_regs.items[self.window_bases.getLast() + src]);
             },
             .MatchType => {
                 const slot = self.readByte();
@@ -930,11 +922,7 @@ pub const VM = struct {
                 const index = self.readByte();
                 const back = self.readByte();
                 const elems = self.getScratch(src).asDyn().asArray().elems.items;
-                const value = if (back != 0) elems[elems.len - 1 - index] else elems[index];
-                const previous = self.getScratch(dst);
-                value.retain();
-                self.setScratch(dst, value);
-                previous.release();
+                self.storeScratchDerived(dst, if (back != 0) elems[elems.len - 1 - index] else elems[index]);
             },
             .MatchRepeatInit => {
                 // Array- or object-repeat loop entry: the value must be an
@@ -962,12 +950,8 @@ pub const VM = struct {
                     self.cur_frame.ip = self.current_window_fail;
                     return;
                 }
-                const prev_count = self.getScratch(count_dst);
-                self.setScratch(count_dst, Elem.numberFloat(@floatFromInt(container_len / chunk_len)));
-                prev_count.release();
-                const prev_base = self.getScratch(base);
-                self.setScratch(base, Elem.numberFloat(-len));
-                prev_base.release();
+                self.storeScratch(count_dst, Elem.numberFloat(@floatFromInt(container_len / chunk_len)));
+                self.storeScratch(base, Elem.numberFloat(-len));
             },
             .MatchRepeatNext => {
                 // Loop head: advance the base by the chunk element length,
@@ -982,7 +966,7 @@ pub const VM = struct {
                 const offset = self.readShort();
                 const len: usize = len_byte;
                 const next_base = self.getScratch(base).asFloat() + @as(f64, @floatFromInt(len));
-                self.setScratch(base, Elem.numberFloat(next_base));
+                self.storeScratch(base, Elem.numberFloat(next_base));
                 const elems = self.getScratch(src).asDyn().asArray().elems.items;
                 if (next_base >= @as(f64, @floatFromInt(elems.len))) {
                     self.cur_frame.ip += offset;
@@ -994,9 +978,7 @@ pub const VM = struct {
                 for (elems[start .. start + len]) |elem| elem.retain();
                 try chunk_arr.elems.appendSlice(self.gc.allocator(), elems[start .. start + len]);
                 self.dropTempDyn();
-                const previous = self.getScratch(chunk_dst);
-                self.setScratch(chunk_dst, chunk_arr.dyn.elem());
-                previous.release();
+                self.storeScratch(chunk_dst, chunk_arr.dyn.elem());
             },
             .MatchSlice => {
                 // The middle of an array (fresh Array) or string
@@ -1029,9 +1011,7 @@ pub const VM = struct {
                     const str = try Elem.DynElem.String.copy(self, rest);
                     break :blk str.dyn.elem();
                 };
-                const previous = self.getScratch(dst);
-                self.setScratch(dst, sliced);
-                previous.release();
+                self.storeScratch(dst, sliced);
             },
             .MatchObjectRest => {
                 // The src object minus the const keys named by the key-list
@@ -1054,15 +1034,11 @@ pub const VM = struct {
                     try rest.put(self, sid, entry.value_ptr.*);
                 }
                 self.dropTempDyn();
-                const previous = self.getScratch(dst);
-                self.setScratch(dst, rest.dyn.elem());
-                previous.release();
+                self.storeScratch(dst, rest.dyn.elem());
             },
             .MatchIterInit => {
                 const cursor = self.readByte();
-                const previous = self.getScratch(cursor);
-                self.setScratch(cursor, Elem.numberFloat(0));
-                previous.release();
+                self.storeScratch(cursor, Elem.numberFloat(0));
             },
             .MatchStrEnd => {
                 // The string under test must start (front) or end (back)
@@ -1091,12 +1067,8 @@ pub const VM = struct {
                     value.asDyn().asArray().elems.items.len
                 else
                     (try value.stringBytes(self)).?.len;
-                const prev_front = self.getScratch(front);
-                self.setScratch(front, Elem.numberFloat(0));
-                prev_front.release();
-                const prev_end = self.getScratch(end);
-                self.setScratch(end, Elem.numberFloat(@floatFromInt(len)));
-                prev_end.release();
+                self.storeScratch(front, Elem.numberFloat(0));
+                self.storeScratch(end, Elem.numberFloat(@floatFromInt(len)));
             },
             .MatchStrLit => {
                 // Compare the literal at the cursor, bounded by the opposite
@@ -1115,9 +1087,7 @@ pub const VM = struct {
                     self.cur_frame.ip = self.current_window_fail;
                     return;
                 };
-                const prev = self.getScratch(cursor);
-                self.setScratch(cursor, Elem.numberFloat(@floatFromInt(new_cursor)));
-                prev.release();
+                self.storeScratch(cursor, Elem.numberFloat(@floatFromInt(new_cursor)));
             },
             .MatchSpanVal => {
                 // The preceding expression left the segment value on the
@@ -1143,9 +1113,7 @@ pub const VM = struct {
                     const opp_v: usize = @intFromFloat(self.getScratch(opp).asFloat());
                     const new_cursor = if (seg) |s| matchArrayChomp(self.*, src_elems, cur, opp_v, back, s) else null;
                     if (new_cursor) |nc| {
-                        const prev = self.getScratch(cursor);
-                        self.setScratch(cursor, Elem.numberFloat(@floatFromInt(nc)));
-                        prev.release();
+                        self.storeScratch(cursor, Elem.numberFloat(@floatFromInt(nc)));
                     }
                     self.reclaimElem(evaluated);
                     if (new_cursor == null) self.cur_frame.ip = self.current_window_fail;
@@ -1163,9 +1131,7 @@ pub const VM = struct {
                 const opp_v: usize = @intFromFloat(self.getScratch(opp).asFloat());
                 const new_cursor = matchStrChomp(bytes, cur, opp_v, back, literal);
                 if (new_cursor) |nc| {
-                    const prev = self.getScratch(cursor);
-                    self.setScratch(cursor, Elem.numberFloat(@floatFromInt(nc)));
-                    prev.release();
+                    self.storeScratch(cursor, Elem.numberFloat(@floatFromInt(nc)));
                 }
                 if (rooted) self.dropTempDyn();
                 self.reclaimElem(evaluated);
@@ -1193,12 +1159,8 @@ pub const VM = struct {
                 const char_bytes = bytes[span.start..span.end];
                 @memcpy(buf[0..char_bytes.len], char_bytes);
                 const char_elem = Elem.string(try self.strings.insert(buf[0..char_bytes.len]));
-                const prev_dst = self.getScratch(dst);
-                self.setScratch(dst, char_elem);
-                prev_dst.release();
-                const prev_cursor = self.getScratch(cursor);
-                self.setScratch(cursor, Elem.numberFloat(@floatFromInt(span.next_cursor)));
-                prev_cursor.release();
+                self.storeScratch(dst, char_elem);
+                self.storeScratch(cursor, Elem.numberFloat(@floatFromInt(span.next_cursor)));
             },
             .MatchSpanRest => {
                 // The span [front..end) — the solvable's raw range — into
@@ -1225,9 +1187,7 @@ pub const VM = struct {
                     const str = try Elem.DynElem.String.copy(self, bytes[start..stop]);
                     break :blk str.dyn.elem();
                 };
-                const previous = self.getScratch(dst);
-                self.setScratch(dst, rest);
-                previous.release();
+                self.storeScratch(dst, rest);
             },
             .MatchSpanChunk => {
                 // Slice a fixed-length array chunk at the cursor — forward
@@ -1259,12 +1219,8 @@ pub const VM = struct {
                     break :blk cur;
                 };
                 const slice = try Elem.DynElem.Array.copy(self, src_elems[start .. start + len]);
-                const prev_dst = self.getScratch(dst);
-                self.setScratch(dst, slice.dyn.elem());
-                prev_dst.release();
-                const prev_cursor = self.getScratch(cursor);
-                self.setScratch(cursor, Elem.numberFloat(@floatFromInt(if (back) start else start + len)));
-                prev_cursor.release();
+                self.storeScratch(dst, slice.dyn.elem());
+                self.storeScratch(cursor, Elem.numberFloat(@floatFromInt(if (back) start else start + len)));
             },
             .MatchCmp => {
                 // Compare the register against a comparand — a module
@@ -1312,9 +1268,7 @@ pub const VM = struct {
                     .json => try Elem.parseJson(self, bytes),
                 };
                 if (cast) |elem| {
-                    const previous = self.getScratch(dst);
-                    self.setScratch(dst, elem);
-                    previous.release();
+                    self.storeScratch(dst, elem);
                 } else {
                     self.cur_frame.ip = self.current_window_fail;
                 }
@@ -1327,10 +1281,7 @@ pub const VM = struct {
                 const container = self.getScratch(src);
                 if (container.isDynType(.Object)) {
                     if (container.asDyn().asObject().members.get(sid)) |value| {
-                        const previous = self.getScratch(dst);
-                        value.retain();
-                        self.setScratch(dst, value);
-                        previous.release();
+                        self.storeScratchDerived(dst, value);
                         return;
                     }
                 }
@@ -1371,19 +1322,9 @@ pub const VM = struct {
                     for (claims) |c| {
                         if (c.asString() == sid) continue :outer;
                     }
-                    const key_elem = Elem.string(sid);
-                    const prev_key = self.getScratch(key_dst);
-                    key_elem.retain();
-                    self.setScratch(key_dst, key_elem);
-                    prev_key.release();
-
-                    const val_elem = member_values[idx];
-                    const prev_val = self.getScratch(val_dst);
-                    val_elem.retain();
-                    self.setScratch(val_dst, val_elem);
-                    prev_val.release();
-
-                    self.setScratch(cursor, Elem.numberFloat(@floatFromInt(idx + 1)));
+                    self.storeScratchDerived(key_dst, Elem.string(sid));
+                    self.storeScratchDerived(val_dst, member_values[idx]);
+                    self.storeScratch(cursor, Elem.numberFloat(@floatFromInt(idx + 1)));
                     break;
                 } else {
                     self.cur_frame.ip = self.current_window_fail;
@@ -1422,17 +1363,8 @@ pub const VM = struct {
                     self.cur_frame.ip = self.current_window_fail;
                     return;
                 }
-                const key_elem = Elem.string(sid);
-                const prev_key = self.getScratch(key_dst);
-                key_elem.retain();
-                self.setScratch(key_dst, key_elem);
-                prev_key.release();
-
-                const val_elem = member.?;
-                const prev_val = self.getScratch(val_dst);
-                val_elem.retain();
-                self.setScratch(val_dst, val_elem);
-                prev_val.release();
+                self.storeScratchDerived(key_dst, Elem.string(sid));
+                self.storeScratchDerived(val_dst, member.?);
             },
             .MatchClaimSeed => {
                 // Start a claim array from the const-key list constant so
@@ -1447,9 +1379,7 @@ pub const VM = struct {
                 for (keys) |key| key.retain();
                 try claims.elems.appendSlice(self.gc.allocator(), keys);
                 self.dropTempDyn();
-                const previous = self.getScratch(dst);
-                self.setScratch(dst, claims.dyn.elem());
-                previous.release();
+                self.storeScratch(dst, claims.dyn.elem());
             },
             .MatchClaimObject => {
                 // Claim an evaluated object part against src: every member
@@ -1513,9 +1443,7 @@ pub const VM = struct {
                     return;
                 }
                 const count = (members - seed) / pair_len;
-                const previous = self.getScratch(count_dst);
-                self.setScratch(count_dst, Elem.numberFloat(@floatFromInt(count)));
-                previous.release();
+                self.storeScratch(count_dst, Elem.numberFloat(@floatFromInt(count)));
             },
             .MatchCountLoad => {
                 // Pop the evaluated count product and write the target claim
@@ -1541,9 +1469,7 @@ pub const VM = struct {
                 }
                 const base = self.getScratch(claim).asDyn().asArray().elems.items.len;
                 const target = base + @as(usize, @intFromFloat(count_float)) * pair_len;
-                const previous = self.getScratch(dst);
-                self.setScratch(dst, Elem.numberFloat(@floatFromInt(target)));
-                previous.release();
+                self.storeScratch(dst, Elem.numberFloat(@floatFromInt(target)));
             },
             .MatchClaimDoneCount => {
                 // Count-driven group-loop head: exit once the claim array
@@ -1579,9 +1505,7 @@ pub const VM = struct {
                     try rest.put(self, sid, entry.value_ptr.*);
                 }
                 self.dropTempDyn();
-                const previous = self.getScratch(dst);
-                self.setScratch(dst, rest.dyn.elem());
-                previous.release();
+                self.storeScratch(dst, rest.dyn.elem());
             },
             .MatchMergeNum => {
                 // The residual of a number merge: src minus the folded
@@ -1604,9 +1528,7 @@ pub const VM = struct {
                 }
                 const sum = self.getConstant(constant_idx).asFloat();
                 const residual = if (negate) sum - src_float else src_float - sum;
-                const previous = self.getScratch(dst);
-                self.setScratch(dst, Elem.numberFloat(residual));
-                previous.release();
+                self.storeScratch(dst, Elem.numberFloat(residual));
             },
             .MatchSubtractEval => {
                 // The residual of a number merge with runtime-evaluated
@@ -1620,9 +1542,7 @@ pub const VM = struct {
                 const src_value = self.getScratch(src);
                 if (numberFloatOf(src_value, self.strings)) |src_float| {
                     if (numberFloatOf(part, self.strings)) |part_float| {
-                        const previous = self.getScratch(dst);
-                        self.setScratch(dst, Elem.numberFloat(src_float - part_float));
-                        previous.release();
+                        self.storeScratch(dst, Elem.numberFloat(src_float - part_float));
                         part.release();
                     } else {
                         part.release();
@@ -1652,9 +1572,7 @@ pub const VM = struct {
                 };
                 part.release();
                 if (residual) |r| {
-                    const previous = self.getScratch(dst);
-                    self.setScratch(dst, r);
-                    previous.release();
+                    self.storeScratch(dst, r);
                 } else {
                     self.cur_frame.ip = self.current_window_fail;
                 }
@@ -1675,9 +1593,7 @@ pub const VM = struct {
                     if (numberFloatOf(factor, self.strings)) |factor_float| {
                         factor.release();
                         if (factor_float != 0 and @rem(src_float, factor_float) == 0) {
-                            const previous = self.getScratch(dst);
-                            self.setScratch(dst, Elem.numberFloat(src_float / factor_float));
-                            previous.release();
+                            self.storeScratch(dst, Elem.numberFloat(src_float / factor_float));
                         } else {
                             self.cur_frame.ip = self.current_window_fail;
                         }
@@ -1710,9 +1626,7 @@ pub const VM = struct {
                     self.cur_frame.ip = self.current_window_fail;
                     return;
                 }
-                const previous = self.getScratch(dst);
-                self.setScratch(dst, Elem.boolean(value_true and !static_true));
-                previous.release();
+                self.storeScratch(dst, Elem.boolean(value_true and !static_true));
             },
             .MatchEval => {
                 // The preceding expression left its result on the stack;
@@ -1798,9 +1712,7 @@ pub const VM = struct {
                 if (rooted) self.dropTempDyn();
                 self.reclaimElem(pattern_value);
                 if (derived) |count| {
-                    const previous = self.getScratch(count_dst);
-                    self.setScratch(count_dst, Elem.numberFloat(count));
-                    previous.release();
+                    self.storeScratch(count_dst, Elem.numberFloat(count));
                 } else {
                     self.cur_frame.ip = self.current_window_fail;
                 }
@@ -1903,9 +1815,7 @@ pub const VM = struct {
                     self.cur_frame.ip = self.current_window_fail;
                     return;
                 };
-                const previous = self.getScratch(chunk_dst);
-                self.setScratch(chunk_dst, chunk_elem);
-                previous.release();
+                self.storeScratch(chunk_dst, chunk_elem);
             },
             .MatchRepeatRange => {
                 // Scan src's string codepoint by codepoint against the
@@ -1939,9 +1849,7 @@ pub const VM = struct {
                     break :blk count;
                 };
                 if (scanned) |count| {
-                    const previous = self.getScratch(dst);
-                    self.setScratch(dst, Elem.numberFloat(@floatFromInt(count)));
-                    previous.release();
+                    self.storeScratch(dst, Elem.numberFloat(@floatFromInt(count)));
                 } else {
                     self.cur_frame.ip = self.current_window_fail;
                 }
@@ -1987,9 +1895,7 @@ pub const VM = struct {
                     break :blk null;
                 };
                 if (solved) |n| {
-                    const previous = self.getScratch(dst);
-                    self.setScratch(dst, Elem.numberFloat(n));
-                    previous.release();
+                    self.storeScratch(dst, Elem.numberFloat(n));
                 } else {
                     self.cur_frame.ip = self.current_window_fail;
                 }
@@ -2848,6 +2754,20 @@ pub const VM = struct {
 
     pub fn setScratch(self: *VM, slot: usize, elem: Elem) void {
         self.match_regs.items[self.current_window_base + slot] = elem;
+    }
+
+    // Store into a register, releasing the handle it held. storeScratch
+    // moves in a handle the caller owns (a fresh value or a number);
+    // storeScratchDerived adds a handle to a value that keeps its others.
+    fn storeScratch(self: *VM, slot: usize, elem: Elem) void {
+        const previous = self.getScratch(slot);
+        self.setScratch(slot, elem);
+        previous.release();
+    }
+
+    fn storeScratchDerived(self: *VM, slot: usize, elem: Elem) void {
+        elem.retain();
+        self.storeScratch(slot, elem);
     }
 
     // Element-wise array analogue of matchStrChomp: compare the segment's
