@@ -1730,6 +1730,7 @@ pub const VM = struct {
                 const value = self.getScratch(register);
                 const matched = value.isEql(evaluated, self.*);
                 if (rooted) self.dropTempDyn();
+                self.reclaimElem(evaluated);
                 if (!matched) self.cur_frame.ip = self.current_window_fail;
             },
             .MatchBind => {
@@ -1776,6 +1777,7 @@ pub const VM = struct {
                 const value = self.getScratch(slot);
                 const matched = try self.compareRangeBound(evaluated, value, is_upper);
                 if (rooted) self.dropTempDyn();
+                self.reclaimElem(evaluated);
                 if (!matched) self.cur_frame.ip = self.current_window_fail;
             },
             .MatchRepeatValue => {
