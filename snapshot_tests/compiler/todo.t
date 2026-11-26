@@ -72,16 +72,7 @@ An unbound compound range limit would also need inverse solving.
 Expected: 2, solving (A + 1) <= 3.
 
   $ possum -p 'number -> ((A + 1)..5) $ A' -i '3'
-  
-  Runtime Error: Undefined variable 'A'.
-  
-  
-  program:1:12-13:
-  
-  1 \xe2\x96\x8f number -> ((A + 1)..5) $ A (esc)
-    \xe2\x96\x8f             ^ (esc)
-  
-  [RuntimeError]
+  [UnsupportedPattern]
   [1]
 
 An unresolvable definition cycle through import expressions leaks the

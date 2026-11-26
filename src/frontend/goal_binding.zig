@@ -419,7 +419,7 @@ const Analyzer = struct {
     // an unbound cap clears, and the count test binds instead.
     fn classifyCap(self: *Analyzer, env: *Env, cap: *Ast.Limit) !void {
         switch (cap.*) {
-            .none, .bind, .read, .global => {},
+            .none, .bind, .read, .global, .solve => {},
             .local => |name| {
                 if (self.patternGlobal(name)) {
                     cap.* = .{ .global = name };
@@ -756,7 +756,7 @@ const Analyzer = struct {
     fn collectLimitEvalReads(self: *Analyzer, limit: Ast.Limit, set: *SlotSet) void {
         switch (limit) {
             .none, .local, .bind, .read, .global => {},
-            .expr => |expr| self.collectLimitExprEvalReads(expr, set),
+            .expr, .solve => |expr| self.collectLimitExprEvalReads(expr, set),
         }
     }
 
@@ -922,7 +922,7 @@ const Analyzer = struct {
         region: Region,
     ) Allocator.Error!void {
         switch (limit.*) {
-            .none, .bind, .read, .global => {},
+            .none, .bind, .read, .global, .solve => {},
             .local => |name| {
                 limit.* = if (try self.classifyOccurrence(env, name, region)) |classified|
                     switch (classified) {
@@ -932,40 +932,54 @@ const Analyzer = struct {
                 else
                     .{ .global = name };
             },
-            .expr => |expr| try self.walkLimitExpr(env, bindable, expr),
+            .expr => |expr| if (try self.walkLimitExpr(env, bindable, expr)) {
+                limit.* = .{ .solve = expr };
+            },
         }
     }
 
     // A compound range limit is a pattern position: its bare locals are
     // occurrences that bind when unbound (the decided semantics solve
-    // the limit for them), while calls inside it stay evaluated.
+    // the limit for them), while calls inside it stay evaluated. Returns
+    // whether any occurrence binds.
     fn walkLimitExpr(
         self: *Analyzer,
         env: *Env,
         bindable: *const SlotSet,
         id: Ast.NodeId,
-    ) Allocator.Error!void {
+    ) Allocator.Error!bool {
         const rnode = &self.ast.goals.items[id];
         switch (rnode.node) {
             .ident => |*ident| {
                 if (self.isPlaceholder(ident.name)) {
                     ident.resolution = .placeholder;
-                    return;
+                    return false;
                 }
-                if (try self.classifyOccurrence(env, ident.name, rnode.region)) |classified| {
-                    ident.resolution = .{ .local = switch (classified) {
-                        .bind, .read => |slot| slot,
-                    } };
-                } else {
+                const classified = (try self.classifyOccurrence(env, ident.name, rnode.region)) orelse {
                     ident.resolution = .global;
+                    return false;
+                };
+                switch (classified) {
+                    .bind => |slot| {
+                        ident.resolution = .{ .local = slot };
+                        return true;
+                    },
+                    .read => |slot| {
+                        ident.resolution = .{ .local = slot };
+                        return false;
+                    },
                 }
             },
             .merge => |merge| {
-                try self.walkLimitExpr(env, bindable, merge.left);
-                try self.walkLimitExpr(env, bindable, merge.right);
+                const left_binds = try self.walkLimitExpr(env, bindable, merge.left);
+                const right_binds = try self.walkLimitExpr(env, bindable, merge.right);
+                return left_binds or right_binds;
             },
-            .neg => |inner| try self.walkLimitExpr(env, bindable, inner),
-            else => try self.walkPatternExpr(env, bindable, id),
+            .neg => |inner| return self.walkLimitExpr(env, bindable, inner),
+            else => {
+                try self.walkPatternExpr(env, bindable, id);
+                return false;
+            },
         }
     }
 
@@ -1107,7 +1121,7 @@ const Analyzer = struct {
         switch (limit) {
             .none, .bind, .read, .global => {},
             .local => |name| if (self.patternSlot(name)) |slot| set.set(slot),
-            .expr => |expr| self.collectBindableLimitExpr(expr, set),
+            .expr, .solve => |expr| self.collectBindableLimitExpr(expr, set),
         }
     }
 
@@ -1230,7 +1244,7 @@ const Analyzer = struct {
         switch (limit) {
             .none, .bind, .read, .global => {},
             .local => |name| if (self.patternSlot(name)) |slot| set.set(slot),
-            .expr => |expr| self.collectExprSlots(expr, set),
+            .expr, .solve => |expr| self.collectExprSlots(expr, set),
         }
     }
 
@@ -1415,7 +1429,7 @@ const Verifier = struct {
         switch (limit) {
             .none, .bind, .read, .global => {},
             .local => |name| self.fail("neutral local limit survived binding", name),
-            .expr => |expr| self.verifyGoal(expr),
+            .expr, .solve => |expr| self.verifyGoal(expr),
         }
     }
 };
