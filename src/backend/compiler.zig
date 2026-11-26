@@ -3223,12 +3223,19 @@ pub const Compiler = struct {
         // the next candidate.
         retry: Ir.Index,
         // Exit the window and cascade failure to the enclosing window via
-        // MatchRefail. The index of that op is appended to the parent's
-        // fail-marker list so the parent window is emitted as fallible.
-        arm: *ArrayList(Ir.Index),
+        // MatchRefail, marking the parent's flag so the parent window is
+        // emitted as fallible.
+        arm: *bool,
     };
 
     const BindMode = enum { bind, compare };
+
+    // Record that the window has a failure path through the step at index,
+    // which must fail to the window.
+    fn markFallible(self: *Compiler, fallible: *bool, index: Ir.Index) void {
+        std.debug.assert(Ir.operandOp(self.ir().instructions.items[index].operand).failsToWindow());
+        fallible.* = true;
+    }
 
     fn placeReg(place: Ast.PlaceId) u8 {
         return @intCast(place);
@@ -3304,13 +3311,13 @@ pub const Compiler = struct {
         self.arm_claim_members = claim_groups.items;
         defer self.arm_claim_members = prev_claim_members;
 
-        // Fallibility markers: each semidet step (and each child window that
-        // cascades failure here) appends an index. A non-empty list means
-        // this window needs a shared fail block, which the MatchWindowEnter
-        // fail target points at. The indices are never patched — every step
-        // fails to the window's fail_ip at runtime, not a per-op target.
-        var fail_jumps = ArrayList(Ir.Index).empty;
-        defer fail_jumps.deinit(allocator);
+        // Set by each semidet step (and each child window that cascades
+        // failure here) through markFallible. A fallible window needs a
+        // shared fail block, which the MatchWindowEnter fail target points
+        // at; every step fails to the window's fail_ip at runtime, not a
+        // per-op target.
+        var is_fallible = false;
+        const fallible = &is_fallible;
 
         // An already-failed scrutinee skips the steps and stays the result.
         // Only a root arm sees the
@@ -3334,8 +3341,8 @@ pub const Compiler = struct {
                 .sub => |s| switch (s.on_fail) {
                     .retry => |target| try self.emitJumpBack(.JumpBack, target, region),
                     // Cascade to the enclosing (still-open) window's fail
-                    // block; the appended index marks the parent fallible.
-                    .arm => |arm_fails| try arm_fails.append(allocator, try self.ir().push(allocator, .{ .none = .MatchRefail }, region)),
+                    // block, marking the parent fallible.
+                    .arm => |arm_fallible| self.markFallible(arm_fallible, try self.ir().push(allocator, .{ .none = .MatchRefail }, region)),
                 },
             }
             return;
@@ -3392,7 +3399,7 @@ pub const Compiler = struct {
                         .string => 2,
                         else => unreachable,
                     };
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                    self.markFallible(fallible, try self.ir().push(allocator, .{ .match_test = .{
                         .op = .MatchType,
                         .byte1 = placeReg(c.place),
                         .byte2 = ty,
@@ -3400,7 +3407,7 @@ pub const Compiler = struct {
                 },
                 .len_eq => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
+                    self.markFallible(fallible, try self.ir().push(allocator, .{ .match_count = .{
                         .reg = placeReg(c.place),
                         .n = @intCast(c.len),
                         .mode = 0,
@@ -3408,7 +3415,7 @@ pub const Compiler = struct {
                 },
                 .len_min => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
+                    self.markFallible(fallible, try self.ir().push(allocator, .{ .match_count = .{
                         .reg = placeReg(c.place),
                         .n = @intCast(c.len),
                         .mode = 1,
@@ -3418,7 +3425,7 @@ pub const Compiler = struct {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
                     const sid = try self.vm.strings.insert(c.literal);
                     const constant = try self.makeConstantU16(module_id, Elem.string(sid), step_region);
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
+                    self.markFallible(fallible, try self.ir().push(allocator, .{ .match_const = .{
                         .op = .MatchStrEnd,
                         .byte1 = placeReg(c.place),
                         .byte2 = 0,
@@ -3429,7 +3436,7 @@ pub const Compiler = struct {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
                     const sid = try self.vm.strings.insert(c.literal);
                     const constant = try self.makeConstantU16(module_id, Elem.string(sid), step_region);
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
+                    self.markFallible(fallible, try self.ir().push(allocator, .{ .match_const = .{
                         .op = .MatchStrEnd,
                         .byte1 = placeReg(c.place),
                         .byte2 = 1,
@@ -3438,7 +3445,7 @@ pub const Compiler = struct {
                 },
                 .keys_exact => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
+                    self.markFallible(fallible, try self.ir().push(allocator, .{ .match_count = .{
                         .reg = placeReg(c.place),
                         .n = @intCast(c.count),
                         .mode = 0,
@@ -3446,7 +3453,7 @@ pub const Compiler = struct {
                 },
                 .keys_min => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
+                    self.markFallible(fallible, try self.ir().push(allocator, .{ .match_count = .{
                         .reg = placeReg(c.place),
                         .n = @intCast(c.count),
                         .mode = 1,
@@ -3464,7 +3471,7 @@ pub const Compiler = struct {
                         },
                         else => {},
                     };
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
+                    self.markFallible(fallible, try self.ir().push(allocator, .{ .match_const = .{
                         .op = .MatchKey,
                         .byte1 = dst,
                         .byte2 = placeReg(c.place),
@@ -3474,7 +3481,7 @@ pub const Compiler = struct {
                 .eq_const, .eq_global, .bind, .eq_slot, .in_range => {
                     const place = constraintPrimaryPlace(constraint.kind).?;
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, place, step_region);
-                    try self.emitLeafStep(module_id, ast, constraint.kind, placeReg(place), bind_mode, &fail_jumps, step_region);
+                    try self.emitLeafStep(module_id, ast, constraint.kind, placeReg(place), bind_mode, fallible, step_region);
                 },
                 // Evaluate the expression (a call, mirroring the plan's
                 // eval_eq) and compare its result against the place. Every
@@ -3483,7 +3490,7 @@ pub const Compiler = struct {
                 .eval_eq => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
                     try self.writeGoal(module_id, ast, c.expr);
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                    self.markFallible(fallible, try self.ir().push(allocator, .{ .match_test = .{
                         .op = .MatchEval,
                         .byte1 = placeReg(c.place),
                         .byte2 = 0,
@@ -3492,13 +3499,13 @@ pub const Compiler = struct {
                 .negated => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
                     const reg = placeReg(c.place);
-                    try self.emitNegatedStep(module_id, ast, c.count, c.part, reg, dead_reg, &fail_jumps, step_region);
+                    try self.emitNegatedStep(module_id, ast, c.count, c.part, reg, dead_reg, fallible, step_region);
                 },
                 .match_template => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
                     const reg = placeReg(c.place);
                     switch (self.templateStepable(ast, c.segments.items).?) {
-                        .static => try self.emitTemplateStatic(module_id, c.segments.items, reg, dead_reg, &fail_jumps, step_region),
+                        .static => try self.emitTemplateStatic(module_id, c.segments.items, reg, dead_reg, fallible, step_region),
                         .cursor => try self.emitTemplateCursor(
                             module_id,
                             ast,
@@ -3506,7 +3513,7 @@ pub const Compiler = struct {
                             reg,
                             .{ .front = span_front, .end = span_end, .rest = span_rest, .char = span_char },
                             dead_reg,
-                            &fail_jumps,
+                            fallible,
                             step_region,
                         ),
                     }
@@ -3522,7 +3529,7 @@ pub const Compiler = struct {
                             c.solvable_index,
                             reg,
                             .{ .front = span_front, .end = span_end, .rest = span_rest, .chunk = span_char },
-                            &fail_jumps,
+                            fallible,
                             step_region,
                         );
                     } else if (c.ty == .object) {
@@ -3535,11 +3542,11 @@ pub const Compiler = struct {
                             dead_reg,
                             os_regs,
                             bind_mode,
-                            &fail_jumps,
+                            fallible,
                             step_region,
                         );
                     } else if (c.ty == null or (c.ty == .string and self.mergeEvalStepable(ast, c.ty, c.parts.items, c.solvable_index))) {
-                        try self.emitMergeEvalSolve(module_id, ast, c.parts.items, c.solvable_index, reg, dead_reg, &fail_jumps, step_region);
+                        try self.emitMergeEvalSolve(module_id, ast, c.parts.items, c.solvable_index, reg, dead_reg, fallible, step_region);
                     } else if (c.ty == .string) {
                         try self.emitStringMergeCursor(
                             module_id,
@@ -3548,11 +3555,11 @@ pub const Compiler = struct {
                             reg,
                             .{ .front = span_front, .end = span_end, .rest = span_rest, .char = span_char },
                             dead_reg,
-                            &fail_jumps,
+                            fallible,
                             step_region,
                         );
                     } else {
-                        try self.emitMergeSolve(module_id, ast, c.ty, c.parts.items, reg, dead_reg, false, &fail_jumps, step_region);
+                        try self.emitMergeSolve(module_id, ast, c.ty, c.parts.items, reg, dead_reg, false, fallible, step_region);
                     }
                 },
                 .search_key => |c| {
@@ -3586,8 +3593,8 @@ pub const Compiler = struct {
                     } else false;
 
                     if (known_key) {
-                        try self.emitClaimKey(src_reg, group.reg, key_reg, value_reg, &fail_jumps, step_region);
-                        try self.writeMatchSteps(module_id, ast, value_set.places.items, value_set.constraints.items, .{ .sub = .{ .src_reg = value_reg, .on_fail = .{ .arm = &fail_jumps } } }, step_region);
+                        try self.emitClaimKey(src_reg, group.reg, key_reg, value_reg, fallible, step_region);
+                        try self.writeMatchSteps(module_id, ast, value_set.places.items, value_set.constraints.items, .{ .sub = .{ .src_reg = value_reg, .on_fail = .{ .arm = fallible } } }, step_region);
                         try self.emitClaimAdd(group.reg, key_reg, step_region);
                         continue;
                     }
@@ -3598,7 +3605,7 @@ pub const Compiler = struct {
                     // rejected candidate exits that window and loops back.
                     // The accepted pair claims its key so later pairs and
                     // the rest skip the member.
-                    const loop = try self.emitClaimScan(src_reg, group.reg, key_reg, value_reg, cursor_reg, &fail_jumps, step_region);
+                    const loop = try self.emitClaimScan(src_reg, group.reg, key_reg, value_reg, cursor_reg, fallible, step_region);
                     // Match the candidate key before the value window so the
                     // value may read the key's binds ({A: Id(A)}, {A: [A, B]}).
                     // A leaf bind binds the key directly; a computed key (a
@@ -3632,12 +3639,12 @@ pub const Compiler = struct {
                         // count factors against the derived count.
                         .value => {
                             try self.emitEvaluablePartValue(module_id, ast, c.pattern, step_region);
-                            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                            self.markFallible(fallible, try self.ir().push(allocator, .{ .match_test = .{
                                 .op = .MatchRepeatValue,
                                 .byte1 = src_reg,
                                 .byte2 = repeat_reg,
                             } }, step_region));
-                            try self.emitRepeatCountSolve(module_id, ast, c.count_factors.items, c.solvable_index, repeat_reg, &fail_jumps, step_region);
+                            try self.emitRepeatCountSolve(module_id, ast, c.count_factors.items, c.solvable_index, repeat_reg, fallible, step_region);
                         },
                         // A codepoint range: scan the string, derive the
                         // codepoint count, and test the count operand
@@ -3650,7 +3657,7 @@ pub const Compiler = struct {
                             const lower_desc = try self.rangeDescriptor(module_id, ast, rc.lower, step_region, &lower_eval);
                             const upper_desc = try self.rangeDescriptor(module_id, ast, rc.upper, step_region, &upper_eval);
                             std.debug.assert(lower_eval == null and upper_eval == null);
-                            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_repeat_range = .{
+                            self.markFallible(fallible, try self.ir().push(allocator, .{ .match_repeat_range = .{
                                 .op = .MatchRepeatRange,
                                 .src = src_reg,
                                 .dst = repeat_reg,
@@ -3659,7 +3666,7 @@ pub const Compiler = struct {
                                 .upper_kind = upper_desc.kind,
                                 .upper_arg = upper_desc.arg,
                             } }, step_region));
-                            try self.emitRepeatCountSolve(module_id, ast, c.count_factors.items, c.solvable_index, repeat_reg, &fail_jumps, step_region);
+                            try self.emitRepeatCountSolve(module_id, ast, c.count_factors.items, c.solvable_index, repeat_reg, fallible, step_region);
                         },
                         // A fixed-length array sub-pattern: derive the
                         // chunk count from the length, test the count
@@ -3676,19 +3683,19 @@ pub const Compiler = struct {
                             // MatchRepeatInit measures arrays and objects
                             // alike, so pin the container type first: an
                             // array chunk must not count an object's members.
-                            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                            self.markFallible(fallible, try self.ir().push(allocator, .{ .match_test = .{
                                 .op = .MatchType,
                                 .byte1 = src_reg,
                                 .byte2 = 0,
                             } }, step_region));
-                            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_repeat_init = .{
+                            self.markFallible(fallible, try self.ir().push(allocator, .{ .match_repeat_init = .{
                                 .op = .MatchRepeatInit,
                                 .src = src_reg,
                                 .len = @intCast(sub_len),
                                 .count_dst = repeat_reg,
                                 .base = repeat_base_reg,
                             } }, step_region));
-                            try self.emitRepeatCountSolve(module_id, ast, c.count_factors.items, c.solvable_index, repeat_reg, &fail_jumps, step_region);
+                            try self.emitRepeatCountSolve(module_id, ast, c.count_factors.items, c.solvable_index, repeat_reg, fallible, step_region);
 
                             // A chunk with no constrained elements (all
                             // placeholders, like Array.length's [_] * L)
@@ -3704,7 +3711,7 @@ pub const Compiler = struct {
                                 .chunk_dst = repeat_chunk_reg,
                                 .target = Ir.unpatched_jump,
                             } }, step_region);
-                            try self.writeMatchSteps(module_id, ast, chunk_set.places.items, chunk_set.constraints.items, .{ .sub = .{ .src_reg = repeat_chunk_reg, .on_fail = .{ .arm = &fail_jumps }, .bind_mode = .bind } }, step_region);
+                            try self.writeMatchSteps(module_id, ast, chunk_set.places.items, chunk_set.constraints.items, .{ .sub = .{ .src_reg = repeat_chunk_reg, .on_fail = .{ .arm = fallible }, .bind_mode = .bind } }, step_region);
 
                             const loop_head = self.ir().nextIndex();
                             const loop_next = try self.ir().push(allocator, .{ .match_repeat_next = .{
@@ -3715,7 +3722,7 @@ pub const Compiler = struct {
                                 .chunk_dst = repeat_chunk_reg,
                                 .target = Ir.unpatched_jump,
                             } }, step_region);
-                            try self.writeMatchSteps(module_id, ast, chunk_set.places.items, chunk_set.constraints.items, .{ .sub = .{ .src_reg = repeat_chunk_reg, .on_fail = .{ .arm = &fail_jumps }, .bind_mode = .compare } }, step_region);
+                            try self.writeMatchSteps(module_id, ast, chunk_set.places.items, chunk_set.constraints.items, .{ .sub = .{ .src_reg = repeat_chunk_reg, .on_fail = .{ .arm = fallible }, .bind_mode = .compare } }, step_region);
                             try self.emitJumpBack(.JumpBack, loop_head, step_region);
 
                             self.patchJump(first_next);
@@ -3732,19 +3739,19 @@ pub const Compiler = struct {
                             // Pin the container type: MatchRepeatInit counts
                             // an array's elements too, but an object chunk
                             // must reject an array value.
-                            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                            self.markFallible(fallible, try self.ir().push(allocator, .{ .match_test = .{
                                 .op = .MatchType,
                                 .byte1 = src_reg,
                                 .byte2 = 1,
                             } }, step_region));
-                            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_repeat_init = .{
+                            self.markFallible(fallible, try self.ir().push(allocator, .{ .match_repeat_init = .{
                                 .op = .MatchRepeatInit,
                                 .src = src_reg,
                                 .len = @intCast(member_len),
                                 .count_dst = repeat_reg,
                                 .base = repeat_base_reg,
                             } }, step_region));
-                            try self.emitRepeatCountSolve(module_id, ast, c.count_factors.items, c.solvable_index, repeat_reg, &fail_jumps, step_region);
+                            try self.emitRepeatCountSolve(module_id, ast, c.count_factors.items, c.solvable_index, repeat_reg, fallible, step_region);
                         },
                         // A constrained-pair object sub-pattern ({K: V},
                         // {_: 1}, {_: 1, _: 2}): derive the group count as
@@ -3755,19 +3762,19 @@ pub const Compiler = struct {
                         // re-probing a claimed member fails a second group.
                         .object_search => {
                             const pair_count = self.repeatObjectSearchLen(ast, c.pattern.sub).?;
-                            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                            self.markFallible(fallible, try self.ir().push(allocator, .{ .match_test = .{
                                 .op = .MatchType,
                                 .byte1 = src_reg,
                                 .byte2 = 1,
                             } }, step_region));
-                            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_repeat_init = .{
+                            self.markFallible(fallible, try self.ir().push(allocator, .{ .match_repeat_init = .{
                                 .op = .MatchRepeatInit,
                                 .src = src_reg,
                                 .len = @intCast(pair_count),
                                 .count_dst = repeat_reg,
                                 .base = repeat_base_reg,
                             } }, step_region));
-                            try self.emitRepeatCountSolve(module_id, ast, c.count_factors.items, c.solvable_index, repeat_reg, &fail_jumps, step_region);
+                            try self.emitRepeatCountSolve(module_id, ast, c.count_factors.items, c.solvable_index, repeat_reg, fallible, step_region);
 
                             // The repeat pattern owns the whole object, so
                             // the claim array seeds empty; the group loop
@@ -3778,25 +3785,25 @@ pub const Compiler = struct {
                             // The exit bound is the whole member count; the
                             // group loop claims pair_count members per group
                             // and stops once the claim array reaches it.
-                            try self.emitMemberCount(src_reg, os_regs.target, &fail_jumps, step_region);
+                            try self.emitMemberCount(src_reg, os_regs.target, fallible, step_region);
 
                             // The guard exits before the first group when the
                             // object is empty (count 0); otherwise group 0
                             // binds and the loop compares.
-                            try self.emitObjectGroupLoop(module_id, ast, c.pattern.sub, src_reg, os_regs, .bind, &fail_jumps, step_region);
+                            try self.emitObjectGroupLoop(module_id, ast, c.pattern.sub, src_reg, os_regs, .bind, fallible, step_region);
                         },
                         // A bare binder: push the known count (the product
                         // of the scalar factors), solve the representative
                         // chunk, and bind it.
                         .chunk => {
                             try self.writeRepeatCountProduct(module_id, ast, c.count_factors.items, null, step_region);
-                            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                            self.markFallible(fallible, try self.ir().push(allocator, .{ .match_test = .{
                                 .op = .MatchRepeatChunk,
                                 .byte1 = src_reg,
                                 .byte2 = repeat_reg,
                             } }, step_region));
                             std.debug.assert(c.pattern == .bind or c.pattern == .placeholder);
-                            try self.emitLeftoverPart(c.pattern, repeat_reg, &fail_jumps, step_region);
+                            try self.emitLeftoverPart(c.pattern, repeat_reg, fallible, step_region);
                         },
                         // A bare binder with an unbound count: the pattern
                         // greedily claims the whole scrutinee and the count,
@@ -3812,7 +3819,7 @@ pub const Compiler = struct {
                                 else => unreachable,
                             }
                             std.debug.assert(c.pattern == .bind or c.pattern == .placeholder);
-                            try self.emitLeftoverPart(c.pattern, src_reg, &fail_jumps, step_region);
+                            try self.emitLeftoverPart(c.pattern, src_reg, fallible, step_region);
                         },
                     }
                 },
@@ -3836,14 +3843,14 @@ pub const Compiler = struct {
                     if (c.exact) {
                         // Shape A/B: the group count is the member surplus
                         // over the seed divided by the chunk's pairs.
-                        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_claim_count = .{
+                        self.markFallible(fallible, try self.ir().push(allocator, .{ .match_claim_count = .{
                             .op = .MatchClaimCount,
                             .src = src_reg,
                             .pair_len = pair_len,
                             .seed = seed_count,
                             .count_dst = repeat_reg,
                         } }, step_region));
-                        try self.emitRepeatCountSolve(module_id, ast, c.count_factors.items, c.solvable_index, repeat_reg, &fail_jumps, step_region);
+                        try self.emitRepeatCountSolve(module_id, ast, c.count_factors.items, c.solvable_index, repeat_reg, fallible, step_region);
                         // Shape A: an all-placeholder chunk claims nothing
                         // specific and has no rest, so divisibility is the
                         // whole match — no group loop.
@@ -3854,8 +3861,8 @@ pub const Compiler = struct {
                         // seed + groups × pair_len by the divisibility check).
                         const seed_constant = try self.hasKeyListConstant(module_id, constraints, c.place, step_region);
                         _ = try self.ir().push(allocator, .{ .match_const = .{ .op = .MatchClaimSeed, .byte1 = os_claim, .byte2 = 0, .constant = seed_constant } }, step_region);
-                        try self.emitMemberCount(src_reg, os_regs.target, &fail_jumps, step_region);
-                        try self.emitObjectGroupLoop(module_id, ast, chunk_set_id, src_reg, os_regs, .bind, &fail_jumps, step_region);
+                        try self.emitMemberCount(src_reg, os_regs.target, fallible, step_region);
+                        try self.emitObjectGroupLoop(module_id, ast, chunk_set_id, src_reg, os_regs, .bind, fallible, step_region);
                     } else {
                         // Shape C: the count is a known product; seed the
                         // const keys, load the target claim size past them,
@@ -3864,7 +3871,7 @@ pub const Compiler = struct {
                         const seed_constant = try self.hasKeyListConstant(module_id, constraints, c.place, step_region);
                         _ = try self.ir().push(allocator, .{ .match_const = .{ .op = .MatchClaimSeed, .byte1 = os_claim, .byte2 = 0, .constant = seed_constant } }, step_region);
                         try self.writeRepeatCountProduct(module_id, ast, c.count_factors.items, null, step_region);
-                        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count_load = .{
+                        self.markFallible(fallible, try self.ir().push(allocator, .{ .match_count_load = .{
                             .op = .MatchCountLoad,
                             .dst = repeat_reg,
                             .pair_len = pair_len,
@@ -3872,14 +3879,14 @@ pub const Compiler = struct {
                         } }, step_region));
                         var count_regs = os_regs;
                         count_regs.target = repeat_reg;
-                        try self.emitObjectGroupLoop(module_id, ast, chunk_set_id, src_reg, count_regs, .bind, &fail_jumps, step_region);
+                        try self.emitObjectGroupLoop(module_id, ast, chunk_set_id, src_reg, count_regs, .bind, fallible, step_region);
                     }
                 },
                 else => unreachable,
             }
         }
 
-        if (fail_jumps.items.len == 0) {
+        if (!is_fallible) {
             // Every step was deterministic; there is no failure path. Point
             // the window's (unused) fail target at the exit to keep it in
             // range, then close. Success falls through to the exit.
@@ -3912,9 +3919,8 @@ pub const Compiler = struct {
                     // member.
                     .retry => |target| try self.emitJumpBack(.JumpBack, target, region),
                     // A rejected chunk cascades to the enclosing window's
-                    // fail block; the appended index marks the parent
-                    // fallible.
-                    .arm => |arm_fails| try arm_fails.append(allocator, try self.ir().push(allocator, .{ .none = .MatchRefail }, region)),
+                    // fail block, marking the parent fallible.
+                    .arm => |arm_fallible| self.markFallible(arm_fallible, try self.ir().push(allocator, .{ .none = .MatchRefail }, region)),
                 }
                 self.patchJump(okJump);
                 try self.emitOp(.MatchWindowExit, region);
@@ -3925,8 +3931,8 @@ pub const Compiler = struct {
     // Compute the whole member count of the object in src_reg into dst as a
     // float — a MatchClaimCount with a unit pair and no seed, which also fails
     // the window when src is not an object. Feeds a MatchClaimDoneCount exit.
-    fn emitMemberCount(self: *Compiler, src_reg: u8, dst: u8, fail_jumps: *ArrayList(Ir.Index), region: Region) Error!void {
-        try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_claim_count = .{
+    fn emitMemberCount(self: *Compiler, src_reg: u8, dst: u8, fallible: *bool, region: Region) Error!void {
+        self.markFallible(fallible, try self.ir().push(self.vm.allocator, .{ .match_claim_count = .{
             .op = .MatchClaimCount,
             .src = src_reg,
             .pair_len = 1,
@@ -3937,9 +3943,9 @@ pub const Compiler = struct {
 
     // Probe src for the popped known key into key_dst/val_dst; fails when
     // the member is absent or already claimed.
-    fn emitClaimKey(self: *Compiler, src: u8, claim: u8, key_dst: u8, val_dst: u8, fail_jumps: *ArrayList(Ir.Index), region: Region) Error!void {
+    fn emitClaimKey(self: *Compiler, src: u8, claim: u8, key_dst: u8, val_dst: u8, fallible: *bool, region: Region) Error!void {
         const allocator = self.vm.allocator;
-        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_claim_key = .{
+        self.markFallible(fallible, try self.ir().push(allocator, .{ .match_claim_key = .{
             .op = .MatchClaimKey,
             .key_dst = key_dst,
             .val_dst = val_dst,
@@ -3951,11 +3957,11 @@ pub const Compiler = struct {
     // Reset the cursor and scan src for the next unclaimed member into
     // key_dst/val_dst. Returns the scan op's index, the retry target for a
     // rejected candidate.
-    fn emitClaimScan(self: *Compiler, src: u8, claim: u8, key_dst: u8, val_dst: u8, cursor: u8, fail_jumps: *ArrayList(Ir.Index), region: Region) Error!Ir.Index {
+    fn emitClaimScan(self: *Compiler, src: u8, claim: u8, key_dst: u8, val_dst: u8, cursor: u8, fallible: *bool, region: Region) Error!Ir.Index {
         const allocator = self.vm.allocator;
         try self.emitUnaryOp(.MatchIterInit, cursor, region);
         const loop = self.ir().nextIndex();
-        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_claim_scan = .{
+        self.markFallible(fallible, try self.ir().push(allocator, .{ .match_claim_scan = .{
             .op = .MatchClaimScan,
             .key_dst = key_dst,
             .val_dst = val_dst,
@@ -3993,7 +3999,7 @@ pub const Compiler = struct {
         val_dst: u8,
         cursor_reg: u8,
         bind_mode: BindMode,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
@@ -4005,8 +4011,8 @@ pub const Compiler = struct {
             .has_key => |c| {
                 const key_sid = try self.vm.strings.insert(self.frontend.strings.get(c.sid));
                 try self.writeConstant(module_id, Elem.string(key_sid), region);
-                try self.emitClaimKey(src_reg, claim_reg, key_dst, val_dst, fail_jumps, region);
-                try self.emitObjectRepeatConstValue(module_id, ast, chunk_set_id, c.sid, val_dst, bind_mode, fail_jumps, region);
+                try self.emitClaimKey(src_reg, claim_reg, key_dst, val_dst, fallible, region);
+                try self.emitObjectRepeatConstValue(module_id, ast, chunk_set_id, c.sid, val_dst, bind_mode, fallible, region);
                 try self.emitClaimAdd(claim_reg, key_dst, region);
             },
             .search_key => |c| {
@@ -4021,13 +4027,13 @@ pub const Compiler = struct {
                     // Rebound known key: read its slot and probe directly.
                     // A member group 0 already claimed under this key fails.
                     try self.emitUnaryOp(.GetLocal, key_bind.?, region);
-                    try self.emitClaimKey(src_reg, claim_reg, key_dst, val_dst, fail_jumps, region);
+                    try self.emitClaimKey(src_reg, claim_reg, key_dst, val_dst, fallible, region);
                     if (value_set.constraints.items.len > 0) {
-                        try self.writeMatchSteps(module_id, ast, value_set.places.items, value_set.constraints.items, .{ .sub = .{ .src_reg = val_dst, .on_fail = .{ .arm = fail_jumps }, .bind_mode = bind_mode } }, region);
+                        try self.writeMatchSteps(module_id, ast, value_set.places.items, value_set.constraints.items, .{ .sub = .{ .src_reg = val_dst, .on_fail = .{ .arm = fallible }, .bind_mode = bind_mode } }, region);
                     }
                 } else {
                     // Scan for the first unclaimed member the value accepts.
-                    const loop = try self.emitClaimScan(src_reg, claim_reg, key_dst, val_dst, cursor_reg, fail_jumps, region);
+                    const loop = try self.emitClaimScan(src_reg, claim_reg, key_dst, val_dst, cursor_reg, fallible, region);
                     if (bind_mode == .bind and key_bind != null) {
                         _ = try self.ir().push(allocator, .{ .match_bytes = .{
                             .op = .MatchBind,
@@ -4061,7 +4067,7 @@ pub const Compiler = struct {
         key_sid: FrontendStrings.Id,
         val_dst: u8,
         bind_mode: BindMode,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const chunk_set = &ast.constraint_sets.items[chunk_set_id];
@@ -4078,7 +4084,7 @@ pub const Compiler = struct {
         for (chunk_set.constraints.items) |constraint| {
             const place = constraintPrimaryPlace(constraint.kind) orelse continue;
             if (place != vp) continue;
-            try self.emitLeafStep(module_id, ast, constraint.kind, val_dst, bind_mode, fail_jumps, region);
+            try self.emitLeafStep(module_id, ast, constraint.kind, val_dst, bind_mode, fallible, region);
         }
     }
 
@@ -4157,17 +4163,17 @@ pub const Compiler = struct {
         ast: *const Ast,
         count: Ast.Part,
         reg: u8,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         switch (count) {
-            .placeholder, .bind, .read => try self.emitLeftoverPart(count, reg, fail_jumps, region),
-            .expr => |id| try self.emitEqConstStep(module_id, ast, id, reg, fail_jumps, region),
+            .placeholder, .bind, .read => try self.emitLeftoverPart(count, reg, fallible, region),
+            .expr => |id| try self.emitEqConstStep(module_id, ast, id, reg, fallible, region),
             .sub => |set_id| {
                 const set = &ast.constraint_sets.items[set_id];
                 for (set.constraints.items) |constraint| {
                     std.debug.assert(constraint.kind != .eq_global);
-                    try self.emitLeafStep(module_id, ast, constraint.kind, reg, .bind, fail_jumps, region);
+                    try self.emitLeafStep(module_id, ast, constraint.kind, reg, .bind, fallible, region);
                 }
             },
             .local, .global => unreachable,
@@ -4184,7 +4190,7 @@ pub const Compiler = struct {
         kind: Ast.Constraint.Kind,
         reg: u8,
         bind_mode: BindMode,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
@@ -4196,20 +4202,20 @@ pub const Compiler = struct {
                     .byte2 = reg,
                 } }, region),
                 // Compare against the value the first chunk bound.
-                .compare => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                .compare => self.markFallible(fallible, try self.ir().push(allocator, .{ .match_cmp = .{
                     .reg = reg,
                     .kind = .slot,
                     .arg = c.slot,
                 } }, region)),
             },
-            .eq_slot => |c| try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+            .eq_slot => |c| self.markFallible(fallible, try self.ir().push(allocator, .{ .match_cmp = .{
                 .reg = reg,
                 .kind = .slot,
                 .arg = c.slot,
             } }, region)),
-            .eq_const => |c| try self.emitEqConstStep(module_id, ast, c.value, reg, fail_jumps, region),
-            .eq_global => |c| try fail_jumps.append(allocator, try self.emitEqGlobalStep(module_id, c.name, reg, region)),
-            .in_range => |c| try self.emitInRangeStep(module_id, ast, reg, c.lower, c.upper, fail_jumps, region),
+            .eq_const => |c| try self.emitEqConstStep(module_id, ast, c.value, reg, fallible, region),
+            .eq_global => |c| self.markFallible(fallible, try self.emitEqGlobalStep(module_id, c.name, reg, region)),
+            .in_range => |c| try self.emitInRangeStep(module_id, ast, reg, c.lower, c.upper, fallible, region),
             else => unreachable,
         }
     }
@@ -4220,12 +4226,12 @@ pub const Compiler = struct {
         ast: *const Ast,
         id: Ast.NodeId,
         reg: u8,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const elem = try self.goalPatternConstElem(ast, id);
         const constant = try self.makeConstantU16(module_id, elem, region);
-        try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_cmp = .{
+        self.markFallible(fallible, try self.ir().push(self.vm.allocator, .{ .match_cmp = .{
             .reg = reg,
             .kind = .constant,
             .arg = constant,
@@ -4246,15 +4252,15 @@ pub const Compiler = struct {
         factors: []const Ast.Part,
         solvable_index: ?u32,
         reg: u8,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
         if (factors.len == 1) {
             switch (factors[0]) {
-                .placeholder, .bind, .read, .sub => return self.emitRepeatCountSteps(module_id, ast, factors[0], reg, fail_jumps, region),
+                .placeholder, .bind, .read, .sub => return self.emitRepeatCountSteps(module_id, ast, factors[0], reg, fallible, region),
                 .expr => |id| if (self.constPatternNode(ast, id)) {
-                    return self.emitRepeatCountSteps(module_id, ast, factors[0], reg, fail_jumps, region);
+                    return self.emitRepeatCountSteps(module_id, ast, factors[0], reg, fallible, region);
                 },
                 else => {},
             }
@@ -4266,7 +4272,7 @@ pub const Compiler = struct {
             if (factor == .sub) break i;
         } else null;
         if (range_idx) |ri| {
-            try self.emitRepeatScalarDivide(module_id, ast, factors, ri, solvable_index, reg, fail_jumps, region);
+            try self.emitRepeatScalarDivide(module_id, ast, factors, ri, solvable_index, reg, fallible, region);
             const rc = self.repeatRangeConstraint(ast, factors[ri].sub).?.kind.in_range;
             if (solvable_index) |s| {
                 var lower_eval: ?Ast.NodeId = null;
@@ -4274,7 +4280,7 @@ pub const Compiler = struct {
                 const lower_desc = try self.rangeDescriptor(module_id, ast, rc.lower, region, &lower_eval);
                 const upper_desc = try self.rangeDescriptor(module_id, ast, rc.upper, region, &upper_eval);
                 std.debug.assert(lower_eval == null and upper_eval == null);
-                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_repeat_range = .{
+                self.markFallible(fallible, try self.ir().push(allocator, .{ .match_repeat_range = .{
                     .op = .MatchRepeatRangeDivide,
                     .src = reg,
                     .dst = reg,
@@ -4284,24 +4290,24 @@ pub const Compiler = struct {
                     .upper_arg = upper_desc.arg,
                 } }, region));
                 std.debug.assert(factors[s] == .bind or factors[s] == .placeholder);
-                try self.emitLeftoverPart(factors[s], reg, fail_jumps, region);
+                try self.emitLeftoverPart(factors[s], reg, fallible, region);
             } else {
-                try self.emitInRangeStep(module_id, ast, reg, rc.lower, rc.upper, fail_jumps, region);
+                try self.emitInRangeStep(module_id, ast, reg, rc.lower, rc.upper, fallible, region);
             }
             return;
         }
         if (solvable_index) |s| {
             try self.writeRepeatCountProduct(module_id, ast, factors, s, region);
-            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+            self.markFallible(fallible, try self.ir().push(allocator, .{ .match_test = .{
                 .op = .MatchDivideEval,
                 .byte1 = reg,
                 .byte2 = reg,
             } }, region));
             std.debug.assert(factors[s] == .bind or factors[s] == .placeholder);
-            try self.emitLeftoverPart(factors[s], reg, fail_jumps, region);
+            try self.emitLeftoverPart(factors[s], reg, fallible, region);
         } else {
             try self.writeRepeatCountProduct(module_id, ast, factors, null, region);
-            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+            self.markFallible(fallible, try self.ir().push(allocator, .{ .match_test = .{
                 .op = .MatchEval,
                 .byte1 = reg,
                 .byte2 = 0,
@@ -4320,7 +4326,7 @@ pub const Compiler = struct {
         range_idx: usize,
         solvable_index: ?u32,
         reg: u8,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         var pushed = false;
@@ -4332,7 +4338,7 @@ pub const Compiler = struct {
             pushed = true;
         }
         if (pushed) {
-            try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_test = .{
+            self.markFallible(fallible, try self.ir().push(self.vm.allocator, .{ .match_test = .{
                 .op = .MatchDivideEval,
                 .byte1 = reg,
                 .byte2 = reg,
@@ -4376,13 +4382,13 @@ pub const Compiler = struct {
         // number ran first). Enables the `0 + leftover` identity shortcut, which
         // otherwise would skip the number-type check MatchMergeNum performs.
         src_is_number: bool,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
         if (self.classifyBoolMergeStep(ast, ty, parts)) |step| {
             const constant = try self.makeConstantU16(module_id, Elem.boolean(step.static_true), region);
-            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
+            self.markFallible(fallible, try self.ir().push(allocator, .{ .match_const = .{
                 .op = .MatchMergeBool,
                 .byte1 = dead_reg,
                 .byte2 = src_reg,
@@ -4399,7 +4405,7 @@ pub const Compiler = struct {
                 // L); only a static-false claim verifies L equals the
                 // residual scrutinee.
                 .read => if (!step.static_true) {
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                    self.markFallible(fallible, try self.ir().push(allocator, .{ .match_cmp = .{
                         .reg = dead_reg,
                         .kind = .slot,
                         .arg = step.slot,
@@ -4411,7 +4417,7 @@ pub const Compiler = struct {
         }
         const step = self.classifyNumMergeStep(ast, ty, parts).?;
         if (step.has_runtime_part) {
-            try self.emitNumMergeRuntime(module_id, ast, parts, step, src_reg, dead_reg, fail_jumps, region);
+            try self.emitNumMergeRuntime(module_id, ast, parts, step, src_reg, dead_reg, fallible, region);
             return;
         }
         var sum: f64 = 0;
@@ -4427,17 +4433,17 @@ pub const Compiler = struct {
         // structural sub leftover keeps the MatchMergeNum step, whose number
         // check the child window relies on.
         if (src_is_number and sum == 0 and !step.negate and step.kind != .sub) {
-            try self.emitNumMergeLeftover(module_id, ast, step, src_reg, fail_jumps, region);
+            try self.emitNumMergeLeftover(module_id, ast, step, src_reg, fallible, region);
             return;
         }
         const constant = try self.makeConstantU16(module_id, Elem.numberFloat(sum), region);
-        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_merge_num = .{
+        self.markFallible(fallible, try self.ir().push(allocator, .{ .match_merge_num = .{
             .dst = dead_reg,
             .src = src_reg,
             .constant = constant,
             .negate = step.negate,
         } }, region));
-        try self.emitNumMergeLeftover(module_id, ast, step, dead_reg, fail_jumps, region);
+        try self.emitNumMergeLeftover(module_id, ast, step, dead_reg, fallible, region);
     }
 
     // The residual of a number merge whose non-leftover parts include a
@@ -4453,7 +4459,7 @@ pub const Compiler = struct {
         step: NumMergeStep,
         src_reg: u8,
         dead_reg: u8,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
@@ -4469,7 +4475,7 @@ pub const Compiler = struct {
             }
         }
         const constant = try self.makeConstantU16(module_id, Elem.numberFloat(const_sum), region);
-        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_merge_num = .{
+        self.markFallible(fallible, try self.ir().push(allocator, .{ .match_merge_num = .{
             .dst = dead_reg,
             .src = src_reg,
             .constant = constant,
@@ -4483,13 +4489,13 @@ pub const Compiler = struct {
             };
             if (is_const) continue;
             try self.emitEvaluablePartValue(module_id, ast, part, region);
-            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+            self.markFallible(fallible, try self.ir().push(allocator, .{ .match_test = .{
                 .op = .MatchSubtractEval,
                 .byte1 = dead_reg,
                 .byte2 = dead_reg,
             } }, region));
         }
-        try self.emitNumMergeLeftover(module_id, ast, step, dead_reg, fail_jumps, region);
+        try self.emitNumMergeLeftover(module_id, ast, step, dead_reg, fallible, region);
     }
 
     // Consume a number merge's residual (already isolated in `reg`) with its
@@ -4502,7 +4508,7 @@ pub const Compiler = struct {
         ast: *const Ast,
         step: NumMergeStep,
         reg: u8,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
@@ -4512,7 +4518,7 @@ pub const Compiler = struct {
                 .byte1 = step.slot,
                 .byte2 = reg,
             } }, region),
-            .read => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+            .read => self.markFallible(fallible, try self.ir().push(allocator, .{ .match_cmp = .{
                 .reg = reg,
                 .kind = .slot,
                 .arg = step.slot,
@@ -4520,7 +4526,7 @@ pub const Compiler = struct {
             .placeholder => {},
             .sub => {
                 const set = &ast.constraint_sets.items[step.sub_set];
-                try self.writeMatchSteps(module_id, ast, set.places.items, set.constraints.items, .{ .sub = .{ .src_reg = reg, .on_fail = .{ .arm = fail_jumps } } }, region);
+                try self.writeMatchSteps(module_id, ast, set.places.items, set.constraints.items, .{ .sub = .{ .src_reg = reg, .on_fail = .{ .arm = fallible } } }, region);
             },
         }
     }
@@ -4548,13 +4554,13 @@ pub const Compiler = struct {
         solvable_index: ?u32,
         src_reg: u8,
         dead_reg: u8,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
         const si = solvable_index orelse {
             try self.emitMergedPartValues(module_id, ast, parts, region);
-            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+            self.markFallible(fallible, try self.ir().push(allocator, .{ .match_test = .{
                 .op = .MatchEval,
                 .byte1 = src_reg,
                 .byte2 = 0,
@@ -4566,7 +4572,7 @@ pub const Compiler = struct {
         var residual_src = src_reg;
         if (si > 0) {
             try self.emitMergedPartValues(module_id, ast, parts[0..si], region);
-            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+            self.markFallible(fallible, try self.ir().push(allocator, .{ .match_test = .{
                 .op = .MatchMergeEval,
                 .byte1 = dead_reg,
                 .byte2 = residual_src,
@@ -4576,7 +4582,7 @@ pub const Compiler = struct {
         }
         if (si < parts.len - 1) {
             try self.emitMergedPartValues(module_id, ast, parts[si + 1 ..], region);
-            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+            self.markFallible(fallible, try self.ir().push(allocator, .{ .match_test = .{
                 .op = .MatchMergeEval,
                 .byte1 = dead_reg,
                 .byte2 = residual_src,
@@ -4584,7 +4590,7 @@ pub const Compiler = struct {
             } }, region));
             residual_src = dead_reg;
         }
-        try self.emitLeftoverPart(parts[si], residual_src, fail_jumps, region);
+        try self.emitLeftoverPart(parts[si], residual_src, fallible, region);
     }
 
     // Consume a residual in src_reg with the merge or repeat part left
@@ -4594,7 +4600,7 @@ pub const Compiler = struct {
         self: *Compiler,
         part: Ast.Part,
         src_reg: u8,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
@@ -4604,7 +4610,7 @@ pub const Compiler = struct {
                 .byte1 = ls.slot,
                 .byte2 = src_reg,
             } }, region),
-            .read => |ls| try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+            .read => |ls| self.markFallible(fallible, try self.ir().push(allocator, .{ .match_cmp = .{
                 .reg = src_reg,
                 .kind = .slot,
                 .arg = ls.slot,
@@ -4644,16 +4650,16 @@ pub const Compiler = struct {
         src_reg: u8,
         regs: ClaimRegs,
         first_mode: BindMode,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
         const done: Ir.Operand = .{ .match_claim_done = .{ .op = .MatchClaimDoneCount, .claim = regs.claim, .src = regs.target, .target = Ir.unpatched_jump } };
         const guard = try self.ir().push(allocator, done, region);
-        try self.emitObjectRepeatGroup(module_id, ast, chunk_set_id, src_reg, regs.claim, regs.key, regs.val, regs.cursor, first_mode, fail_jumps, region);
+        try self.emitObjectRepeatGroup(module_id, ast, chunk_set_id, src_reg, regs.claim, regs.key, regs.val, regs.cursor, first_mode, fallible, region);
         const loop_head = self.ir().nextIndex();
         const loop_done = try self.ir().push(allocator, done, region);
-        try self.emitObjectRepeatGroup(module_id, ast, chunk_set_id, src_reg, regs.claim, regs.key, regs.val, regs.cursor, .compare, fail_jumps, region);
+        try self.emitObjectRepeatGroup(module_id, ast, chunk_set_id, src_reg, regs.claim, regs.key, regs.val, regs.cursor, .compare, fallible, region);
         try self.emitJumpBack(.JumpBack, loop_head, region);
         self.patchJump(guard);
         self.patchJump(loop_done);
@@ -4676,12 +4682,12 @@ pub const Compiler = struct {
         dead_reg: u8,
         regs: ClaimRegs,
         bind_mode: BindMode,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
         // The claim ops require an object scrutinee.
-        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+        self.markFallible(fallible, try self.ir().push(allocator, .{ .match_test = .{
             .op = .MatchType,
             .byte1 = src_reg,
             .byte2 = 1,
@@ -4704,19 +4710,19 @@ pub const Compiler = struct {
                     else
                         self.repeatObjectSearchLen(ast, chunk_set_id).?);
                     try self.writeRepeatCountProduct(module_id, ast, r.count_factors.items, null, region);
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count_load = .{
+                    self.markFallible(fallible, try self.ir().push(allocator, .{ .match_count_load = .{
                         .op = .MatchCountLoad,
                         .dst = regs.target,
                         .pair_len = pair_len,
                         .claim = regs.claim,
                     } }, region));
-                    try self.emitObjectGroupLoop(module_id, ast, chunk_set_id, src_reg, regs, bind_mode, fail_jumps, region);
+                    try self.emitObjectGroupLoop(module_id, ast, chunk_set_id, src_reg, regs, bind_mode, fallible, region);
                 } else {
-                    try self.emitObjectRepeatGroup(module_id, ast, set_id, src_reg, regs.claim, regs.key, regs.val, regs.cursor, bind_mode, fail_jumps, region);
+                    try self.emitObjectRepeatGroup(module_id, ast, set_id, src_reg, regs.claim, regs.key, regs.val, regs.cursor, bind_mode, fallible, region);
                 },
                 .read, .global, .expr => {
                     try self.emitEvaluablePartValue(module_id, ast, part, region);
-                    try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                    self.markFallible(fallible, try self.ir().push(allocator, .{ .match_test = .{
                         .op = .MatchClaimObject,
                         .byte1 = regs.claim,
                         .byte2 = src_reg,
@@ -4741,7 +4747,7 @@ pub const Compiler = struct {
                             .byte1 = ls.slot,
                             .byte2 = dead_reg,
                         } }, region),
-                        .compare => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+                        .compare => self.markFallible(fallible, try self.ir().push(allocator, .{ .match_cmp = .{
                             .reg = dead_reg,
                             .kind = .slot,
                             .arg = ls.slot,
@@ -4756,14 +4762,14 @@ pub const Compiler = struct {
             // No rest: the claims must cover every member. Claimed keys are
             // distinct members of src, so reaching the member count means
             // exact coverage; falling short fails the window.
-            try self.emitMemberCount(src_reg, regs.target, fail_jumps, region);
+            try self.emitMemberCount(src_reg, regs.target, fallible, region);
             const done = try self.ir().push(allocator, .{ .match_claim_done = .{
                 .op = .MatchClaimDoneCount,
                 .claim = regs.claim,
                 .src = regs.target,
                 .target = Ir.unpatched_jump,
             } }, region);
-            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .none = .MatchRefail }, region));
+            self.markFallible(fallible, try self.ir().push(allocator, .{ .none = .MatchRefail }, region));
             self.patchJump(done);
         }
     }
@@ -4784,13 +4790,13 @@ pub const Compiler = struct {
         solvable_index: ?u32,
         reg: u8,
         regs: SpanRegs,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
         // The merge asserts its place is an array (the plan checks isDynType
         // before slicing); MatchSpanInit then reads the element count.
-        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+        self.markFallible(fallible, try self.ir().push(allocator, .{ .match_test = .{
             .op = .MatchType,
             .byte1 = reg,
             .byte2 = 0,
@@ -4804,14 +4810,14 @@ pub const Compiler = struct {
 
         const before_end = solvable_index orelse parts.len;
         for (parts[0..before_end]) |part| {
-            try self.emitArrayMergeSegment(module_id, ast, part, reg, regs, false, fail_jumps, region);
+            try self.emitArrayMergeSegment(module_id, ast, part, reg, regs, false, fallible, region);
         }
 
         if (solvable_index) |si| {
             var i = parts.len;
             while (i > si + 1) {
                 i -= 1;
-                try self.emitArrayMergeSegment(module_id, ast, parts[i], reg, regs, true, fail_jumps, region);
+                try self.emitArrayMergeSegment(module_id, ast, parts[i], reg, regs, true, fallible, region);
             }
             switch (parts[si]) {
                 .bind => |ls| {
@@ -4833,7 +4839,7 @@ pub const Compiler = struct {
                 else => unreachable,
             }
         } else {
-            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+            self.markFallible(fallible, try self.ir().push(allocator, .{ .match_cmp = .{
                 .reg = regs.front,
                 .kind = .reg,
                 .arg = regs.end,
@@ -4854,7 +4860,7 @@ pub const Compiler = struct {
         reg: u8,
         regs: SpanRegs,
         back: bool,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
@@ -4864,7 +4870,7 @@ pub const Compiler = struct {
             .sub => |set_id| {
                 const len = arrayMergePartFixedLen(ast, set_id).?;
                 if (len == 0) return;
-                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_span_chunk = .{
+                self.markFallible(fallible, try self.ir().push(allocator, .{ .match_span_chunk = .{
                     .op = .MatchSpanChunk,
                     .dst = regs.chunk,
                     .src = reg,
@@ -4876,13 +4882,13 @@ pub const Compiler = struct {
                 const set = &ast.constraint_sets.items[set_id];
                 try self.writeMatchSteps(module_id, ast, set.places.items, set.constraints.items, .{ .sub = .{
                     .src_reg = regs.chunk,
-                    .on_fail = .{ .arm = fail_jumps },
+                    .on_fail = .{ .arm = fallible },
                     .bind_mode = .bind,
                 } }, region);
             },
             else => {
                 try self.emitEvaluablePartValue(module_id, ast, part, region);
-                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_span_val = .{
+                self.markFallible(fallible, try self.ir().push(allocator, .{ .match_span_val = .{
                     .op = .MatchSpanVal,
                     .src = reg,
                     .cursor = cursor,
@@ -4903,7 +4909,7 @@ pub const Compiler = struct {
         segments: []const Ast.Segment,
         reg: u8,
         dead_reg: u8,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
@@ -4920,12 +4926,12 @@ pub const Compiler = struct {
             .part => |part| special = part,
         };
 
-        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+        self.markFallible(fallible, try self.ir().push(allocator, .{ .match_test = .{
             .op = .MatchType,
             .byte1 = reg,
             .byte2 = 2,
         } }, region));
-        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
+        self.markFallible(fallible, try self.ir().push(allocator, .{ .match_count = .{
             .reg = reg,
             .n = @intCast(prefix.items.len + suffix.items.len),
             .mode = 1,
@@ -4933,7 +4939,7 @@ pub const Compiler = struct {
         if (prefix.items.len > 0) {
             const sid = try self.vm.strings.insert(prefix.items);
             const constant = try self.makeConstantU16(module_id, Elem.string(sid), region);
-            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
+            self.markFallible(fallible, try self.ir().push(allocator, .{ .match_const = .{
                 .op = .MatchStrEnd,
                 .byte1 = reg,
                 .byte2 = 0,
@@ -4943,7 +4949,7 @@ pub const Compiler = struct {
         if (suffix.items.len > 0) {
             const sid = try self.vm.strings.insert(suffix.items);
             const constant = try self.makeConstantU16(module_id, Elem.string(sid), region);
-            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
+            self.markFallible(fallible, try self.ir().push(allocator, .{ .match_const = .{
                 .op = .MatchStrEnd,
                 .byte1 = reg,
                 .byte2 = 1,
@@ -4991,12 +4997,12 @@ pub const Compiler = struct {
         reg: u8,
         regs: TemplateRegs,
         dead_reg: u8,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
 
-        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+        self.markFallible(fallible, try self.ir().push(allocator, .{ .match_test = .{
             .op = .MatchType,
             .byte1 = reg,
             .byte2 = 2,
@@ -5010,7 +5016,7 @@ pub const Compiler = struct {
 
         try self.collectTemplateSegs(module_id, ast, segments, &effs, &lit, &solvable_index, region);
         try self.flushTemplateLit(module_id, &effs, &lit, region);
-        try self.emitCursorSegs(module_id, ast, effs.items, solvable_index, reg, regs, dead_reg, fail_jumps, region);
+        try self.emitCursorSegs(module_id, ast, effs.items, solvable_index, reg, regs, dead_reg, fallible, region);
     }
 
     // Normalize segments: fold constants into adjacent literal runs
@@ -5068,12 +5074,12 @@ pub const Compiler = struct {
         reg: u8,
         regs: TemplateRegs,
         dead_reg: u8,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
 
-        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+        self.markFallible(fallible, try self.ir().push(allocator, .{ .match_test = .{
             .op = .MatchType,
             .byte1 = reg,
             .byte2 = 2,
@@ -5107,7 +5113,7 @@ pub const Compiler = struct {
             else => unreachable,
         };
         try self.flushTemplateLit(module_id, &effs, &lit, region);
-        try self.emitCursorSegs(module_id, ast, effs.items, solvable_index, reg, regs, dead_reg, fail_jumps, region);
+        try self.emitCursorSegs(module_id, ast, effs.items, solvable_index, reg, regs, dead_reg, fallible, region);
     }
 
     // The cursor-path emission over normalized segments, shared by
@@ -5121,7 +5127,7 @@ pub const Compiler = struct {
         reg: u8,
         regs: TemplateRegs,
         dead_reg: u8,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
@@ -5132,8 +5138,8 @@ pub const Compiler = struct {
         // rest — so skip MatchSpanInit/MatchSpanRest and act on reg directly.
         if (solvable_index != null and solvable_index.? == 0 and effs.len == 1) {
             switch (effs[0].solvable) {
-                .bind, .placeholder => try self.emitLeftoverPart(effs[0].solvable, reg, fail_jumps, region),
-                .sub => |set_id| try self.emitTemplateSubCast(module_id, ast, set_id, reg, regs.rest, dead_reg, fail_jumps, region),
+                .bind, .placeholder => try self.emitLeftoverPart(effs[0].solvable, reg, fallible, region),
+                .sub => |set_id| try self.emitTemplateSubCast(module_id, ast, set_id, reg, regs.rest, dead_reg, fallible, region),
                 else => unreachable,
             }
             return;
@@ -5150,7 +5156,7 @@ pub const Compiler = struct {
 
         // Before-segments: chomp the front cursor forward, in source order.
         for (effs[0..before_end]) |seg| {
-            try self.emitTemplateSegment(module_id, ast, seg, reg, regs, false, fail_jumps, region);
+            try self.emitTemplateSegment(module_id, ast, seg, reg, regs, false, fallible, region);
         }
 
         // After-segments: chomp the end cursor backward, in reverse order.
@@ -5158,7 +5164,7 @@ pub const Compiler = struct {
             var i = effs.len;
             while (i > si + 1) {
                 i -= 1;
-                try self.emitTemplateSegment(module_id, ast, effs[i], reg, regs, true, fail_jumps, region);
+                try self.emitTemplateSegment(module_id, ast, effs[i], reg, regs, true, fallible, region);
             }
 
             switch (effs[si].solvable) {
@@ -5179,13 +5185,13 @@ pub const Compiler = struct {
                 // against it.
                 .sub => |set_id| {
                     try self.emitTemplateRest(reg, regs, region);
-                    try self.emitTemplateSubCast(module_id, ast, set_id, regs.rest, regs.rest, dead_reg, fail_jumps, region);
+                    try self.emitTemplateSubCast(module_id, ast, set_id, regs.rest, regs.rest, dead_reg, fallible, region);
                 },
                 else => unreachable,
             }
         } else {
             // No solvable: the fixed segments must cover the whole string.
-            try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
+            self.markFallible(fallible, try self.ir().push(allocator, .{ .match_cmp = .{
                 .reg = regs.front,
                 .kind = .reg,
                 .arg = regs.end,
@@ -5205,17 +5211,17 @@ pub const Compiler = struct {
         cast_src: u8,
         cast_dst: u8,
         dead_reg: u8,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         if (templateRangeLimits(ast, set_id) != null) {
-            try self.emitTemplateRangeCast(module_id, ast, set_id, cast_src, cast_dst, fail_jumps, region);
+            try self.emitTemplateRangeCast(module_id, ast, set_id, cast_src, cast_dst, fallible, region);
         } else if (self.templateMergeSolvable(ast, set_id) != null) {
-            try self.emitTemplateCast(module_id, ast, set_id, cast_src, cast_dst, dead_reg, fail_jumps, region);
+            try self.emitTemplateCast(module_id, ast, set_id, cast_src, cast_dst, dead_reg, fallible, region);
         } else if (self.templateRepeatSolvable(ast, set_id)) {
-            try self.emitTemplateRepeat(module_id, ast, set_id, cast_src, fail_jumps, region);
+            try self.emitTemplateRepeat(module_id, ast, set_id, cast_src, fallible, region);
         } else {
-            try self.emitTemplateStructuralCast(module_id, ast, set_id, cast_src, cast_dst, fail_jumps, region);
+            try self.emitTemplateStructuralCast(module_id, ast, set_id, cast_src, cast_dst, fallible, region);
         }
     }
 
@@ -5230,13 +5236,13 @@ pub const Compiler = struct {
         ast: *const Ast,
         set_id: Ast.SetId,
         cast_src: u8,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const set = &ast.constraint_sets.items[set_id];
         try self.writeMatchSteps(module_id, ast, set.places.items, set.constraints.items, .{ .sub = .{
             .src_reg = cast_src,
-            .on_fail = .{ .arm = fail_jumps },
+            .on_fail = .{ .arm = fallible },
             .bind_mode = .bind,
         } }, region);
     }
@@ -5252,16 +5258,16 @@ pub const Compiler = struct {
         set_id: Ast.SetId,
         cast_src: u8,
         cast_dst: u8,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
-        try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_cast = .{
+        self.markFallible(fallible, try self.ir().push(self.vm.allocator, .{ .match_cast = .{
             .dst = cast_dst,
             .src = cast_src,
             .ty = .number,
         } }, region));
         const limits = templateRangeLimits(ast, set_id).?;
-        try self.emitInRangeStep(module_id, ast, cast_dst, limits.lower, limits.upper, fail_jumps, region);
+        try self.emitInRangeStep(module_id, ast, cast_dst, limits.lower, limits.upper, fallible, region);
     }
 
     // Parse the solvable's byte range (cast_src) as JSON into cast_dst,
@@ -5277,10 +5283,10 @@ pub const Compiler = struct {
         set_id: Ast.SetId,
         cast_src: u8,
         cast_dst: u8,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
-        try fail_jumps.append(self.vm.allocator, try self.ir().push(self.vm.allocator, .{ .match_cast = .{
+        self.markFallible(fallible, try self.ir().push(self.vm.allocator, .{ .match_cast = .{
             .dst = cast_dst,
             .src = cast_src,
             .ty = .json,
@@ -5288,7 +5294,7 @@ pub const Compiler = struct {
         const set = &ast.constraint_sets.items[set_id];
         try self.writeMatchSteps(module_id, ast, set.places.items, set.constraints.items, .{ .sub = .{
             .src_reg = cast_dst,
-            .on_fail = .{ .arm = fail_jumps },
+            .on_fail = .{ .arm = fallible },
             .bind_mode = .bind,
         } }, region);
     }
@@ -5305,7 +5311,7 @@ pub const Compiler = struct {
         cast_src: u8,
         cast_dst: u8,
         dead_reg: u8,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
@@ -5315,12 +5321,12 @@ pub const Compiler = struct {
             .number => .number,
             .boolean => .boolean,
         };
-        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cast = .{
+        self.markFallible(fallible, try self.ir().push(allocator, .{ .match_cast = .{
             .dst = cast_dst,
             .src = cast_src,
             .ty = cast_ty,
         } }, region));
-        try self.emitMergeSolve(module_id, ast, merge.ty, merge.parts.items, cast_dst, dead_reg, cast_ty == .number, fail_jumps, region);
+        try self.emitMergeSolve(module_id, ast, merge.ty, merge.parts.items, cast_dst, dead_reg, cast_ty == .number, fallible, region);
     }
 
     fn emitTemplateRest(self: *Compiler, reg: u8, regs: TemplateRegs, region: Region) Error!void {
@@ -5358,7 +5364,7 @@ pub const Compiler = struct {
         reg: u8,
         regs: TemplateRegs,
         back: bool,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
@@ -5366,7 +5372,7 @@ pub const Compiler = struct {
         const opp = if (back) regs.front else regs.end;
         const back_byte: u8 = if (back) 1 else 0;
         switch (seg) {
-            .lit => |constant| try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_str_lit = .{
+            .lit => |constant| self.markFallible(fallible, try self.ir().push(allocator, .{ .match_str_lit = .{
                 .op = .MatchStrLit,
                 .src = reg,
                 .cursor = cursor,
@@ -5376,7 +5382,7 @@ pub const Compiler = struct {
             } }, region)),
             .value => |part| {
                 try self.emitEvaluablePartValue(module_id, ast, part, region);
-                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_span_val = .{
+                self.markFallible(fallible, try self.ir().push(allocator, .{ .match_span_val = .{
                     .op = .MatchSpanVal,
                     .src = reg,
                     .cursor = cursor,
@@ -5385,7 +5391,7 @@ pub const Compiler = struct {
                 } }, region));
             },
             .char_range => |set_id| {
-                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_str_char = .{
+                self.markFallible(fallible, try self.ir().push(allocator, .{ .match_str_char = .{
                     .op = .MatchStrChar,
                     .dst = regs.char,
                     .src = reg,
@@ -5397,7 +5403,7 @@ pub const Compiler = struct {
                 // numeric ranges take the whole-substring cast path
                 // (emitTemplateRangeCast), not this per-codepoint one.
                 const limits = templateRangeLimits(ast, set_id).?;
-                try self.emitInRangeStep(module_id, ast, regs.char, limits.lower, limits.upper, fail_jumps, region);
+                try self.emitInRangeStep(module_id, ast, regs.char, limits.lower, limits.upper, fallible, region);
             },
             .solvable => unreachable,
         }
@@ -5416,7 +5422,7 @@ pub const Compiler = struct {
         reg: u8,
         lower: Ast.Limit,
         upper: Ast.Limit,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
@@ -5428,13 +5434,13 @@ pub const Compiler = struct {
                 }
             }
         }
-        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+        self.markFallible(fallible, try self.ir().push(allocator, .{ .match_test = .{
             .op = .MatchType,
             .byte1 = reg,
             .byte2 = 3,
         } }, region));
-        try self.emitRangeBound(module_id, ast, lower, reg, false, fail_jumps, region);
-        try self.emitRangeBound(module_id, ast, upper, reg, true, fail_jumps, region);
+        try self.emitRangeBound(module_id, ast, lower, reg, false, fallible, region);
+        try self.emitRangeBound(module_id, ast, upper, reg, true, fallible, region);
     }
 
     // A range end whose value is fixed at compile time: a constant-folding
@@ -5466,7 +5472,7 @@ pub const Compiler = struct {
         limit: Ast.Limit,
         reg: u8,
         is_upper: bool,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
@@ -5477,7 +5483,7 @@ pub const Compiler = struct {
                 .byte1 = ls.slot,
                 .byte2 = reg,
             } }, region),
-            .read => |ls| try self.emitMatchBound(reg, is_upper, RangeLimitKind.read, ls.slot, fail_jumps, region),
+            .read => |ls| try self.emitMatchBound(reg, is_upper, RangeLimitKind.read, ls.slot, fallible, region),
             .global => |name| {
                 const global = self.resolveGlobal(module_id, name) orelse {
                     try self.printError(module_id, region, "undefined variable '{s}'", .{self.frontend.pathString(name)});
@@ -5486,20 +5492,20 @@ pub const Compiler = struct {
                 if (global.isDynType(.Function)) {
                     try self.requireZeroArity(module_id, global.asDyn().asFunction(), region);
                     try self.writeCallFunctionConstant(module_id, global, region);
-                    try self.emitRangeBoundEval(reg, is_upper, fail_jumps, region);
+                    try self.emitRangeBoundEval(reg, is_upper, fallible, region);
                 } else {
                     const constant = try self.makeConstantU16(module_id, global, region);
-                    try self.emitMatchBound(reg, is_upper, RangeLimitKind.const_elem, constant, fail_jumps, region);
+                    try self.emitMatchBound(reg, is_upper, RangeLimitKind.const_elem, constant, fallible, region);
                 }
             },
             .local, .solve => return error.UnsupportedPattern,
             .expr => |id| {
                 if (self.constPatternNode(ast, id)) {
                     const constant = try self.rangeBoundConstant(module_id, ast, id, region);
-                    try self.emitMatchBound(reg, is_upper, RangeLimitKind.const_elem, constant, fail_jumps, region);
+                    try self.emitMatchBound(reg, is_upper, RangeLimitKind.const_elem, constant, fallible, region);
                 } else {
                     try self.writeGoal(module_id, ast, id);
-                    try self.emitRangeBoundEval(reg, is_upper, fail_jumps, region);
+                    try self.emitRangeBoundEval(reg, is_upper, fallible, region);
                 }
             },
         }
@@ -5511,11 +5517,11 @@ pub const Compiler = struct {
         is_upper: bool,
         kind: RangeLimitKind,
         arg: u16,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
-        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_bound = .{
+        self.markFallible(fallible, try self.ir().push(allocator, .{ .match_bound = .{
             .op = .MatchBound,
             .reg = reg,
             .is_upper = @intFromBool(is_upper),
@@ -5528,11 +5534,11 @@ pub const Compiler = struct {
         self: *Compiler,
         reg: u8,
         is_upper: bool,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
-        try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+        self.markFallible(fallible, try self.ir().push(allocator, .{ .match_test = .{
             .op = .MatchRangeBound,
             .byte1 = reg,
             .byte2 = @intFromBool(is_upper),
@@ -5566,7 +5572,7 @@ pub const Compiler = struct {
         part: Ast.Part,
         reg: u8,
         dead_reg: u8,
-        fail_jumps: *ArrayList(Ir.Index),
+        fallible: *bool,
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
@@ -5575,7 +5581,7 @@ pub const Compiler = struct {
                 try self.emitEvaluablePartValue(module_id, ast, part, region);
                 var i: u32 = 0;
                 while (i < count) : (i += 1) try self.emitOp(.NegateNumber, region);
-                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
+                self.markFallible(fallible, try self.ir().push(allocator, .{ .match_test = .{
                     .op = .MatchEval,
                     .byte1 = reg,
                     .byte2 = 0,
@@ -5583,17 +5589,17 @@ pub const Compiler = struct {
             },
             .bind, .placeholder, .sub => {
                 const constant = try self.makeConstantU16(module_id, Elem.numberFloat(0), region);
-                try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_merge_num = .{
+                self.markFallible(fallible, try self.ir().push(allocator, .{ .match_merge_num = .{
                     .dst = dead_reg,
                     .src = reg,
                     .constant = constant,
                     .negate = count % 2 == 1,
                 } }, region));
                 switch (part) {
-                    .bind, .placeholder => try self.emitLeftoverPart(part, dead_reg, fail_jumps, region),
+                    .bind, .placeholder => try self.emitLeftoverPart(part, dead_reg, fallible, region),
                     .sub => |set_id| {
                         const set = &ast.constraint_sets.items[set_id];
-                        try self.writeMatchSteps(module_id, ast, set.places.items, set.constraints.items, .{ .sub = .{ .src_reg = dead_reg, .on_fail = .{ .arm = fail_jumps } } }, region);
+                        try self.writeMatchSteps(module_id, ast, set.places.items, set.constraints.items, .{ .sub = .{ .src_reg = dead_reg, .on_fail = .{ .arm = fallible } } }, region);
                     },
                     else => unreachable,
                 }
