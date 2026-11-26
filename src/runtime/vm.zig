@@ -973,11 +973,7 @@ pub const VM = struct {
                     return;
                 }
                 const start: usize = @intFromFloat(next_base);
-                const chunk_arr = try Elem.DynElem.Array.create(self, len);
-                try self.pushTempDyn(&chunk_arr.dyn);
-                for (elems[start .. start + len]) |elem| elem.retain();
-                try chunk_arr.elems.appendSlice(self.gc.allocator(), elems[start .. start + len]);
-                self.dropTempDyn();
+                const chunk_arr = try Elem.DynElem.Array.copy(self, elems[start .. start + len]);
                 self.storeScratch(chunk_dst, chunk_arr.dyn.elem());
             },
             .MatchSlice => {
@@ -992,12 +988,7 @@ pub const VM = struct {
                 const value = self.getScratch(src);
                 const sliced: Elem = if (value.isDynType(.Array)) blk: {
                     const elems = value.asDyn().asArray().elems.items;
-                    const slice = elems[front .. elems.len - back];
-                    const array = try Elem.DynElem.Array.create(self, slice.len);
-                    try self.pushTempDyn(&array.dyn);
-                    for (slice) |elem| elem.retain();
-                    try array.elems.appendSlice(self.gc.allocator(), slice);
-                    self.dropTempDyn();
+                    const array = try Elem.DynElem.Array.copy(self, elems[front .. elems.len - back]);
                     break :blk array.dyn.elem();
                 } else blk: {
                     const bytes = (try value.stringBytes(self)).?;
@@ -1359,11 +1350,7 @@ pub const VM = struct {
                 const dst = self.readByte();
                 const constant_idx = self.readShort();
                 const keys = self.getConstant(constant_idx).asDyn().asArray().elems.items;
-                const claims = try Elem.DynElem.Array.create(self, keys.len);
-                try self.pushTempDyn(&claims.dyn);
-                for (keys) |key| key.retain();
-                try claims.elems.appendSlice(self.gc.allocator(), keys);
-                self.dropTempDyn();
+                const claims = try Elem.DynElem.Array.copy(self, keys);
                 self.storeScratch(dst, claims.dyn.elem());
             },
             .MatchClaimObject => {
@@ -1767,11 +1754,7 @@ pub const VM = struct {
                             }
                         }
                     }
-                    const array = try Elem.DynElem.Array.create(self, chunk_len);
-                    try self.pushTempDyn(&array.dyn);
-                    for (elems[0..chunk_len]) |elem| elem.retain();
-                    try array.elems.appendSlice(self.gc.allocator(), elems[0..chunk_len]);
-                    self.dropTempDyn();
+                    const array = try Elem.DynElem.Array.copy(self, elems[0..chunk_len]);
                     break :blk array.dyn.elem();
                 } else if (value.isNumber()) blk: {
                     if (count == 0) {
@@ -2923,11 +2906,7 @@ pub const VM = struct {
                 if (!part_at[i].isEql(pe, self.*)) return null;
             }
             const rest = if (from_end) value_elems[0..split] else value_elems[split..];
-            const array = try Elem.DynElem.Array.create(self, rest.len);
-            try self.pushTempDyn(&array.dyn);
-            for (rest) |elem| elem.retain();
-            try array.elems.appendSlice(self.gc.allocator(), rest);
-            self.dropTempDyn();
+            const array = try Elem.DynElem.Array.copy(self, rest);
             return array.dyn.elem();
         }
         // Object: every key of part must match in value; X is value minus
