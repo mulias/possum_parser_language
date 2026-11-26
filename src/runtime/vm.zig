@@ -1026,12 +1026,9 @@ pub const VM = struct {
                 const rest = try Elem.DynElem.Object.create(self, src_object.members.count());
                 try self.pushTempDyn(&rest.dyn);
                 var iter = src_object.members.iterator();
-                outer: while (iter.next()) |entry| {
-                    const sid = entry.key_ptr.*;
-                    for (keys) |key| {
-                        if (key.asString() == sid) continue :outer;
-                    }
-                    try rest.put(self, sid, entry.value_ptr.*);
+                while (iter.next()) |entry| {
+                    if (keyListHas(keys, entry.key_ptr.*)) continue;
+                    try rest.put(self, entry.key_ptr.*, entry.value_ptr.*);
                 }
                 self.dropTempDyn();
                 self.storeScratch(dst, rest.dyn.elem());
@@ -1317,11 +1314,9 @@ pub const VM = struct {
                 const member_values = object.members.values();
                 const claims = self.getScratch(claim).asDyn().asArray().elems.items;
                 var idx = self.getScratchUsize(cursor);
-                outer: while (idx < member_keys.len) : (idx += 1) {
+                while (idx < member_keys.len) : (idx += 1) {
                     const sid = member_keys[idx];
-                    for (claims) |c| {
-                        if (c.asString() == sid) continue :outer;
-                    }
+                    if (keyListHas(claims, sid)) continue;
                     self.storeScratchDerived(key_dst, Elem.string(sid));
                     self.storeScratchDerived(val_dst, member_values[idx]);
                     self.storeScratchUsize(cursor, idx + 1);
@@ -1353,9 +1348,7 @@ pub const VM = struct {
                 };
                 const object = self.getScratch(src).asDyn().asObject();
                 const claims = self.getScratch(claim).asDyn().asArray().elems.items;
-                const claimed = for (claims) |c| {
-                    if (c.asString() == sid) break true;
-                } else false;
+                const claimed = keyListHas(claims, sid);
                 const member = object.members.get(sid);
                 if (rooted) self.dropTempDyn();
                 self.reclaimElem(key);
@@ -1406,9 +1399,7 @@ pub const VM = struct {
                 var iter = part_object.members.iterator();
                 while (iter.next()) |entry| {
                     const sid = entry.key_ptr.*;
-                    const claimed = for (claims.elems.items) |c| {
-                        if (c.asString() == sid) break true;
-                    } else false;
+                    const claimed = keyListHas(claims.elems.items, sid);
                     const member = src_object.members.get(sid);
                     if (claimed or member == null or !member.?.isEql(entry.value_ptr.*, self.*)) {
                         self.dropTempDyn();
@@ -1497,12 +1488,9 @@ pub const VM = struct {
                 const rest = try Elem.DynElem.Object.create(self, src_object.members.count());
                 try self.pushTempDyn(&rest.dyn);
                 var iter = src_object.members.iterator();
-                outer: while (iter.next()) |entry| {
-                    const sid = entry.key_ptr.*;
-                    for (claims) |c| {
-                        if (c.asString() == sid) continue :outer;
-                    }
-                    try rest.put(self, sid, entry.value_ptr.*);
+                while (iter.next()) |entry| {
+                    if (keyListHas(claims, entry.key_ptr.*)) continue;
+                    try rest.put(self, entry.key_ptr.*, entry.value_ptr.*);
                 }
                 self.dropTempDyn();
                 self.storeScratch(dst, rest.dyn.elem());
@@ -2777,6 +2765,14 @@ pub const VM = struct {
 
     fn storeScratchUsize(self: *VM, slot: usize, n: usize) void {
         self.storeScratch(slot, Elem.numberFloat(@floatFromInt(n)));
+    }
+
+    // Whether a key list (a claim array or a const-key list) holds sid.
+    fn keyListHas(keys: []const Elem, sid: StringTable.Id) bool {
+        for (keys) |key| {
+            if (key.asString() == sid) return true;
+        }
+        return false;
     }
 
     // Element-wise array analogue of matchStrChomp: compare the segment's
