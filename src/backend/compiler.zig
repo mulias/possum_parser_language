@@ -3182,6 +3182,10 @@ pub const Compiler = struct {
 
     const BindMode = enum { bind, compare };
 
+    fn placeReg(place: Ast.PlaceId) u8 {
+        return @intCast(place);
+    }
+
     // Emit inline match steps for a lowered pattern: an already-open
     // scrutinee in window slot 0, tested and destructured by the
     // constraints against their places. Keyed on (places, constraints) so
@@ -3198,10 +3202,9 @@ pub const Compiler = struct {
     ) Error!void {
         const allocator = self.vm.allocator;
         // Match scratch is addressed relative to the per-match window: each
-        // place id is its own window slot (base 0), with the search, repeat,
-        // and template pools allocated above.
-        const scratch_base: u8 = 0;
-        const dead_reg: u8 = @intCast(scratch_base + places.len);
+        // place id is its own window slot (placeReg), with the search,
+        // repeat, and template pools allocated above.
+        const dead_reg: u8 = @intCast(places.len);
 
         const materialized = try allocator.alloc(bool, places.len);
         defer allocator.free(materialized);
@@ -3357,10 +3360,10 @@ pub const Compiler = struct {
         } }, region);
 
         switch (scrutinee) {
-            .input => try self.emitUnaryOp(.MatchScrutinee, scratch_base, region),
+            .input => try self.emitUnaryOp(.MatchScrutinee, placeReg(0), region),
             .sub => |s| _ = try self.ir().push(allocator, .{ .match_bytes = .{
                 .op = .MatchSubScrutinee,
-                .byte1 = scratch_base,
+                .byte1 = placeReg(0),
                 .byte2 = s.src_reg,
             } }, region),
         }
@@ -3385,7 +3388,7 @@ pub const Compiler = struct {
             const step_region = constraint.region;
             switch (constraint.kind) {
                 .is_type => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
                     const ty: u8 = switch (c.ty) {
                         .array => 0,
                         .object => 1,
@@ -3394,72 +3397,72 @@ pub const Compiler = struct {
                     };
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
                         .op = .MatchType,
-                        .byte1 = scratch_base + @as(u8, @intCast(c.place)),
+                        .byte1 = placeReg(c.place),
                         .byte2 = ty,
                     } }, step_region));
                 },
                 .len_eq => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
-                        .reg = scratch_base + @as(u8, @intCast(c.place)),
+                        .reg = placeReg(c.place),
                         .n = @intCast(c.len),
                         .mode = 0,
                     } }, step_region));
                 },
                 .len_min => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
-                        .reg = scratch_base + @as(u8, @intCast(c.place)),
+                        .reg = placeReg(c.place),
                         .n = @intCast(c.len),
                         .mode = 1,
                     } }, step_region));
                 },
                 .str_prefix => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
                     const sid = try self.vm.strings.insert(c.literal);
                     const constant = try self.makeConstantU16(module_id, Elem.string(sid), step_region);
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
                         .op = .MatchStrEnd,
-                        .byte1 = scratch_base + @as(u8, @intCast(c.place)),
+                        .byte1 = placeReg(c.place),
                         .byte2 = 0,
                         .constant = constant,
                     } }, step_region));
                 },
                 .str_suffix => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
                     const sid = try self.vm.strings.insert(c.literal);
                     const constant = try self.makeConstantU16(module_id, Elem.string(sid), step_region);
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
                         .op = .MatchStrEnd,
-                        .byte1 = scratch_base + @as(u8, @intCast(c.place)),
+                        .byte1 = placeReg(c.place),
                         .byte2 = 1,
                         .constant = constant,
                     } }, step_region));
                 },
                 .keys_exact => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
-                        .reg = scratch_base + @as(u8, @intCast(c.place)),
+                        .reg = placeReg(c.place),
                         .n = @intCast(c.count),
                         .mode = 0,
                     } }, step_region));
                 },
                 .keys_min => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_count = .{
-                        .reg = scratch_base + @as(u8, @intCast(c.place)),
+                        .reg = placeReg(c.place),
                         .n = @intCast(c.count),
                         .mode = 1,
                     } }, step_region));
                 },
                 .has_key => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
                     const sid = try self.vm.strings.insert(self.frontend.strings.get(c.sid));
                     const constant = try self.makeConstantU16(module_id, Elem.string(sid), step_region);
                     var dst = dead_reg;
                     for (places, 0..) |def, i| switch (def) {
                         .key => |k| if (k.src == c.place and k.sid == c.sid) {
-                            dst = scratch_base + @as(u8, @intCast(i));
+                            dst = placeReg(@intCast(i));
                             materialized[i] = true;
                         },
                         else => {},
@@ -3467,45 +3470,45 @@ pub const Compiler = struct {
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_const = .{
                         .op = .MatchKey,
                         .byte1 = dst,
-                        .byte2 = scratch_base + @as(u8, @intCast(c.place)),
+                        .byte2 = placeReg(c.place),
                         .constant = constant,
                     } }, step_region));
                 },
                 .eq_const => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
                     const elem = try self.goalPatternConstElem(ast, c.value);
                     const constant = try self.makeConstantU16(module_id, elem, step_region);
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
-                        .reg = scratch_base + @as(u8, @intCast(c.place)),
+                        .reg = placeReg(c.place),
                         .kind = .constant,
                         .arg = constant,
                     } }, step_region));
                 },
                 .eq_global => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
-                    const reg = scratch_base + @as(u8, @intCast(c.place));
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
+                    const reg = placeReg(c.place);
                     try fail_jumps.append(allocator, try self.emitEqGlobalStep(module_id, c.name, reg, step_region));
                 },
                 .bind => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
                     switch (bind_mode) {
                         .bind => _ = try self.ir().push(allocator, .{ .match_bytes = .{
                             .op = .MatchBind,
                             .byte1 = c.slot,
-                            .byte2 = scratch_base + @as(u8, @intCast(c.place)),
+                            .byte2 = placeReg(c.place),
                         } }, step_region),
                         // Compare against the value the first chunk bound.
                         .compare => try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
-                            .reg = scratch_base + @as(u8, @intCast(c.place)),
+                            .reg = placeReg(c.place),
                             .kind = .slot,
                             .arg = c.slot,
                         } }, step_region)),
                     }
                 },
                 .eq_slot => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
-                        .reg = scratch_base + @as(u8, @intCast(c.place)),
+                        .reg = placeReg(c.place),
                         .kind = .slot,
                         .arg = c.slot,
                     } }, step_region));
@@ -3515,27 +3518,27 @@ pub const Compiler = struct {
                 // read in the expression is bound by an earlier scheduled
                 // step, so the value compiles like any value position.
                 .eval_eq => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
                     try self.writeGoal(module_id, ast, c.expr);
                     try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
                         .op = .MatchEval,
-                        .byte1 = scratch_base + @as(u8, @intCast(c.place)),
+                        .byte1 = placeReg(c.place),
                         .byte2 = 0,
                     } }, step_region));
                 },
                 .in_range => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
-                    const reg = scratch_base + @as(u8, @intCast(c.place));
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
+                    const reg = placeReg(c.place);
                     try self.emitInRangeStep(module_id, ast, reg, c.lower, c.upper, &fail_jumps, step_region);
                 },
                 .negated => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
-                    const reg = scratch_base + @as(u8, @intCast(c.place));
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
+                    const reg = placeReg(c.place);
                     try self.emitNegatedStep(module_id, ast, c.count, c.part, reg, dead_reg, &fail_jumps, step_region);
                 },
                 .match_template => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
-                    const reg = scratch_base + @as(u8, @intCast(c.place));
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
+                    const reg = placeReg(c.place);
                     switch (self.templateStepable(ast, c.segments.items).?) {
                         .static => try self.emitTemplateStatic(module_id, c.segments.items, reg, dead_reg, &fail_jumps, step_region),
                         .cursor => try self.emitTemplateCursor(
@@ -3551,8 +3554,8 @@ pub const Compiler = struct {
                     }
                 },
                 .solve_merge => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
-                    const reg = scratch_base + @as(u8, @intCast(c.place));
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
+                    const reg = placeReg(c.place);
                     if (c.ty == .array) {
                         try self.emitArrayMergeSolve(
                             module_id,
@@ -3595,8 +3598,8 @@ pub const Compiler = struct {
                     }
                 },
                 .search_key => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
-                    const src_reg = scratch_base + @as(u8, @intCast(c.place));
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
+                    const src_reg = placeReg(c.place);
                     const group = findClaimGroup(search_groups.items, c.place).?;
                     const value_set = &ast.constraint_sets.items[c.value];
 
@@ -3686,8 +3689,8 @@ pub const Compiler = struct {
                     } }, step_region);
                 },
                 .solve_repeat => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
-                    const src_reg = scratch_base + @as(u8, @intCast(c.place));
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
+                    const src_reg = placeReg(c.place);
                     switch (self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index).?) {
                         // A known pattern: push its value, derive the
                         // count from the place's value, and solve the
@@ -3916,8 +3919,8 @@ pub const Compiler = struct {
                 // the const-key seed; inexact (rest present) loads a known
                 // count product and claims exactly that many groups.
                 .claim_members => |c| {
-                    try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, c.place, step_region);
-                    const src_reg = scratch_base + @as(u8, @intCast(c.place));
+                    try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
+                    const src_reg = placeReg(c.place);
                     const chunk_set_id = c.pattern.sub;
                     const all_placeholder = repeatObjectLen(ast, chunk_set_id) != null;
                     const pair_len: u8 = @intCast(if (repeatObjectLen(ast, chunk_set_id)) |l|
@@ -5760,7 +5763,6 @@ pub const Compiler = struct {
         constraints: []const Ast.Constraint,
         places: []const Ast.PlaceDef,
         materialized: []bool,
-        scratch_base: u8,
         place: Ast.PlaceId,
         region: Region,
     ) Error!void {
@@ -5768,37 +5770,37 @@ pub const Compiler = struct {
         switch (places[place]) {
             .scrutinee => unreachable,
             .elem => |e| {
-                try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, e.src, region);
+                try self.ensureGoalPlace(module_id, constraints, places, materialized, e.src, region);
                 _ = try self.ir().push(self.vm.allocator, .{ .match_bytes = .{
                     .op = .MatchElem,
-                    .byte1 = scratch_base + @as(u8, @intCast(place)),
-                    .byte2 = scratch_base + @as(u8, @intCast(e.src)),
+                    .byte1 = placeReg(place),
+                    .byte2 = placeReg(e.src),
                     .byte3 = @intCast(e.index),
                     .byte4 = 0,
                 } }, region);
             },
             .elem_back => |e| {
-                try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, e.src, region);
+                try self.ensureGoalPlace(module_id, constraints, places, materialized, e.src, region);
                 _ = try self.ir().push(self.vm.allocator, .{ .match_bytes = .{
                     .op = .MatchElem,
-                    .byte1 = scratch_base + @as(u8, @intCast(place)),
-                    .byte2 = scratch_base + @as(u8, @intCast(e.src)),
+                    .byte1 = placeReg(place),
+                    .byte2 = placeReg(e.src),
                     .byte3 = @intCast(e.index),
                     .byte4 = 1,
                 } }, region);
             },
             .slice => |s| {
-                try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, s.src, region);
+                try self.ensureGoalPlace(module_id, constraints, places, materialized, s.src, region);
                 _ = try self.ir().push(self.vm.allocator, .{ .match_bytes = .{
                     .op = .MatchSlice,
-                    .byte1 = scratch_base + @as(u8, @intCast(place)),
-                    .byte2 = scratch_base + @as(u8, @intCast(s.src)),
+                    .byte1 = placeReg(place),
+                    .byte2 = placeReg(s.src),
                     .byte3 = @intCast(s.front),
                     .byte4 = @intCast(s.back),
                 } }, region);
             },
             .members_rest => |r| {
-                try self.ensureGoalPlace(module_id, constraints, places, materialized, scratch_base, r.src, region);
+                try self.ensureGoalPlace(module_id, constraints, places, materialized, r.src, region);
                 // A claim array on the place — an object-merge repeat's, or
                 // a search group's (seeded with the const keys, grown by the
                 // pairs) — holds every claimed key; the rest is src minus
@@ -5808,8 +5810,8 @@ pub const Compiler = struct {
                 if (claim) |group| {
                     _ = try self.ir().push(self.vm.allocator, .{ .match_claim_rest = .{
                         .op = .MatchClaimRest,
-                        .dst = scratch_base + @as(u8, @intCast(place)),
-                        .src = scratch_base + @as(u8, @intCast(r.src)),
+                        .dst = placeReg(place),
+                        .src = placeReg(r.src),
                         .claim = group.reg,
                     } }, region);
                     materialized[place] = true;
@@ -5820,8 +5822,8 @@ pub const Compiler = struct {
                 const constant = try self.hasKeyListConstant(module_id, constraints, r.src, region);
                 _ = try self.ir().push(self.vm.allocator, .{ .match_const = .{
                     .op = .MatchObjectRest,
-                    .byte1 = scratch_base + @as(u8, @intCast(place)),
-                    .byte2 = scratch_base + @as(u8, @intCast(r.src)),
+                    .byte1 = placeReg(place),
+                    .byte2 = placeReg(r.src),
                     .constant = constant,
                 } }, region);
             },
