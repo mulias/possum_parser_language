@@ -1640,7 +1640,7 @@ pub const Compiler = struct {
                 try self.writeConstant(module_id, global, region);
             },
             .expr => |expr| try self.writeGoal(module_id, ast, expr),
-            .none, .bind, .local => @panic("Internal Error: repeat cap is not evaluable"),
+            .none, .bind, .local, .solve => @panic("Internal Error: repeat cap is not evaluable"),
         }
     }
 
@@ -2334,7 +2334,7 @@ pub const Compiler = struct {
         return switch (limit) {
             .none, .read => true,
             .expr => |id| self.constPatternNode(ast, id),
-            .bind, .local, .global => false,
+            .bind, .local, .global, .solve => false,
         };
     }
 
@@ -3122,7 +3122,7 @@ pub const Compiler = struct {
                 const constant = try self.makeConstantU16(module_id, global, region);
                 return .{ .kind = @intFromEnum(RangeLimitKind.global), .arg = constant };
             },
-            .local => return error.UnsupportedPattern,
+            .local, .solve => return error.UnsupportedPattern,
             .expr => |id| {
                 if (self.constPatternNode(ast, id)) {
                     const elem = try self.goalPatternConstElem(ast, id);
@@ -5603,7 +5603,7 @@ pub const Compiler = struct {
                     try self.emitMatchBound(reg, is_upper, RangeLimitKind.const_elem, constant, fail_jumps, region);
                 }
             },
-            .local => return error.UnsupportedPattern,
+            .local, .solve => return error.UnsupportedPattern,
             .expr => |id| {
                 if (self.constPatternNode(ast, id)) {
                     const elem = try self.goalPatternConstElem(ast, id);

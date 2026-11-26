@@ -3003,5 +3003,10 @@ fn printLimit(self: *Goal, writer: *Writer, limit: Ast.Limit, indent: u32) Write
         .read => |ls| try writer.print("(read {s}~{d})", .{ self.pathName(ls.name), ls.slot }),
         .global => |name| try writer.print("(global {s})", .{self.pathName(name)}),
         .expr => |id| try self.printGoal(writer, id, indent),
+        .solve => |id| {
+            try writer.writeAll("(solve ");
+            try self.printGoal(writer, id, indent);
+            try writer.writeAll(")");
+        },
     }
 }

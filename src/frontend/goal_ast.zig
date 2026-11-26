@@ -309,6 +309,9 @@ pub const Limit = union(enum) {
     global: PathTable.Id,
     // Evaluated at match time; every read must be bound.
     expr: NodeId,
+    // Classified by binding analysis: a compound limit with a bare local
+    // that binds, to be solved from the matched value.
+    solve: NodeId,
 };
 
 pub const Constraint = struct {
