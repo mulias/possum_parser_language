@@ -3877,15 +3877,8 @@ pub const Compiler = struct {
                                 .byte1 = src_reg,
                                 .byte2 = repeat_reg,
                             } }, step_region));
-                            switch (c.pattern) {
-                                .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
-                                    .op = .MatchBind,
-                                    .byte1 = ls.slot,
-                                    .byte2 = repeat_reg,
-                                } }, step_region),
-                                .placeholder => {},
-                                else => unreachable,
-                            }
+                            std.debug.assert(c.pattern == .bind or c.pattern == .placeholder);
+                            try self.emitLeftoverPart(c.pattern, repeat_reg, &fail_jumps, step_region);
                         },
                         // A bare binder with an unbound count: the pattern
                         // greedily claims the whole scrutinee and the count,
@@ -3900,15 +3893,8 @@ pub const Compiler = struct {
                                 .placeholder => {},
                                 else => unreachable,
                             }
-                            switch (c.pattern) {
-                                .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
-                                    .op = .MatchBind,
-                                    .byte1 = ls.slot,
-                                    .byte2 = src_reg,
-                                } }, step_region),
-                                .placeholder => {},
-                                else => unreachable,
-                            }
+                            std.debug.assert(c.pattern == .bind or c.pattern == .placeholder);
+                            try self.emitLeftoverPart(c.pattern, src_reg, &fail_jumps, step_region);
                         },
                     }
                 },
@@ -4309,17 +4295,7 @@ pub const Compiler = struct {
     ) Error!void {
         const allocator = self.vm.allocator;
         switch (count) {
-            .placeholder => {},
-            .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
-                .op = .MatchBind,
-                .byte1 = ls.slot,
-                .byte2 = reg,
-            } }, region),
-            .read => |ls| try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
-                .reg = reg,
-                .kind = .slot,
-                .arg = ls.slot,
-            } }, region)),
+            .placeholder, .bind, .read => try self.emitLeftoverPart(count, reg, fail_jumps, region),
             .expr => |id| try self.emitRepeatCountConst(module_id, ast, id, reg, fail_jumps, region),
             .sub => |set_id| {
                 const set = &ast.constraint_sets.items[set_id];
@@ -4412,15 +4388,8 @@ pub const Compiler = struct {
                     .upper_kind = upper_desc.kind,
                     .upper_arg = upper_desc.arg,
                 } }, region));
-                switch (factors[s]) {
-                    .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
-                        .op = .MatchBind,
-                        .byte1 = ls.slot,
-                        .byte2 = reg,
-                    } }, region),
-                    .placeholder => {},
-                    else => unreachable,
-                }
+                std.debug.assert(factors[s] == .bind or factors[s] == .placeholder);
+                try self.emitLeftoverPart(factors[s], reg, fail_jumps, region);
             } else {
                 try self.emitInRangeStep(module_id, ast, reg, rc.lower, rc.upper, fail_jumps, region);
             }
@@ -4433,15 +4402,8 @@ pub const Compiler = struct {
                 .byte1 = reg,
                 .byte2 = reg,
             } }, region));
-            switch (factors[s]) {
-                .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
-                    .op = .MatchBind,
-                    .byte1 = ls.slot,
-                    .byte2 = reg,
-                } }, region),
-                .placeholder => {},
-                else => unreachable,
-            }
+            std.debug.assert(factors[s] == .bind or factors[s] == .placeholder);
+            try self.emitLeftoverPart(factors[s], reg, fail_jumps, region);
         } else {
             try self.writeRepeatCountProduct(module_id, ast, factors, null, region);
             try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_test = .{
@@ -4727,14 +4689,28 @@ pub const Compiler = struct {
             } }, region));
             residual_src = dead_reg;
         }
-        switch (parts[si]) {
+        try self.emitLeftoverPart(parts[si], residual_src, fail_jumps, region);
+    }
+
+    // Consume a residual in src_reg with the merge or repeat part left
+    // unbound: a bind binds it, a read compares it against the bound
+    // local, and a placeholder drops it.
+    fn emitLeftoverPart(
+        self: *Compiler,
+        part: Ast.Part,
+        src_reg: u8,
+        fail_jumps: *ArrayList(Ir.Index),
+        region: Region,
+    ) Error!void {
+        const allocator = self.vm.allocator;
+        switch (part) {
             .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
                 .op = .MatchBind,
                 .byte1 = ls.slot,
-                .byte2 = residual_src,
+                .byte2 = src_reg,
             } }, region),
             .read => |ls| try fail_jumps.append(allocator, try self.ir().push(allocator, .{ .match_cmp = .{
-                .reg = residual_src,
+                .reg = src_reg,
                 .kind = .slot,
                 .arg = ls.slot,
             } }, region)),
@@ -5241,12 +5217,7 @@ pub const Compiler = struct {
         // rest — so skip MatchSpanInit/MatchSpanRest and act on reg directly.
         if (solvable_index != null and solvable_index.? == 0 and effs.len == 1) {
             switch (effs[0].solvable) {
-                .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
-                    .op = .MatchBind,
-                    .byte1 = ls.slot,
-                    .byte2 = reg,
-                } }, region),
-                .placeholder => {},
+                .bind, .placeholder => try self.emitLeftoverPart(effs[0].solvable, reg, fail_jumps, region),
                 .sub => |set_id| try self.emitTemplateSubCast(module_id, ast, set_id, reg, regs.rest, dead_reg, fail_jumps, region),
                 else => unreachable,
             }
@@ -5709,12 +5680,7 @@ pub const Compiler = struct {
                     .negate = count % 2 == 1,
                 } }, region));
                 switch (part) {
-                    .bind => |ls| _ = try self.ir().push(allocator, .{ .match_bytes = .{
-                        .op = .MatchBind,
-                        .byte1 = ls.slot,
-                        .byte2 = dead_reg,
-                    } }, region),
-                    .placeholder => {},
+                    .bind, .placeholder => try self.emitLeftoverPart(part, dead_reg, fail_jumps, region),
                     .sub => |set_id| {
                         const set = &ast.constraint_sets.items[set_id];
                         try self.writeMatchSteps(module_id, ast, set.places.items, set.constraints.items, .{ .sub = .{ .src_reg = dead_reg, .on_fail = .{ .arm = fail_jumps } } }, region);
