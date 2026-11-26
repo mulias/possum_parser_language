@@ -1022,15 +1022,7 @@ pub const VM = struct {
                 const src = self.readByte();
                 const constant_idx = self.readShort();
                 const keys = self.getConstant(constant_idx).asDyn().asArray().elems.items;
-                const src_object = self.getScratch(src).asDyn().asObject();
-                const rest = try Elem.DynElem.Object.create(self, src_object.members.count());
-                try self.pushTempDyn(&rest.dyn);
-                var iter = src_object.members.iterator();
-                while (iter.next()) |entry| {
-                    if (keyListHas(keys, entry.key_ptr.*)) continue;
-                    try rest.put(self, entry.key_ptr.*, entry.value_ptr.*);
-                }
-                self.dropTempDyn();
+                const rest = try self.objectWithoutKeys(self.getScratch(src).asDyn().asObject(), keys);
                 self.storeScratch(dst, rest.dyn.elem());
             },
             .MatchIterInit => {
@@ -1484,15 +1476,7 @@ pub const VM = struct {
                 const src = self.readByte();
                 const claim = self.readByte();
                 const claims = self.getScratch(claim).asDyn().asArray().elems.items;
-                const src_object = self.getScratch(src).asDyn().asObject();
-                const rest = try Elem.DynElem.Object.create(self, src_object.members.count());
-                try self.pushTempDyn(&rest.dyn);
-                var iter = src_object.members.iterator();
-                while (iter.next()) |entry| {
-                    if (keyListHas(claims, entry.key_ptr.*)) continue;
-                    try rest.put(self, entry.key_ptr.*, entry.value_ptr.*);
-                }
-                self.dropTempDyn();
+                const rest = try self.objectWithoutKeys(self.getScratch(src).asDyn().asObject(), claims);
                 self.storeScratch(dst, rest.dyn.elem());
             },
             .MatchMergeNum => {
@@ -2773,6 +2757,19 @@ pub const VM = struct {
             if (key.asString() == sid) return true;
         }
         return false;
+    }
+
+    // A fresh object of src's members whose keys are not in excluded.
+    fn objectWithoutKeys(self: *VM, src: *Elem.DynElem.Object, excluded: []const Elem) !*Elem.DynElem.Object {
+        const rest = try Elem.DynElem.Object.create(self, src.members.count());
+        try self.pushTempDyn(&rest.dyn);
+        var iter = src.members.iterator();
+        while (iter.next()) |entry| {
+            if (keyListHas(excluded, entry.key_ptr.*)) continue;
+            try rest.put(self, entry.key_ptr.*, entry.value_ptr.*);
+        }
+        self.dropTempDyn();
+        return rest;
     }
 
     // Element-wise array analogue of matchStrChomp: compare the segment's
