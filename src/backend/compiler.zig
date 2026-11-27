@@ -2045,13 +2045,18 @@ pub const Compiler = struct {
 
     fn constraintLowerings(self: *Compiler, ast: *const Ast, constraints: []const Ast.Constraint) error{OutOfMemory}![]Lowering {
         const lowerings = try self.vm.allocator.alloc(Lowering, constraints.len);
-        for (constraints, lowerings) |constraint, *lowering| lowering.* = self.constraintLowering(ast, constraints, constraint);
+        for (constraints, lowerings) |constraint, *lowering| lowering.* = self.constraintLowering(ast, constraint);
+        // Only one claimer may share the claim register block per window.
+        if (!singleClaimer(constraints, lowerings)) {
+            for (constraints, lowerings) |constraint, *lowering| switch (constraint.kind) {
+                .claim_members => lowering.* = .unsupported,
+                else => {},
+            };
+        }
         return lowerings;
     }
 
-    // Takes the whole set because a claim_members shares the claim register
-    // block with its siblings (singleClaimer).
-    fn constraintLowering(self: *Compiler, ast: *const Ast, constraints: []const Ast.Constraint, constraint: Ast.Constraint) Lowering {
+    fn constraintLowering(self: *Compiler, ast: *const Ast, constraint: Ast.Constraint) Lowering {
         return switch (constraint.kind) {
             .is_type => .step,
             .len_eq, .len_min, .keys_exact, .keys_min => .step,
@@ -2072,7 +2077,7 @@ pub const Compiler = struct {
             .search_key => |c| if (searchKeyStepable(ast, c.key)) .step else .unsupported,
             .solve_merge => |c| if (self.mergeLowering(ast, c.ty, c.parts.items, c.solvable_index)) |merge| .{ .merge = merge } else .unsupported,
             .solve_repeat => |c| if (self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index)) |shape| .{ .repeat = shape } else .unsupported,
-            .claim_members => |c| if (self.claimMembersStepable(ast, constraints, c)) .step else .unsupported,
+            .claim_members => |c| if (self.claimMembersStepable(ast, c)) .step else .unsupported,
             .local => .unsupported,
         };
     }
@@ -2103,12 +2108,11 @@ pub const Compiler = struct {
     // a solvable count is admitted only in the exact (no-rest) shape, where
     // the object's member count determines it. An inexact (rest) shape needs
     // a known count product — the surplus over the claimed groups feeds the
-    // rest. Only one claimer may share the claim register block per window.
-    fn claimMembersStepable(self: *Compiler, ast: *const Ast, constraints: []const Ast.Constraint, c: anytype) bool {
+    // rest.
+    fn claimMembersStepable(self: *Compiler, ast: *const Ast, c: anytype) bool {
         if (c.pattern != .sub) return false;
         const chunk_set_id = c.pattern.sub;
         if (repeatObjectLen(ast, chunk_set_id) == null and repeatObjectSearchLen(ast, chunk_set_id) == null) return false;
-        if (!self.singleClaimer(ast, constraints)) return false;
         if (c.exact) {
             return self.repeatCountFactorsStepable(ast, c.count_factors.items, c.solvable_index);
         }
@@ -2123,15 +2127,18 @@ pub const Compiler = struct {
     // until its members_rest place materializes, so a second claim, an
     // object_search solve_repeat, or an object solve_merge (each of which
     // reseeds the array) would alias it.
-    fn singleClaimer(self: *Compiler, ast: *const Ast, constraints: []const Ast.Constraint) bool {
+    fn singleClaimer(constraints: []const Ast.Constraint, lowerings: []const Lowering) bool {
         var claimers: u32 = 0;
-        for (constraints) |constraint| switch (constraint.kind) {
+        for (constraints, lowerings) |constraint, lowering| switch (constraint.kind) {
             .claim_members => claimers += 1,
-            .solve_repeat => |r| {
-                if (self.repeatShape(ast, r.pattern, r.count_factors.items, r.solvable_index) == .object_search) claimers += 1;
-            },
-            .solve_merge => |m| {
-                if (self.objectMergeStepable(ast, m.ty, m.parts.items, m.solvable_index)) claimers += 1;
+            .solve_repeat, .solve_merge => switch (lowering) {
+                .repeat => |shape| if (shape == .object_search) {
+                    claimers += 1;
+                },
+                .merge => |merge| if (merge == .object_claim) {
+                    claimers += 1;
+                },
+                else => {},
             },
             else => {},
         };
