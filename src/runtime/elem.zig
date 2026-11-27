@@ -1506,7 +1506,7 @@ pub const Elem = packed union {
             pub fn copy(vm: *VM, elems: []const Elem) !*Array {
                 const a = try create(vm, elems.len);
                 for (elems) |item| item.retain();
-                try a.elems.appendSlice(vm.gc.allocator(), elems);
+                a.elems.appendSliceAssumeCapacity(elems);
                 return a;
             }
 
