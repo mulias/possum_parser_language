@@ -2079,7 +2079,7 @@ pub const Compiler = struct {
     fn claimMembersStepable(self: *Compiler, ast: *const Ast, constraints: []const Ast.Constraint, c: anytype) bool {
         if (c.pattern != .sub) return false;
         const chunk_set_id = c.pattern.sub;
-        if (repeatObjectLen(ast, chunk_set_id) == null and self.repeatObjectSearchLen(ast, chunk_set_id) == null) return false;
+        if (repeatObjectLen(ast, chunk_set_id) == null and repeatObjectSearchLen(ast, chunk_set_id) == null) return false;
         if (!self.singleClaimer(ast, constraints)) return false;
         if (c.exact) {
             return self.repeatCountFactorsStepable(ast, c.count_factors.items, c.solvable_index);
@@ -2142,7 +2142,7 @@ pub const Compiler = struct {
                 if (self.repeatRangeConstraint(ast, set_id) != null) return .range;
                 if (repeatArrayLen(ast, set_id) != null) return .array;
                 if (repeatObjectLen(ast, set_id) != null) return .object;
-                if (self.repeatObjectSearchLen(ast, set_id) != null) return .object_search;
+                if (repeatObjectSearchLen(ast, set_id) != null) return .object_search;
             },
             .local => {},
         }
@@ -2231,13 +2231,13 @@ pub const Compiler = struct {
     // The pair count of a repeat's constrained-pair object sub-pattern, or
     // null. Generalizes repeatObjectLen past bare {_: _} pairs to pairs that
     // narrow a member: search pairs with a placeholder or binding key and a
-    // stepable value ({K: V}, {_: 1}, {_: 1, _: 2}), and const-key pairs
+    // value matched in a child window ({K: V}, {_: 1}, {_: 1, _: 2}), and const-key pairs
     // (has_key) with a leaf value ({"q": _}, {"a": A}). Each group claims
     // pair_count members exclusively from a claim array; group 0 binds and
     // later groups compare (the rebound variant), so a binding or constant
     // key re-probing a claimed member fails a second group. Structural
     // const-key values are not stepable.
-    fn repeatObjectSearchLen(self: *Compiler, ast: *const Ast, set_id: Ast.SetId) ?u32 {
+    fn repeatObjectSearchLen(ast: *const Ast, set_id: Ast.SetId) ?u32 {
         const set = &ast.constraint_sets.items[set_id];
         // Place 0 is the scrutinee; any others are const-key member
         // projections (`key %0 "..."`) whose leaf value constraints match
@@ -2277,9 +2277,6 @@ pub const Compiler = struct {
                     if (key_set.constraints.items.len != 1) return null;
                     if (key_set.constraints.items[0].kind != .bind) return null;
                 }
-                const value_set = &ast.constraint_sets.items[c.value];
-                if (value_set.constraints.items.len > 0 and
-                    !self.constraintsStepable(ast, value_set.constraints.items)) return null;
             },
             // A const key's leaf value constraint on its projected place;
             // structural value kinds are not stepable.
@@ -2657,7 +2654,7 @@ pub const Compiler = struct {
             switch (part) {
                 .read, .global => {},
                 .expr => |id| if (!self.evalExprStepable(ast, id)) return false,
-                .sub => |set_id| if (self.repeatObjectSearchLen(ast, set_id) == null and
+                .sub => |set_id| if (repeatObjectSearchLen(ast, set_id) == null and
                     self.objectMergeRepeatPart(ast, set_id) == null) return false,
                 else => return false,
             }
@@ -2678,7 +2675,7 @@ pub const Compiler = struct {
             .solve_repeat => |r| {
                 if (r.pattern != .sub) return null;
                 const chunk = r.pattern.sub;
-                if (repeatObjectLen(ast, chunk) == null and self.repeatObjectSearchLen(ast, chunk) == null) return null;
+                if (repeatObjectLen(ast, chunk) == null and repeatObjectSearchLen(ast, chunk) == null) return null;
                 if (!self.repeatCountKnown(ast, r.count_factors.items)) return null;
                 return constraint;
             },
@@ -3715,7 +3712,7 @@ pub const Compiler = struct {
                         // rebound variant), so a binding or constant key
                         // re-probing a claimed member fails a second group.
                         .object_search => {
-                            const pair_count = self.repeatObjectSearchLen(ast, c.pattern.sub).?;
+                            const pair_count = repeatObjectSearchLen(ast, c.pattern.sub).?;
                             self.markFallible(fallible, try self.ir().push(allocator, .{ .match_test = .{
                                 .op = .MatchType,
                                 .byte1 = src_reg,
@@ -3791,7 +3788,7 @@ pub const Compiler = struct {
                     const pair_len: u8 = @intCast(if (repeatObjectLen(ast, chunk_set_id)) |l|
                         l
                     else
-                        self.repeatObjectSearchLen(ast, chunk_set_id).?);
+                        repeatObjectSearchLen(ast, chunk_set_id).?);
                     const seed_count: u8 = @intCast(hasKeyCount(constraints, c.place));
 
                     if (c.exact) {
@@ -4662,7 +4659,7 @@ pub const Compiler = struct {
                     const pair_len: u8 = @intCast(if (repeatObjectLen(ast, chunk_set_id)) |l|
                         l
                     else
-                        self.repeatObjectSearchLen(ast, chunk_set_id).?);
+                        repeatObjectSearchLen(ast, chunk_set_id).?);
                     try self.writeRepeatCountProduct(module_id, ast, r.count_factors.items, null, region);
                     self.markFallible(fallible, try self.ir().push(allocator, .{ .match_count_load = .{
                         .op = .MatchCountLoad,
