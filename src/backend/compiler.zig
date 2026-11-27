@@ -2026,37 +2026,70 @@ pub const Compiler = struct {
         try self.writeMatchSteps(module_id, ast, match.places.items, arm.constraints.items, .input, region);
     }
 
-    // Whether one constraint of a set lowers to inline steps. Takes the
-    // whole set because a claim_members shares the claim register block
-    // with its siblings (singleClaimer).
-    fn constraintStepable(self: *Compiler, ast: *const Ast, constraints: []const Ast.Constraint, constraint: Ast.Constraint) bool {
+    // How one constraint of a match window lowers to steps. Chosen once per
+    // window (constraintLowerings) and read by the window layout and the
+    // emitters.
+    const Lowering = union(enum) {
+        step,
+        template: TemplateKind,
+        merge: MergeLowering,
+        repeat: RepeatShape,
+        unsupported,
+    };
+
+    const MergeLowering = enum { number, boolean, array_span, object_claim, eval, string_cursor };
+
+    fn constraintLowerings(self: *Compiler, ast: *const Ast, constraints: []const Ast.Constraint) error{OutOfMemory}![]Lowering {
+        const lowerings = try self.vm.allocator.alloc(Lowering, constraints.len);
+        for (constraints, lowerings) |constraint, *lowering| lowering.* = self.constraintLowering(ast, constraints, constraint);
+        return lowerings;
+    }
+
+    // Takes the whole set because a claim_members shares the claim register
+    // block with its siblings (singleClaimer).
+    fn constraintLowering(self: *Compiler, ast: *const Ast, constraints: []const Ast.Constraint, constraint: Ast.Constraint) Lowering {
         return switch (constraint.kind) {
-            .is_type => true,
-            .len_eq, .len_min, .keys_exact, .keys_min => true,
-            .has_key, .str_prefix, .str_suffix, .bind, .eq_slot, .eq_global => true,
-            .eq_const => true,
-            .eval_eq => true,
-            .in_range => true,
-            .negated => |c| negatedStepable(c.part),
+            .is_type => .step,
+            .len_eq, .len_min, .keys_exact, .keys_min => .step,
+            .has_key, .str_prefix, .str_suffix, .bind, .eq_slot, .eq_global => .step,
+            .eq_const => .step,
+            .eval_eq => .step,
+            .in_range => .step,
+            .negated => |c| if (negatedStepable(c.part)) .step else .unsupported,
             // A template lowers either to the static prefix/suffix/slice
             // layout (path A) or to the cursor-chomp path (path B).
-            .match_template => |c| self.templateStepable(ast, c.segments.items) != null,
+            .match_template => |c| if (self.templateStepable(ast, c.segments.items)) |kind| .{ .template = kind } else .unsupported,
             // A search pair steps when its key sub-pattern is a shallow
             // leaf (bind, ignore, or bound-local probe) or a computed key.
             // Its value matches in a nested window, scrutinized by the found
             // member, whose own steps reject an unsupported value. A bound
             // key probes its member directly; an unbound key scans; either
             // way the value's window is the same.
-            .search_key => |c| searchKeyStepable(ast, c.key),
-            .solve_merge => |c| classifyNumMergeStep(ast, c.ty, c.parts.items) != null or
-                self.classifyBoolMergeStep(ast, c.ty, c.parts.items) != null or
-                self.arrayMergeStepable(ast, c.ty, c.parts.items, c.solvable_index) or
-                self.objectMergeStepable(ast, c.ty, c.parts.items, c.solvable_index) or
-                self.mergeEvalStepable(ast, c.ty, c.parts.items, c.solvable_index) or
-                self.stringMergeCursorStepable(ast, c.ty, c.parts.items),
-            .solve_repeat => |c| self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index) != null,
-            .claim_members => |c| self.claimMembersStepable(ast, constraints, c),
-            .local => false,
+            .search_key => |c| if (searchKeyStepable(ast, c.key)) .step else .unsupported,
+            .solve_merge => |c| if (self.mergeLowering(ast, c.ty, c.parts.items, c.solvable_index)) |merge| .{ .merge = merge } else .unsupported,
+            .solve_repeat => |c| if (self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index)) |shape| .{ .repeat = shape } else .unsupported,
+            .claim_members => |c| if (self.claimMembersStepable(ast, constraints, c)) .step else .unsupported,
+            .local => .unsupported,
+        };
+    }
+
+    // The merge's static type picks its emitter; an untyped merge takes the
+    // runtime-typed residual, and a string merge prefers it over the span
+    // cursor.
+    fn mergeLowering(self: *Compiler, ast: *const Ast, ty: ?Ast.ValueType, parts: []const Ast.Part, solvable_index: ?u32) ?MergeLowering {
+        const merge_ty = ty orelse return if (self.mergeEvalStepable(ast, ty, parts, solvable_index)) .eval else null;
+        return switch (merge_ty) {
+            .number => if (classifyNumMergeStep(ast, ty, parts) != null) .number else null,
+            .boolean => if (self.classifyBoolMergeStep(ast, ty, parts) != null) .boolean else null,
+            .array => if (self.arrayMergeStepable(ast, ty, parts, solvable_index)) .array_span else null,
+            .object => if (self.objectMergeStepable(ast, ty, parts, solvable_index)) .object_claim else null,
+            .string => if (self.mergeEvalStepable(ast, ty, parts, solvable_index))
+                .eval
+            else if (self.stringMergeCursorStepable(ast, ty, parts))
+                .string_cursor
+            else
+                null,
+            .null => null,
         };
     }
 
@@ -3155,6 +3188,8 @@ pub const Compiler = struct {
         region: Region,
     ) Error!void {
         const allocator = self.vm.allocator;
+        const lowerings = try self.constraintLowerings(ast, constraints);
+        defer allocator.free(lowerings);
         // Match scratch is addressed relative to the per-match window.
         const layout = self.windowLayout(ast, places, constraints) catch |err| switch (err) {
             error.UnsupportedPattern => return self.rejectUnstepable(module_id, constraints, region),
@@ -3268,8 +3303,8 @@ pub const Compiler = struct {
             .sub => |s| s.bind_mode,
         };
 
-        for (constraints) |constraint| {
-            if (!self.constraintStepable(ast, constraints, constraint)) return self.rejectUnstepable(module_id, constraints, region);
+        for (constraints, lowerings) |constraint, lowering| {
+            if (lowering == .unsupported) return self.rejectUnstepable(module_id, constraints, region);
             const step_region = constraint.region;
             switch (constraint.kind) {
                 .is_type => |c| {
