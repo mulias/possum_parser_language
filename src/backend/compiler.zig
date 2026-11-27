@@ -3483,10 +3483,10 @@ pub const Compiler = struct {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, place, step_region);
                     try self.emitLeafStep(module_id, ast, constraint.kind, placeReg(place), bind_mode, fallible, step_region);
                 },
-                // Evaluate the expression (a call, mirroring the plan's
-                // eval_eq) and compare its result against the place. Every
-                // read in the expression is bound by an earlier scheduled
-                // step, so the value compiles like any value position.
+                // Evaluate the expression (a call) and compare its result
+                // against the place. Every read in the expression is bound
+                // by an earlier scheduled step, so the value compiles like
+                // any value position.
                 .eval_eq => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
                     try self.writeGoal(module_id, ast, c.expr);
