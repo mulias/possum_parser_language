@@ -2864,7 +2864,8 @@ pub const Compiler = struct {
                 const folded = try self.goalPatternConstElem(ast, inner);
                 break :blk folded.negateNumber() catch return Error.NegatedNonNumber;
             },
-            else => error.UnsupportedPattern,
+            // Every caller checks constPatternNode or constNumberNode first.
+            else => unreachable,
         };
     }
 
