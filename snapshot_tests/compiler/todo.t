@@ -75,6 +75,18 @@ Expected: 2, solving (A + 1) <= 3.
   [UnsupportedPattern]
   [1]
 
+A range with such a limit is rejected before its other bound is checked, so
+an invalid bound is reported as unsupported. Expected: the [InvalidAst] range
+bound error, reported whichever side the invalid bound is on.
+
+  $ possum -p 'json -> ("ab"..(A + 1)) $ A' -i '3'
+  [UnsupportedPattern]
+  [1]
+
+  $ possum -p 'json -> ((A + 1).."ab") $ A' -i '3'
+  [UnsupportedPattern]
+  [1]
+
 An unresolvable definition cycle through import expressions leaks the
 synthesized alias name. Expected: a message naming 'foo' and the files
 in the cycle, not '_@import0'.
