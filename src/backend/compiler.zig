@@ -1005,8 +1005,11 @@ pub const Compiler = struct {
                 repeat_block = @max(repeat_block, 1);
                 object_claim_block = 5;
             },
-            .match_template => |c| {
-                if (self.templateStepable(ast, c.segments.items) == .cursor) span_block = @max(span_block, 4);
+            .match_template => switch (lowerings[i]) {
+                .template => |kind| if (kind == .cursor) {
+                    span_block = @max(span_block, 4);
+                },
+                else => {},
             },
             .solve_merge => |c| {
                 if (self.arrayMergeStepable(ast, c.ty, c.parts.items, c.solvable_index)) {
@@ -3423,7 +3426,7 @@ pub const Compiler = struct {
                 .match_template => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
                     const reg = placeReg(c.place);
-                    switch (self.templateStepable(ast, c.segments.items).?) {
+                    switch (lowering.template) {
                         .static => try self.emitTemplateStatic(module_id, c.segments.items, reg, dead_reg, fallible, step_region),
                         .cursor => try self.emitTemplateCursor(
                             module_id,
