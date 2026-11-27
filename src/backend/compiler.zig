@@ -2790,9 +2790,9 @@ pub const Compiler = struct {
     // Whether an array merge lowers to the span-cursor scheduler: every
     // non-solvable part is a runtime array value (a bound read or an
     // evaluable expression, compared element-wise by MatchSpanVal) or a
-    // fixed-length structural array whose interior itself steps (an empty
-    // base chomps nothing; a non-empty one slices a MatchSpanChunk matched
-    // in a child window), and the single solvable part is a bind or
+    // fixed-length structural array (an empty base chomps nothing; a
+    // non-empty one slices a MatchSpanChunk matched in a child window, which
+    // rejects an unsupported interior), and the single solvable part is a bind or
     // placeholder taking the residual span. Untyped merges keep the plan
     // path.
     fn arrayMergeStepable(self: *Compiler, ast: *const Ast, ty: ?Ast.ValueType, parts: []const Ast.Part, solvable_index: ?u32) bool {
@@ -2808,10 +2808,7 @@ pub const Compiler = struct {
             switch (part) {
                 .read => {},
                 .expr => |id| if (!self.constPatternNode(ast, id) and !self.evalExprStepable(ast, id)) return false,
-                .sub => |set_id| {
-                    if (arrayMergePartFixedLen(ast, set_id) == null) return false;
-                    if (!self.constraintsStepable(ast, ast.constraint_sets.items[set_id].constraints.items)) return false;
-                },
+                .sub => |set_id| if (arrayMergePartFixedLen(ast, set_id) == null) return false,
                 else => return false,
             }
         }
