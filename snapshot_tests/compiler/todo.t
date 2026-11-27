@@ -123,3 +123,54 @@ solves for the count. Expected: a diagnostic, or a restriction to bound counts.
   $ possum -p 'const({"a": 1, "b": 2, "c": 3}) -> {...({_: _} * N), ...Rest} $ [N, Rest]' -i ''
   [UnsupportedPattern]
   [1]
+
+Negating a non-number constant in a pattern can never match, and the operand's
+type is known at compile time. The results differ by operand. Expected: a
+compile-time error that the operand can't be negated, for all four cases.
+
+  $ possum -p 'json -> -"a"' -i '"a"'
+  
+  Runtime Error: Negation and subtraction is only supported for numbers.
+  
+  
+  program:1:8-12:
+  
+  1 \xe2\x96\x8f json -> -"a" (esc)
+    \xe2\x96\x8f         ^^^^ (esc)
+  
+  [RuntimeError]
+  [1]
+
+  $ possum -p 'json -> -[1]' -i '[1]'
+  
+  Parse Failure: value [1] did not match pattern -[1]
+  
+  input:1:3:
+  
+  1 \xe2\x96\x8f [1] (esc)
+    \xe2\x96\x8f    ^ (esc)
+  
+  while matching parser `@main`
+  
+  program:1:8-12:
+  
+  1 \xe2\x96\x8f json -> -[1] (esc)
+    \xe2\x96\x8f         ^^^^ (esc)
+  
+  [ParserFailure]
+  [1]
+
+  $ possum -p 'json -> (1 + -"a")' -i '1'
+  [UnsupportedPattern]
+  [1]
+
+  $ possum -p 'json -> ("a" + -"b")' -i '"ab"'
+  
+  Validation Error: cannot merge a number into a string merge
+  
+  program:1:15-19:
+  1 \xe2\x96\x8f json -> ("a" + -"b") (esc)
+    \xe2\x96\x8f                ^^^^ (esc)
+  
+  [MergeTypeConflict]
+  [1]
