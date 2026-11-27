@@ -2050,12 +2050,12 @@ pub const Compiler = struct {
             // layout (path A) or to the cursor-chomp path (path B).
             .match_template => |c| self.templateStepable(ast, c.segments.items) != null,
             // A search pair steps when its key sub-pattern is a shallow
-            // leaf (bind, ignore, or bound-local probe) and its value is
-            // either a shallow leaf or a structural sub-pattern matched in
-            // a nested window. A bound key probes its member directly; an
-            // unbound key scans; either way the value's window is the same.
-            .search_key => |c| self.searchSetStepable(ast, c.key, true) and
-                (self.searchSetStepable(ast, c.value, false) or self.searchValueStructuralStepable(ast, c.value)),
+            // leaf (bind, ignore, or bound-local probe) or a computed key.
+            // Its value matches in a nested window, scrutinized by the found
+            // member, whose own steps reject an unsupported value. A bound
+            // key probes its member directly; an unbound key scans; either
+            // way the value's window is the same.
+            .search_key => |c| self.searchKeyStepable(ast, c.key),
             .solve_merge => |c| self.classifyNumMergeStep(ast, c.ty, c.parts.items) != null or
                 self.classifyBoolMergeStep(ast, c.ty, c.parts.items) != null or
                 self.mergeNegatedNonNumber(ast, c.ty, c.parts.items) or
@@ -2108,18 +2108,6 @@ pub const Compiler = struct {
             else => {},
         };
         return claimers <= 1;
-    }
-
-    // A search value that is not a shallow leaf lowers to inline steps when
-    // its whole ConstraintSet steps — a container destructure, a template,
-    // a range, or any other stepable shape. It matches in a nested window
-    // whose scrutinee is the found member. The scan binds the candidate key
-    // before the value window, so the value may read it — an eval that
-    // reads the key (`{A: Id(A)}`) or an element that compares against it
-    // (`{A: [A, B]}`) both step.
-    fn searchValueStructuralStepable(self: *Compiler, ast: *const Ast, set_id: Ast.SetId) bool {
-        const set = &ast.constraint_sets.items[set_id];
-        return self.constraintsStepable(ast, set.constraints.items);
     }
 
     const RepeatShape = enum { value, chunk, range, array, object, object_search, identity };
@@ -2435,36 +2423,30 @@ pub const Compiler = struct {
         };
     }
 
-    // Whether a search pair's key or value sub-pattern lowers to inline
-    // steps: exactly one place (the found key or value). A key may bind, be
-    // ignored, probe a known member by a bound local or module global (the
-    // eval bridge pushes it for MatchClaimKey), evaluate a call to its key
-    // ({X("a"): 1}, pushed the same way), or be a computed sub-pattern
-    // ({"%(0 + N)": 1}) the scan matches against each candidate key in a
-    // child window when the whole key set steps. A value may also compare
-    // against a constant, a global, or an eval that reads the pair's key
-    // ({A: Id(A)}), which the scan binds before the value window. Const keys
-    // don't arise — a literal key is a has_key place.
-    fn searchSetStepable(self: *Compiler, ast: *const Ast, set_id: Ast.SetId, is_key: bool) bool {
+    // Whether a search pair's key sub-pattern lowers to inline steps. A key
+    // may bind, be ignored, probe a known member by a bound local or module
+    // global (the eval bridge pushes it for MatchClaimKey), evaluate a call
+    // to its key ({X("a"): 1}, pushed the same way), or be a computed
+    // sub-pattern ({"%(0 + N)": 1}) the scan matches against each candidate
+    // key in a child window when the whole key set steps. Const keys don't
+    // arise — a literal key is a has_key place.
+    fn searchKeyStepable(self: *Compiler, ast: *const Ast, set_id: Ast.SetId) bool {
         const set = &ast.constraint_sets.items[set_id];
         // A multi-place key set — a decomposed string merge like
         // {"a" + B: 1}, whose slice place carries the bind — steps as a
-        // child window like any other computed key. A multi-place value
-        // takes the structural path (searchValueStructuralStepable).
+        // child window like any other computed key.
         if (set.places.items.len != 1)
-            return is_key and self.constraintsStepable(ast, set.constraints.items);
+            return self.constraintsStepable(ast, set.constraints.items);
         if (set.constraints.items.len == 0) return true;
         // A key sub-pattern that isn't a shallow leaf — a computed key like
         // "%(0 + N)" — steps as its own child window: the scan matches each
-        // candidate member key against it, solving any binds. A value that
-        // isn't a leaf takes the structural path (searchValueStructuralStepable)
-        // instead, so only keys reach the constraintsStepable check here.
+        // candidate member key against it, solving any binds.
         if (set.constraints.items.len > 1)
-            return is_key and self.constraintsStepable(ast, set.constraints.items);
+            return self.constraintsStepable(ast, set.constraints.items);
         return switch (set.constraints.items[0].kind) {
             .bind, .eq_slot, .eq_global, .eval_eq => true,
-            .eq_const => !is_key,
-            else => is_key and self.constraintsStepable(ast, set.constraints.items),
+            .eq_const => false,
+            else => self.constraintsStepable(ast, set.constraints.items),
         };
     }
 
