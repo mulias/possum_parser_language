@@ -2933,7 +2933,7 @@ pub const Compiler = struct {
                 (if (self.templateRangeNumeric(ast, set_id)) .solvable_cast else .char_range)
             else if (self.templateMergeSolvable(ast, set_id) != null)
                 .solvable_cast
-            else if (self.templateCastStepable(ast, set_id))
+            else if (templateCastStepable(ast, set_id))
                 .solvable_cast
             else if (self.templateRepeatSolvable(ast, set_id))
                 .solvable_cast
@@ -3015,25 +3015,19 @@ pub const Compiler = struct {
     // Whether a template solvable sub-pattern is a structural array/object
     // cast lowerable to inline steps: the byte range parses as JSON by the
     // pattern's root type — an is_type array/object on place 0, or a
-    // container-typed solve_merge, which fixes the root type the same way —
-    // and the whole ConstraintSet steps. The parsed container feeds a child
-    // window as its scrutinee, so the recursion is exactly a root arm's.
-    // Untyped merges (a runtime string-vs-JSON cast decision), repeats, and
-    // non-stepable interiors stay null.
-    fn templateCastStepable(self: *Compiler, ast: *const Ast, set_id: Ast.SetId) bool {
+    // container-typed solve_merge, which fixes the root type the same way.
+    // The parsed container feeds a child window as its scrutinee, so the
+    // recursion is exactly a root arm's, and the child window rejects an
+    // unsupported interior. Untyped merges (a runtime string-vs-JSON cast
+    // decision) and repeats are not casts.
+    fn templateCastStepable(ast: *const Ast, set_id: Ast.SetId) bool {
         const set = &ast.constraint_sets.items[set_id];
-        var root_container = false;
         for (set.constraints.items) |constraint| switch (constraint.kind) {
-            .is_type => |c| if (c.place == 0 and (c.ty == .array or c.ty == .object)) {
-                root_container = true;
-            },
-            .solve_merge => |c| if (c.place == 0 and (c.ty == .array or c.ty == .object)) {
-                root_container = true;
-            },
+            .is_type => |c| if (c.place == 0 and (c.ty == .array or c.ty == .object)) return true,
+            .solve_merge => |c| if (c.place == 0 and (c.ty == .array or c.ty == .object)) return true,
             else => {},
         };
-        if (!root_container) return false;
-        return self.constraintsStepable(ast, set.constraints.items);
+        return false;
     }
 
     // The lower/upper bounds of a template character-range sub-pattern —
