@@ -2047,7 +2047,6 @@ pub const Compiler = struct {
             .search_key => |c| searchKeyStepable(ast, c.key),
             .solve_merge => |c| classifyNumMergeStep(ast, c.ty, c.parts.items) != null or
                 self.classifyBoolMergeStep(ast, c.ty, c.parts.items) != null or
-                self.mergeNegatedNonNumber(ast, c.ty, c.parts.items) or
                 self.arrayMergeStepable(ast, c.ty, c.parts.items, c.solvable_index) or
                 self.objectMergeStepable(ast, c.ty, c.parts.items, c.solvable_index) or
                 self.mergeEvalStepable(ast, c.ty, c.parts.items, c.solvable_index) or
@@ -2729,35 +2728,6 @@ pub const Compiler = struct {
         };
     }
 
-    // Whether any constraint is statically false: a negated part under a
-    // non-number merge. Such an arm lowers to the bare fail tail.
-    fn armAlwaysFails(self: *Compiler, ast: *const Ast, constraints: []const Ast.Constraint) bool {
-        for (constraints) |constraint| switch (constraint.kind) {
-            .solve_merge => |c| {
-                if (self.mergeNegatedNonNumber(ast, c.ty, c.parts.items)) return true;
-            },
-            else => {},
-        };
-        return false;
-    }
-
-    // A negated part under a merge whose static type isn't number can
-    // never match — negation only produces numbers — so the arm lowers
-    // to an unconditional fail step.
-    fn mergeNegatedNonNumber(self: *Compiler, ast: *const Ast, ty: ?Ast.ValueType, parts: []const Ast.Part) bool {
-        _ = self;
-        const merge_ty = ty orelse return false;
-        if (merge_ty == .number) return false;
-        for (parts) |part| switch (part) {
-            .sub => |set_id| {
-                const set = &ast.constraint_sets.items[set_id];
-                if (set.constraints.items.len == 1 and set.constraints.items[0].kind == .negated) return true;
-            },
-            else => {},
-        };
-        return false;
-    }
-
     // Whether an array merge lowers to the span-cursor scheduler: every
     // non-solvable part is a runtime array value (a bound read or an
     // evaluable expression, compared element-wise by MatchSpanVal) or a
@@ -3253,26 +3223,6 @@ pub const Compiler = struct {
             .input => try self.emitJump(.JumpIfFailure, region),
             .sub => null,
         };
-
-        // A statically false constraint is just the fail path; emitting
-        // steps after an unconditional fail jump would leave them
-        // unreachable. No window is open here, so the fail path needs no
-        // window exit.
-        if (self.armAlwaysFails(ast, constraints)) {
-            switch (scrutinee) {
-                .input => {
-                    try self.emitOp(.MatchFail, region);
-                    self.patchJump(skipJump.?);
-                },
-                .sub => |s| switch (s.on_fail) {
-                    .retry => |target| try self.emitJumpBack(.JumpBack, target, region),
-                    // Cascade to the enclosing (still-open) window's fail
-                    // block, marking the parent fallible.
-                    .arm => |arm_fallible| self.markFallible(arm_fallible, try self.ir().push(allocator, .{ .none = .MatchRefail }, region)),
-                },
-            }
-            return;
-        }
 
         // Open the per-match window sized to this arm's scratch. A root
         // arm's skip path jumps past the whole match, so no window is open
