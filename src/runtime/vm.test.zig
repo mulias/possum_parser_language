@@ -3493,16 +3493,14 @@ test "a runtime number merge fails a non-number scrutinee" {
     );
 }
 
-test "a negated placeholder rest fails against a non-number" {
+test "a negated placeholder rest conflicts with an array merge" {
     const parser =
         \\("" $ [1, 2]) -> ([1] + -_) $ "ok"
     ;
     var vm = VM.create();
     try vm.init(allocator, writers, config);
     defer vm.deinit();
-    try testing.expectFailure(
-        try vm.interpret("test", parser, ""),
-    );
+    try std.testing.expectError(error.MergeTypeConflict, vm.interpret("test", parser, ""));
 }
 
 test "('' $ 4) -> (-2 * N) folds the negated repeat pattern" {

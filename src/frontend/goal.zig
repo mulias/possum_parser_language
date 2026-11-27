@@ -1704,9 +1704,8 @@ fn article(ty: Ast.ValueType) []const u8 {
 // match-time value can type it (locals, placeholders, calls) or when it
 // is the merge identity (null). Ranges type as number: constant number
 // ranges fold by interval arithmetic, and a surviving range part in a
-// merge is invalid for every type. Negation only ever produces numbers;
-// a negated local stays untyped so the match fails instead of the merge
-// typing, mirroring the interpreter's mergePartType.
+// merge is invalid for every type. Negation only ever produces numbers,
+// so a negated part types as number whether its operand is bound or not.
 fn mergePartStaticType(pattern: *const Pattern.RNode) ?Ast.ValueType {
     return switch (pattern.node) {
         .array => .array,
@@ -1714,10 +1713,7 @@ fn mergePartStaticType(pattern: *const Pattern.RNode) ?Ast.ValueType {
         .string, .string_template => .string,
         .number_float, .number_string, .range => .number,
         .true, .false => .boolean,
-        .negation => |inner| if (mergePartStaticType(inner)) |t|
-            (if (t == .number) t else null)
-        else
-            null,
+        .negation => .number,
         .repeat => |op| mergePartStaticType(op.left),
         .null, .identifier, .function_call, .merge => null,
     };

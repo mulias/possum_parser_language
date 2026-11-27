@@ -306,6 +306,42 @@ merge type.
   [MergeTypeConflict]
   [1]
 
+Negated parts type as number: negation only produces numbers, whether the
+operand is bound or not.
+
+  $ possum -p 'json -> ("a" + -N) $ N' -i ''
+  
+  Validation Error: cannot merge a number into a string merge
+  
+  program:1:15-17:
+  1 \xe2\x96\x8f json -> ("a" + -N) $ N (esc)
+    \xe2\x96\x8f                ^^ (esc)
+  
+  [MergeTypeConflict]
+  [1]
+
+  $ possum -p 'json -> ("a" + --N) $ N' -i ''
+  
+  Validation Error: cannot merge a number into a string merge
+  
+  program:1:15-18:
+  1 \xe2\x96\x8f json -> ("a" + --N) $ N (esc)
+    \xe2\x96\x8f                ^^^ (esc)
+  
+  [MergeTypeConflict]
+  [1]
+
+  $ possum -p 'int -> N & json -> ("a" + -N) $ N' -i ''
+  
+  Validation Error: cannot merge a number into a string merge
+  
+  program:1:26-28:
+  1 \xe2\x96\x8f int -> N & json -> ("a" + -N) $ N (esc)
+    \xe2\x96\x8f                           ^^ (esc)
+  
+  [MergeTypeConflict]
+  [1]
+
 Parts without a static type stay legal in any merge; their values type
 the merge at match time.
 
