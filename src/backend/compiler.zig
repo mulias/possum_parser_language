@@ -971,7 +971,7 @@ pub const Compiler = struct {
         width: u8,
     };
 
-    fn windowLayout(self: *Compiler, ast: *const Ast, places: []const Ast.PlaceDef, constraints: []const Ast.Constraint, lowerings: []const Lowering) error{ UnsupportedPattern, PatternTooLarge }!WindowLayout {
+    fn windowLayout(ast: *const Ast, places: []const Ast.PlaceDef, constraints: []const Ast.Constraint, lowerings: []const Lowering) error{ UnsupportedPattern, PatternTooLarge }!WindowLayout {
         var search_groups: u32 = 0;
         var repeat_block: u32 = 0;
         var span_block: u32 = 0;
@@ -1011,16 +1011,14 @@ pub const Compiler = struct {
                 },
                 else => {},
             },
-            .solve_merge => |c| {
-                if (self.arrayMergeStepable(ast, c.ty, c.parts.items, c.solvable_index)) {
-                    span_block = @max(span_block, @as(u32, if (arrayMergeHasStructural(ast, c.parts.items, c.solvable_index)) 4 else 3));
-                } else if (self.objectMergeStepable(ast, c.ty, c.parts.items, c.solvable_index)) {
-                    object_claim_block = 5;
-                } else if (!self.mergeEvalStepable(ast, c.ty, c.parts.items, c.solvable_index) and
-                    self.stringMergeCursorStepable(ast, c.ty, c.parts.items))
-                {
-                    span_block = @max(span_block, 4);
-                }
+            .solve_merge => |c| switch (lowerings[i]) {
+                .merge => |merge| switch (merge) {
+                    .array_span => span_block = @max(span_block, @as(u32, if (arrayMergeHasStructural(ast, c.parts.items, c.solvable_index)) 4 else 3)),
+                    .object_claim => object_claim_block = 5,
+                    .string_cursor => span_block = @max(span_block, 4),
+                    .number, .boolean, .eval => {},
+                },
+                else => {},
             },
             else => {},
         };
@@ -3197,7 +3195,7 @@ pub const Compiler = struct {
         const lowerings = try self.constraintLowerings(ast, constraints);
         defer allocator.free(lowerings);
         // Match scratch is addressed relative to the per-match window.
-        const layout = self.windowLayout(ast, places, constraints, lowerings) catch |err| switch (err) {
+        const layout = windowLayout(ast, places, constraints, lowerings) catch |err| switch (err) {
             error.UnsupportedPattern => return self.rejectUnstepable(module_id, constraints, region),
             error.PatternTooLarge => {
                 try self.printError(module_id, region, "Pattern too large to compile.", .{});
@@ -3443,8 +3441,8 @@ pub const Compiler = struct {
                 .solve_merge => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
                     const reg = placeReg(c.place);
-                    if (c.ty == .array) {
-                        try self.emitArrayMergeSolve(
+                    switch (lowering.merge) {
+                        .array_span => try self.emitArrayMergeSolve(
                             module_id,
                             ast,
                             c.parts.items,
@@ -3453,9 +3451,8 @@ pub const Compiler = struct {
                             .{ .front = span_front, .end = span_end, .rest = span_rest, .chunk = span_char },
                             fallible,
                             step_region,
-                        );
-                    } else if (c.ty == .object) {
-                        try self.emitObjectMergeSolve(
+                        ),
+                        .object_claim => try self.emitObjectMergeSolve(
                             module_id,
                             ast,
                             c.parts.items,
@@ -3466,11 +3463,9 @@ pub const Compiler = struct {
                             bind_mode,
                             fallible,
                             step_region,
-                        );
-                    } else if (c.ty == null or (c.ty == .string and self.mergeEvalStepable(ast, c.ty, c.parts.items, c.solvable_index))) {
-                        try self.emitMergeEvalSolve(module_id, ast, c.parts.items, c.solvable_index, reg, dead_reg, fallible, step_region);
-                    } else if (c.ty == .string) {
-                        try self.emitStringMergeCursor(
+                        ),
+                        .eval => try self.emitMergeEvalSolve(module_id, ast, c.parts.items, c.solvable_index, reg, dead_reg, fallible, step_region),
+                        .string_cursor => try self.emitStringMergeCursor(
                             module_id,
                             ast,
                             c.parts.items,
@@ -3479,9 +3474,8 @@ pub const Compiler = struct {
                             dead_reg,
                             fallible,
                             step_region,
-                        );
-                    } else {
-                        try self.emitMergeSolve(module_id, ast, c.ty, c.parts.items, reg, dead_reg, false, fallible, step_region);
+                        ),
+                        .number, .boolean => try self.emitMergeSolve(module_id, ast, c.ty, c.parts.items, reg, dead_reg, false, fallible, step_region),
                     }
                 },
                 .search_key => |c| {
