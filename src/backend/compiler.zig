@@ -936,7 +936,7 @@ pub const Compiler = struct {
         _ = self.scopes.pop();
     }
 
-    // The register layout of one stepable arm's match window: each place
+    // The register layout of one arm's match window: each place
     // is its own register (placeReg), then the dead register, then the
     // blocks below in order. A pure-place arm — no search/repeat/span/
     // object-claim block — has width exactly places.len + 1.
@@ -1280,21 +1280,21 @@ pub const Compiler = struct {
     // callee; calling a non-function there panics in callFunction. Reject
     // any expression that calls such a callee, or that has a shape the
     // step path does not lower.
-    fn evalExprStepable(self: *Compiler, ast: *const Ast, id: Ast.NodeId) bool {
+    fn evaluableExpr(self: *Compiler, ast: *const Ast, id: Ast.NodeId) bool {
         return switch (ast.goals.items[id].node) {
             .true, .false, .null, .string, .number_string, .number_float, .ident => true,
-            .neg => |inner| self.evalExprStepable(ast, inner),
-            .to_string => |inner| self.evalExprStepable(ast, inner),
-            .merge => |m| self.evalExprStepable(ast, m.left) and self.evalExprStepable(ast, m.right),
-            .mult => |m| self.evalExprStepable(ast, m.left) and self.evalExprStepable(ast, m.right),
+            .neg => |inner| self.evaluableExpr(ast, inner),
+            .to_string => |inner| self.evaluableExpr(ast, inner),
+            .merge => |m| self.evaluableExpr(ast, m.left) and self.evaluableExpr(ast, m.right),
+            .mult => |m| self.evaluableExpr(ast, m.left) and self.evaluableExpr(ast, m.right),
             .array => |elems| {
-                for (elems.items) |elem| if (!self.evalExprStepable(ast, elem)) return false;
+                for (elems.items) |elem| if (!self.evaluableExpr(ast, elem)) return false;
                 return true;
             },
             .object => |pairs| {
                 for (pairs.items) |pair| {
-                    if (!self.evalExprStepable(ast, pair.key)) return false;
-                    if (!self.evalExprStepable(ast, pair.value)) return false;
+                    if (!self.evaluableExpr(ast, pair.key)) return false;
+                    if (!self.evaluableExpr(ast, pair.value)) return false;
                 }
                 return true;
             },
@@ -1302,7 +1302,7 @@ pub const Compiler = struct {
                 const callee = ast.goals.items[call.callee].node;
                 if (callee != .ident) return false;
                 if (callee.ident.resolution == .local and self.goalNameIsValueCase(callee.ident.name)) return false;
-                for (call.args) |arg| if (!self.evalExprStepable(ast, arg)) return false;
+                for (call.args) |arg| if (!self.evaluableExpr(ast, arg)) return false;
                 return true;
             },
             .alt, .seq, .match, .lambda, .repeat, .range => false,
@@ -1997,10 +1997,10 @@ pub const Compiler = struct {
         return false;
     }
 
-    // Turn an unstepable constraint set into an error: a genuine
+    // Turn an unsupported constraint set into an error: a genuine
     // scheduling cycle gets its own diagnostic; anything else is a pattern
     // the match-step lowering does not yet support.
-    fn rejectUnstepable(self: *Compiler, module_id: Module.Id, constraints: []const Ast.Constraint, region: Region) Error {
+    fn rejectUnsupported(self: *Compiler, module_id: Module.Id, constraints: []const Ast.Constraint, region: Region) Error {
         if (hasUnresolvableCycle(constraints)) {
             self.printError(
                 module_id,
@@ -2064,20 +2064,24 @@ pub const Compiler = struct {
             .eq_const => .step,
             .eval_eq => .step,
             .in_range => .step,
-            .negated => |c| if (negatedStepable(c.part)) .step else .unsupported,
+            // A bare negation composes with any inner but an unresolved local. An
+            // evaluable inner (read, global, expr) negates its own evaluated result;
+            // a structural inner (bind, placeholder, sub) negates the scrutinee and
+            // matches against it in a child window.
+            .negated => |c| if (c.part != .local) .step else .unsupported,
             // A template lowers either to the static prefix/suffix/slice
             // layout (path A) or to the cursor-chomp path (path B).
-            .match_template => |c| if (self.templateStepable(ast, c.segments.items)) |kind| .{ .template = kind } else .unsupported,
+            .match_template => |c| if (self.templateLowering(ast, c.segments.items)) |kind| .{ .template = kind } else .unsupported,
             // A search pair steps when its key sub-pattern is a shallow
             // leaf (bind, ignore, or bound-local probe) or a computed key.
             // Its value matches in a nested window, scrutinized by the found
             // member, whose own steps reject an unsupported value. A bound
             // key probes its member directly; an unbound key scans; either
             // way the value's window is the same.
-            .search_key => |c| if (searchKeyStepable(ast, c.key)) .step else .unsupported,
+            .search_key => |c| if (searchKeySupported(ast, c.key)) .step else .unsupported,
             .solve_merge => |c| if (self.mergeLowering(ast, c.ty, c.parts.items, c.solvable_index)) |merge| .{ .merge = merge } else .unsupported,
             .solve_repeat => |c| if (self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index)) |shape| .{ .repeat = shape } else .unsupported,
-            .claim_members => |c| if (self.claimMembersStepable(ast, c)) .step else .unsupported,
+            .claim_members => |c| if (self.claimMembersSupported(ast, c)) .step else .unsupported,
             .local => .unsupported,
         };
     }
@@ -2086,15 +2090,15 @@ pub const Compiler = struct {
     // runtime-typed residual, and a string merge prefers it over the span
     // cursor.
     fn mergeLowering(self: *Compiler, ast: *const Ast, ty: ?Ast.ValueType, parts: []const Ast.Part, solvable_index: ?u32) ?MergeLowering {
-        const merge_ty = ty orelse return if (self.mergeEvalStepable(ast, ty, parts, solvable_index)) .eval else null;
+        const merge_ty = ty orelse return if (self.mergeEvalSupported(ast, ty, parts, solvable_index)) .eval else null;
         return switch (merge_ty) {
             .number => if (classifyNumMergeStep(ast, ty, parts) != null) .number else null,
             .boolean => if (self.classifyBoolMergeStep(ast, ty, parts) != null) .boolean else null,
-            .array => if (self.arrayMergeStepable(ast, ty, parts, solvable_index)) .array_span else null,
-            .object => if (self.objectMergeStepable(ast, ty, parts, solvable_index)) .object_claim else null,
-            .string => if (self.mergeEvalStepable(ast, ty, parts, solvable_index))
+            .array => if (self.arrayMergeSupported(ast, ty, parts, solvable_index)) .array_span else null,
+            .object => if (self.objectMergeSupported(ast, ty, parts, solvable_index)) .object_claim else null,
+            .string => if (self.mergeEvalSupported(ast, ty, parts, solvable_index))
                 .eval
-            else if (self.stringMergeCursorStepable(ast, ty, parts))
+            else if (self.stringMergeCursorSupported(ast, ty, parts))
                 .string_cursor
             else
                 null,
@@ -2109,12 +2113,12 @@ pub const Compiler = struct {
     // the object's member count determines it. An inexact (rest) shape needs
     // a known count product — the surplus over the claimed groups feeds the
     // rest.
-    fn claimMembersStepable(self: *Compiler, ast: *const Ast, c: anytype) bool {
+    fn claimMembersSupported(self: *Compiler, ast: *const Ast, c: anytype) bool {
         if (c.pattern != .sub) return false;
         const chunk_set_id = c.pattern.sub;
         if (repeatObjectLen(ast, chunk_set_id) == null and repeatObjectSearchLen(ast, chunk_set_id) == null) return false;
         if (c.exact) {
-            return self.repeatCountFactorsStepable(ast, c.count_factors.items, c.solvable_index);
+            return self.repeatCountFactorsSupported(ast, c.count_factors.items, c.solvable_index);
         }
         // A rest takes the members past the claimed groups, so the count
         // cannot be derived from the member total: it must be a known product.
@@ -2165,15 +2169,15 @@ pub const Compiler = struct {
     // zero-arity parser); a non-zero-arity global fails at emit.
     fn repeatShape(self: *Compiler, ast: *const Ast, pattern_part: Ast.Part, factors: []const Ast.Part, solvable_index: ?u32) ?RepeatShape {
         switch (pattern_part) {
-            .expr => |id| if (self.evalExprStepable(ast, id) and self.repeatCountFactorsStepable(ast, factors, solvable_index)) {
+            .expr => |id| if (self.evaluableExpr(ast, id) and self.repeatCountFactorsSupported(ast, factors, solvable_index)) {
                 return .value;
             },
-            .read, .global => if (self.repeatCountFactorsStepable(ast, factors, solvable_index)) return .value,
+            .read, .global => if (self.repeatCountFactorsSupported(ast, factors, solvable_index)) return .value,
             .bind, .placeholder => {
                 if (self.repeatCountKnown(ast, factors)) return .chunk;
                 if (repeatCountBareUnbound(factors)) return .identity;
             },
-            .sub => |set_id| if (self.repeatCountFactorsStepable(ast, factors, solvable_index)) {
+            .sub => |set_id| if (self.repeatCountFactorsSupported(ast, factors, solvable_index)) {
                 if (self.repeatRangeConstraint(ast, set_id) != null) return .range;
                 if (repeatArrayLen(ast, set_id) != null) return .array;
                 if (repeatObjectLen(ast, set_id) != null) return .object;
@@ -2190,7 +2194,7 @@ pub const Compiler = struct {
     // place 0); its interior may nest arrays and constant-key objects of
     // leaf tests and binds, matched per chunk in a nested window. Rests
     // (variable length), ranges, searches, nested repeats, merges, and
-    // templates inside a chunk are not stepable.
+    // templates inside a chunk are not supported.
     fn repeatArrayLen(ast: *const Ast, set_id: Ast.SetId) ?u32 {
         const set = &ast.constraint_sets.items[set_id];
         if (set.places.items.len == 0) return null;
@@ -2271,7 +2275,7 @@ pub const Compiler = struct {
     // pair_count members exclusively from a claim array; group 0 binds and
     // later groups compare (the rebound variant), so a binding or constant
     // key re-probing a claimed member fails a second group. Structural
-    // const-key values are not stepable.
+    // const-key values are not supported.
     fn repeatObjectSearchLen(ast: *const Ast, set_id: Ast.SetId) ?u32 {
         const set = &ast.constraint_sets.items[set_id];
         // Place 0 is the scrutinee; any others are const-key member
@@ -2314,7 +2318,7 @@ pub const Compiler = struct {
                 }
             },
             // A const key's leaf value constraint on its projected place;
-            // structural value kinds are not stepable.
+            // structural value kinds are not supported.
             .bind, .eq_const, .eq_slot, .eq_global, .in_range => {},
             else => return null,
         };
@@ -2358,7 +2362,7 @@ pub const Compiler = struct {
     // The single range constraint of a repeat's range sub-pattern, or
     // null: exactly one place constrained by one in_range whose bounds
     // are open, bound reads, or constants — the kinds the scan op
-    // encodes. Bind and evaluated bounds are not stepable.
+    // encodes. Bind and evaluated bounds are not supported.
     fn repeatRangeConstraint(self: *Compiler, ast: *const Ast, set_id: Ast.SetId) ?*const Ast.Constraint {
         const set = &ast.constraint_sets.items[set_id];
         if (set.places.items.len != 1) return null;
@@ -2366,15 +2370,15 @@ pub const Compiler = struct {
         const constraint = &set.constraints.items[0];
         switch (constraint.kind) {
             .in_range => |c| {
-                if (!self.repeatRangeLimitStepable(ast, c.lower)) return null;
-                if (!self.repeatRangeLimitStepable(ast, c.upper)) return null;
+                if (!self.repeatRangeLimitSupported(ast, c.lower)) return null;
+                if (!self.repeatRangeLimitSupported(ast, c.upper)) return null;
                 return constraint;
             },
             else => return null,
         }
     }
 
-    fn repeatRangeLimitStepable(self: *Compiler, ast: *const Ast, limit: Ast.Limit) bool {
+    fn repeatRangeLimitSupported(self: *Compiler, ast: *const Ast, limit: Ast.Limit) bool {
         return switch (limit) {
             .none, .read => true,
             .expr => |id| self.constPatternNode(ast, id),
@@ -2389,12 +2393,12 @@ pub const Compiler = struct {
     // product: every non-solvable factor must be an evaluable scalar the
     // derived count divides by, leaving the residual for the one unbound
     // factor (solvable_index) to bind.
-    fn repeatCountFactorsStepable(self: *Compiler, ast: *const Ast, factors: []const Ast.Part, solvable_index: ?u32) bool {
+    fn repeatCountFactorsSupported(self: *Compiler, ast: *const Ast, factors: []const Ast.Part, solvable_index: ?u32) bool {
         if (factors.len == 1) {
             return switch (factors[0]) {
                 .placeholder, .bind, .read, .global => true,
-                .expr => |id| self.evalExprStepable(ast, id),
-                .sub => |set_id| repeatCountSetStepable(ast, set_id),
+                .expr => |id| self.evaluableExpr(ast, id),
+                .sub => |set_id| repeatCountSetSupported(ast, set_id),
                 .local => false,
             };
         }
@@ -2403,7 +2407,7 @@ pub const Compiler = struct {
             if (solvable_index) |s| if (i == s) continue;
             switch (factor) {
                 .read, .global => {},
-                .expr => |id| if (!self.evalExprStepable(ast, id)) return false,
+                .expr => |id| if (!self.evaluableExpr(ast, id)) return false,
                 // At most one range factor; solved as `r` in the count
                 // product (r · U = residual) for a trailing unbound, or
                 // bound-checked against the residual when none follows.
@@ -2419,10 +2423,10 @@ pub const Compiler = struct {
     }
 
     // A count sub-set steps when it is a single place constrained by
-    // leaf tests: constant equality, ranges with stepable bounds, binds,
+    // leaf tests: constant equality, ranges with supported bounds, binds,
     // and bound reads. Merges, negations, and nested composites are not
-    // stepable.
-    fn repeatCountSetStepable(ast: *const Ast, set_id: Ast.SetId) bool {
+    // supported.
+    fn repeatCountSetSupported(ast: *const Ast, set_id: Ast.SetId) bool {
         const set = &ast.constraint_sets.items[set_id];
         if (set.places.items.len != 1) return false;
         for (set.constraints.items) |constraint| switch (constraint.kind) {
@@ -2439,7 +2443,7 @@ pub const Compiler = struct {
     fn repeatCountKnown(self: *Compiler, ast: *const Ast, factors: []const Ast.Part) bool {
         for (factors) |factor| switch (factor) {
             .read, .global => {},
-            .expr => |id| if (!self.evalExprStepable(ast, id)) return false,
+            .expr => |id| if (!self.evaluableExpr(ast, id)) return false,
             else => return false,
         };
         return true;
@@ -2463,7 +2467,7 @@ pub const Compiler = struct {
     // {"a" + B: 1}) the scan matches against each candidate key in a child
     // window, which rejects an unsupported constraint. Const keys don't
     // arise — a literal key is a has_key place.
-    fn searchKeyStepable(ast: *const Ast, set_id: Ast.SetId) bool {
+    fn searchKeySupported(ast: *const Ast, set_id: Ast.SetId) bool {
         const set = &ast.constraint_sets.items[set_id];
         if (set.places.items.len != 1 or set.constraints.items.len != 1) return true;
         return set.constraints.items[0].kind != .eq_const;
@@ -2491,7 +2495,7 @@ pub const Compiler = struct {
     // (folded), or a bound read, global, or call (evaluated per match). The
     // leftover is the residual after subtracting the rest. A negated
     // non-leftover part, a negated leftover paired with a runtime part, two
-    // unknowns, or a non-numeric part is not stepable.
+    // unknowns, or a non-numeric part is not supported.
     fn classifyNumMergeStep(
         ast: *const Ast,
         ty: ?Ast.ValueType,
@@ -2590,11 +2594,11 @@ pub const Compiler = struct {
     // other part is an evaluable value. At match time the parts merge into
     // one value whose runtime type selects the residual (MatchMergeEval):
     // number subtract, string/array prefix/suffix, object key removal, or
-    // boolean OR. A structural leftover is not stepable. String-typed
+    // boolean OR. A structural leftover is not supported. String-typed
     // merges reach here because literal+binder shapes decompose in the
     // frontend (str_prefix/slice); only call-part shapes survive as
     // solve_merge, and the runtime-typed residual solves them the same way.
-    fn mergeEvalStepable(self: *Compiler, ast: *const Ast, ty: ?Ast.ValueType, parts: []const Ast.Part, solvable_index: ?u32) bool {
+    fn mergeEvalSupported(self: *Compiler, ast: *const Ast, ty: ?Ast.ValueType, parts: []const Ast.Part, solvable_index: ?u32) bool {
         if (ty != null and ty != .string) return false;
         if (parts.len < 2) return false;
         const si = solvable_index orelse {
@@ -2628,9 +2632,9 @@ pub const Compiler = struct {
     // solvable (a merge-level bind/placeholder or a template hole) takes
     // the residual span. Evaluated parts stay off this path: the span ops
     // stringify values (template semantics), but a merge part that is not
-    // a string must fail, which mergeEvalStepable's runtime residual
+    // a string must fail, which mergeEvalSupported's runtime residual
     // already handles.
-    fn stringMergeCursorStepable(self: *Compiler, ast: *const Ast, ty: ?Ast.ValueType, parts: []const Ast.Part) bool {
+    fn stringMergeCursorSupported(self: *Compiler, ast: *const Ast, ty: ?Ast.ValueType, parts: []const Ast.Part) bool {
         if ((ty orelse return false) != .string) return false;
         var solvables: u32 = 0;
         for (parts) |part| switch (part) {
@@ -2663,7 +2667,7 @@ pub const Compiler = struct {
     // MatchClaimObject), and the solvable part, if any, is a bind or
     // placeholder taking the unclaimed rest. A sub set holding a single
     // object repeat (objectMergeRepeatPart) is also accepted.
-    fn objectMergeStepable(self: *Compiler, ast: *const Ast, ty: ?Ast.ValueType, parts: []const Ast.Part, solvable_index: ?u32) bool {
+    fn objectMergeSupported(self: *Compiler, ast: *const Ast, ty: ?Ast.ValueType, parts: []const Ast.Part, solvable_index: ?u32) bool {
         if ((ty orelse return false) != .object) return false;
         for (parts, 0..) |part, i| {
             if (solvable_index != null and solvable_index.? == i) {
@@ -2675,7 +2679,7 @@ pub const Compiler = struct {
             }
             switch (part) {
                 .read, .global => {},
-                .expr => |id| if (!self.evalExprStepable(ast, id)) return false,
+                .expr => |id| if (!self.evaluableExpr(ast, id)) return false,
                 .sub => |set_id| if (repeatObjectSearchLen(ast, set_id) == null and
                     self.objectMergeRepeatPart(ast, set_id) == null) return false,
                 else => return false,
@@ -2711,7 +2715,7 @@ pub const Compiler = struct {
     fn evaluableMergePart(self: *Compiler, ast: *const Ast, part: Ast.Part) bool {
         return switch (part) {
             .read, .global => true,
-            .expr => |id| self.evalExprStepable(ast, id),
+            .expr => |id| self.evaluableExpr(ast, id),
             else => false,
         };
     }
@@ -2728,7 +2732,7 @@ pub const Compiler = struct {
     // `false` and the leftover is a bind, bound read, or placeholder.
     // Booleans merge by OR, so the leftover claims the residual
     // `scrutinee AND NOT static` (parts to its left claim first). Evaluated
-    // parts, globals, and second unknowns are not stepable.
+    // parts, globals, and second unknowns are not supported.
     fn classifyBoolMergeStep(
         self: *Compiler,
         ast: *const Ast,
@@ -2783,7 +2787,7 @@ pub const Compiler = struct {
     // rejects an unsupported interior), and the single solvable part is a bind or
     // placeholder taking the residual span. Untyped merges keep the plan
     // path.
-    fn arrayMergeStepable(self: *Compiler, ast: *const Ast, ty: ?Ast.ValueType, parts: []const Ast.Part, solvable_index: ?u32) bool {
+    fn arrayMergeSupported(self: *Compiler, ast: *const Ast, ty: ?Ast.ValueType, parts: []const Ast.Part, solvable_index: ?u32) bool {
         if ((ty orelse return false) != .array) return false;
         for (parts, 0..) |part, i| {
             if (solvable_index != null and solvable_index.? == i) {
@@ -2795,7 +2799,7 @@ pub const Compiler = struct {
             }
             switch (part) {
                 .read => {},
-                .expr => |id| if (!self.constPatternNode(ast, id) and !self.evalExprStepable(ast, id)) return false,
+                .expr => |id| if (!self.constPatternNode(ast, id) and !self.evaluableExpr(ast, id)) return false,
                 .sub => |set_id| if (arrayMergePartFixedLen(ast, set_id) == null) return false,
                 else => return false,
             }
@@ -2889,13 +2893,13 @@ pub const Compiler = struct {
         // A bare binder or placeholder: the raw substring solvable.
         solvable_raw,
         // A structural sub-pattern cast from the byte range by its root
-        // type. Handled in the cast phase; gated until then.
+        // type. Handled in the cast phase.
         solvable_cast,
         // A template sub-pattern: concatenation is associative, so its
         // segments splice inline into the enclosing segment list.
         splice,
         // Rejects the whole template.
-        gate,
+        unsupported,
     };
 
     fn templatePartKind(self: *Compiler, ast: *const Ast, part: Ast.Part) TemplatePartKind {
@@ -2904,10 +2908,10 @@ pub const Compiler = struct {
             .read => .value,
             .expr => |id| if (self.constPatternNode(ast, id))
                 .literal_fold
-            else if (self.evalExprStepable(ast, id))
+            else if (self.evaluableExpr(ast, id))
                 .value
             else
-                .gate,
+                .unsupported,
             .sub => |set_id| if (templateSubTemplate(ast, set_id) != null)
                 .splice
             else if (templateRangeLimits(ast, set_id) != null)
@@ -2918,18 +2922,18 @@ pub const Compiler = struct {
                 (if (self.templateRangeNumeric(ast, set_id)) .solvable_cast else .char_range)
             else if (self.templateMergeSolvable(ast, set_id) != null)
                 .solvable_cast
-            else if (templateCastStepable(ast, set_id))
+            else if (templateCastSupported(ast, set_id))
                 .solvable_cast
             else if (self.templateRepeatSolvable(ast, set_id))
                 .solvable_cast
             else
-                // String-typed and untyped merges are not stepable.
-                .gate,
+                // String-typed and untyped merges are not supported.
+                .unsupported,
             // A global hole evaluates at match time (invoking a zero-arity
             // function) and compares like a bound read; a multi-arity
             // function global is rejected at emit.
             .global => .value,
-            .local => .gate,
+            .local => .unsupported,
         };
     }
 
@@ -2952,7 +2956,7 @@ pub const Compiler = struct {
             .literal_fold, .value, .char_range => 0,
             .solvable_raw, .solvable_cast => 1,
             .splice => self.templateSegmentsSolvableCount(ast, templateSubTemplate(ast, part.sub).?),
-            .gate => null,
+            .unsupported => null,
         };
     }
 
@@ -3005,7 +3009,7 @@ pub const Compiler = struct {
     // recursion is exactly a root arm's, and the child window rejects an
     // unsupported interior. Untyped merges (a runtime string-vs-JSON cast
     // decision) and repeats are not casts.
-    fn templateCastStepable(ast: *const Ast, set_id: Ast.SetId) bool {
+    fn templateCastSupported(ast: *const Ast, set_id: Ast.SetId) bool {
         const set = &ast.constraint_sets.items[set_id];
         for (set.constraints.items) |constraint| switch (constraint.kind) {
             .is_type => |c| if (c.place == 0 and (c.ty == .array or c.ty == .object)) return true,
@@ -3056,7 +3060,7 @@ pub const Compiler = struct {
 
     // Whether a template destructure lowers to inline steps, and by which
     // strategy. Null rejects the template.
-    fn templateStepable(self: *Compiler, ast: *const Ast, segments: []const Ast.Segment) ?TemplateKind {
+    fn templateLowering(self: *Compiler, ast: *const Ast, segments: []const Ast.Segment) ?TemplateKind {
         // Path A: the static layout — only literals plus exactly one
         // bind/placeholder, within the 255-byte literal cap.
         var specials: u32 = 0;
@@ -3203,7 +3207,7 @@ pub const Compiler = struct {
         defer allocator.free(lowerings);
         // Match scratch is addressed relative to the per-match window.
         const layout = windowLayout(ast, places, constraints, lowerings) catch |err| switch (err) {
-            error.UnsupportedPattern => return self.rejectUnstepable(module_id, constraints, region),
+            error.UnsupportedPattern => return self.rejectUnsupported(module_id, constraints, region),
             error.PatternTooLarge => {
                 try self.printError(module_id, region, "Pattern too large to compile.", .{});
                 return Error.MaxFunctionLocals;
@@ -3315,7 +3319,7 @@ pub const Compiler = struct {
         };
 
         for (constraints, lowerings) |constraint, lowering| {
-            if (lowering == .unsupported) return self.rejectUnstepable(module_id, constraints, region);
+            if (lowering == .unsupported) return self.rejectUnsupported(module_id, constraints, region);
             const step_region = constraint.region;
             switch (constraint.kind) {
                 .is_type => |c| {
@@ -4079,7 +4083,7 @@ pub const Compiler = struct {
     // Test the derived repeat count in `reg` against the count operand:
     // nothing for a placeholder, a bind or comparison for locals,
     // constant equality, or a single-place count sub-set of leaf tests.
-    // repeatCountSetStepable admits exactly these sub-set shapes.
+    // repeatCountSetSupported admits exactly these sub-set shapes.
     fn emitRepeatCountSteps(
         self: *Compiler,
         module_id: Module.Id,
@@ -4188,7 +4192,7 @@ pub const Compiler = struct {
                 else => {},
             }
         }
-        // A range factor (at most one, guaranteed by repeatCountFactorsStepable)
+        // A range factor (at most one, guaranteed by repeatCountFactorsSupported)
         // is solved after the scalar factors divide out: greedy r · U = residual
         // for a trailing unbound U, else a bound-check on the residual.
         const range_idx: ?usize = for (factors, 0..) |factor, i| {
@@ -4980,7 +4984,7 @@ pub const Compiler = struct {
                     try effs.append(allocator, .{ .solvable = part });
                 },
                 .splice => try self.collectTemplateSegs(module_id, ast, templateSubTemplate(ast, part.sub).?, effs, lit, solvable_index, region),
-                .gate => unreachable,
+                .unsupported => unreachable,
             },
         };
     }
@@ -5466,14 +5470,6 @@ pub const Compiler = struct {
             .byte1 = reg,
             .byte2 = @intFromBool(is_upper),
         } }, region));
-    }
-
-    // A bare negation composes with any inner but an unresolved local. An
-    // evaluable inner (read, global, expr) negates its own evaluated result;
-    // a structural inner (bind, placeholder, sub) negates the scrutinee and
-    // matches against it in a child window.
-    fn negatedStepable(part: Ast.Part) bool {
-        return part != .local;
     }
 
     // Match a negated inner against its place. An evaluable inner mirrors
