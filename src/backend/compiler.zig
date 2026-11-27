@@ -971,7 +971,7 @@ pub const Compiler = struct {
         width: u32,
     };
 
-    fn windowLayout(self: *Compiler, ast: *const Ast, places: []const Ast.PlaceDef, constraints: []const Ast.Constraint) WindowLayout {
+    fn windowLayout(self: *Compiler, ast: *const Ast, places: []const Ast.PlaceDef, constraints: []const Ast.Constraint) error{UnsupportedPattern}!WindowLayout {
         var search_groups: u32 = 0;
         var repeat_block: u32 = 0;
         var span_block: u32 = 0;
@@ -988,7 +988,7 @@ pub const Compiler = struct {
                 if (first) search_groups += 1;
             },
             .solve_repeat => |c| {
-                const shape = self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index).?;
+                const shape = self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index) orelse return error.UnsupportedPattern;
                 repeat_block = @max(repeat_block, @as(u32, switch (shape) {
                     .array => 3,
                     .object, .object_search => 2,
@@ -3257,7 +3257,7 @@ pub const Compiler = struct {
     ) Error!void {
         const allocator = self.vm.allocator;
         // Match scratch is addressed relative to the per-match window.
-        const layout = self.windowLayout(ast, places, constraints);
+        const layout = self.windowLayout(ast, places, constraints) catch return self.rejectUnstepable(module_id, constraints, region);
         const dead_reg = layout.dead;
 
         const materialized = try allocator.alloc(bool, places.len);
