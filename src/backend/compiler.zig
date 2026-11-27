@@ -2023,17 +2023,6 @@ pub const Compiler = struct {
         try self.writeMatchSteps(module_id, ast, match.places.items, arm.constraints.items, .input, region);
     }
 
-    // Whether every constraint in a set lowers to inline steps. Serves both
-    // a root arm and a nested sub-pattern's ConstraintSet (both have the
-    // same scrutinee-rooted shape), so it recurses through searchable
-    // structural values.
-    fn constraintsStepable(self: *Compiler, ast: *const Ast, constraints: []const Ast.Constraint) bool {
-        for (constraints) |constraint| {
-            if (!self.constraintStepable(ast, constraints, constraint)) return false;
-        }
-        return true;
-    }
-
     // Whether one constraint of a set lowers to inline steps. Takes the
     // whole set because a claim_members shares the claim register block
     // with its siblings (singleClaimer).
