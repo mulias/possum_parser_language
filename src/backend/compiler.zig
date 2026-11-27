@@ -2045,7 +2045,7 @@ pub const Compiler = struct {
             .eq_const => true,
             .eval_eq => true,
             .in_range => true,
-            .negated => |c| self.negatedStepable(ast, c.part),
+            .negated => |c| negatedStepable(c.part),
             // A template lowers either to the static prefix/suffix/slice
             // layout (path A) or to the cursor-chomp path (path B).
             .match_template => |c| self.templateStepable(ast, c.segments.items) != null,
@@ -5528,16 +5528,12 @@ pub const Compiler = struct {
         } }, region));
     }
 
-    // A bare negation composes with any stepable inner. An evaluable
-    // inner (read, global, expr) negates its own evaluated result; a
-    // structural inner (bind, placeholder, sub) negates the scrutinee and
-    // matches against it, so a sub-pattern steps when its own set does.
-    fn negatedStepable(self: *Compiler, ast: *const Ast, part: Ast.Part) bool {
-        return switch (part) {
-            .bind, .placeholder, .read, .global, .expr => true,
-            .sub => |set_id| self.constraintsStepable(ast, ast.constraint_sets.items[set_id].constraints.items),
-            .local => false,
-        };
+    // A bare negation composes with any inner but an unresolved local. An
+    // evaluable inner (read, global, expr) negates its own evaluated result;
+    // a structural inner (bind, placeholder, sub) negates the scrutinee and
+    // matches against it in a child window.
+    fn negatedStepable(part: Ast.Part) bool {
+        return part != .local;
     }
 
     // Match a negated inner against its place. An evaluable inner mirrors
