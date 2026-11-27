@@ -971,7 +971,7 @@ pub const Compiler = struct {
         width: u8,
     };
 
-    fn windowLayout(self: *Compiler, ast: *const Ast, places: []const Ast.PlaceDef, constraints: []const Ast.Constraint) error{ UnsupportedPattern, PatternTooLarge }!WindowLayout {
+    fn windowLayout(self: *Compiler, ast: *const Ast, places: []const Ast.PlaceDef, constraints: []const Ast.Constraint, lowerings: []const Lowering) error{ UnsupportedPattern, PatternTooLarge }!WindowLayout {
         var search_groups: u32 = 0;
         var repeat_block: u32 = 0;
         var span_block: u32 = 0;
@@ -987,8 +987,11 @@ pub const Compiler = struct {
                 } else true;
                 if (first) search_groups += 1;
             },
-            .solve_repeat => |c| {
-                const shape = self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index) orelse return error.UnsupportedPattern;
+            .solve_repeat => {
+                const shape = switch (lowerings[i]) {
+                    .repeat => |shape| shape,
+                    else => return error.UnsupportedPattern,
+                };
                 repeat_block = @max(repeat_block, @as(u32, switch (shape) {
                     .array => 3,
                     .object, .object_search => 2,
@@ -3191,7 +3194,7 @@ pub const Compiler = struct {
         const lowerings = try self.constraintLowerings(ast, constraints);
         defer allocator.free(lowerings);
         // Match scratch is addressed relative to the per-match window.
-        const layout = self.windowLayout(ast, places, constraints) catch |err| switch (err) {
+        const layout = self.windowLayout(ast, places, constraints, lowerings) catch |err| switch (err) {
             error.UnsupportedPattern => return self.rejectUnstepable(module_id, constraints, region),
             error.PatternTooLarge => {
                 try self.printError(module_id, region, "Pattern too large to compile.", .{});
@@ -3549,7 +3552,7 @@ pub const Compiler = struct {
                 .solve_repeat => |c| {
                     try self.ensureGoalPlace(module_id, constraints, places, materialized, c.place, step_region);
                     const src_reg = placeReg(c.place);
-                    switch (self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index).?) {
+                    switch (lowering.repeat) {
                         // A known pattern: push its value, derive the
                         // count from the place's value, and solve the
                         // count factors against the derived count.
