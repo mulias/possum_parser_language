@@ -2056,7 +2056,7 @@ pub const Compiler = struct {
             // key probes its member directly; an unbound key scans; either
             // way the value's window is the same.
             .search_key => |c| self.searchKeyStepable(ast, c.key),
-            .solve_merge => |c| self.classifyNumMergeStep(ast, c.ty, c.parts.items) != null or
+            .solve_merge => |c| classifyNumMergeStep(ast, c.ty, c.parts.items) != null or
                 self.classifyBoolMergeStep(ast, c.ty, c.parts.items) != null or
                 self.mergeNegatedNonNumber(ast, c.ty, c.parts.items) or
                 self.arrayMergeStepable(ast, c.ty, c.parts.items, c.solvable_index) or
@@ -2474,7 +2474,6 @@ pub const Compiler = struct {
     // non-leftover part, a negated leftover paired with a runtime part, two
     // unknowns, or a non-numeric part is not stepable.
     fn classifyNumMergeStep(
-        self: *Compiler,
         ast: *const Ast,
         ty: ?Ast.ValueType,
         parts: []const Ast.Part,
@@ -2486,7 +2485,7 @@ pub const Compiler = struct {
             // A structural sub-pattern part (anything but the single-negated
             // -value shape handled below) is the leftover: the residual
             // feeds it as a scrutinee in a child window. Like a bind it must
-            // be the sole unbound part, and its set must lower to steps.
+            // be the sole unbound part.
             if (part == .sub) structural: {
                 const set = &ast.constraint_sets.items[part.sub];
                 if (set.constraints.items.len == 1 and set.constraints.items[0].kind == .negated) break :structural;
@@ -2494,7 +2493,6 @@ pub const Compiler = struct {
                     if (f.kind != .read or f.negate) return null;
                     has_runtime = true;
                 }
-                if (!self.constraintsStepable(ast, set.constraints.items)) return null;
                 found = .{ .part_index = i, .negate = false, .kind = .sub, .slot = 0, .sub_set = part.sub, .has_runtime_part = false };
                 continue;
             }
@@ -2986,7 +2984,7 @@ pub const Compiler = struct {
         if (set.constraints.items.len != 1) return null;
         switch (set.constraints.items[0].kind) {
             .solve_merge => |c| {
-                if (self.classifyNumMergeStep(ast, c.ty, c.parts.items) != null) return .number;
+                if (classifyNumMergeStep(ast, c.ty, c.parts.items) != null) return .number;
                 if (self.classifyBoolMergeStep(ast, c.ty, c.parts.items) != null) return .boolean;
                 return null;
             },
@@ -4371,7 +4369,7 @@ pub const Compiler = struct {
             }
             return;
         }
-        const step = self.classifyNumMergeStep(ast, ty, parts).?;
+        const step = classifyNumMergeStep(ast, ty, parts).?;
         if (step.has_runtime_part) {
             try self.emitNumMergeRuntime(module_id, ast, parts, step, src_reg, dead_reg, fallible, region);
             return;
