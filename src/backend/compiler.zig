@@ -2063,7 +2063,7 @@ pub const Compiler = struct {
             .has_key, .str_prefix, .str_suffix, .bind, .eq_slot, .eq_global => .step,
             .eq_const => .step,
             .eval_eq => .step,
-            .in_range => .step,
+            .in_range => |c| if (rangeLimitsSupported(c.lower, c.upper)) .step else .unsupported,
             // A bare negation composes with any inner but an unresolved local. An
             // evaluable inner (read, global, expr) negates its own evaluated result;
             // a structural inner (bind, placeholder, sub) negates the scrutinee and
@@ -2319,7 +2319,8 @@ pub const Compiler = struct {
             },
             // A const key's leaf value constraint on its projected place;
             // structural value kinds are not supported.
-            .bind, .eq_const, .eq_slot, .eq_global, .in_range => {},
+            .bind, .eq_const, .eq_slot, .eq_global => {},
+            .in_range => |c| if (!rangeLimitsSupported(c.lower, c.upper)) return null,
             else => return null,
         };
         if (!root_object or len == null) return null;
@@ -2378,6 +2379,12 @@ pub const Compiler = struct {
         }
     }
 
+    // A compound limit that would need inverse solving ((A + 1)..5) has no
+    // lowering.
+    fn rangeLimitsSupported(lower: Ast.Limit, upper: Ast.Limit) bool {
+        return lower != .local and lower != .solve and upper != .local and upper != .solve;
+    }
+
     fn repeatRangeLimitSupported(self: *Compiler, ast: *const Ast, limit: Ast.Limit) bool {
         return switch (limit) {
             .none, .read => true,
@@ -2431,7 +2438,7 @@ pub const Compiler = struct {
         if (set.places.items.len != 1) return false;
         for (set.constraints.items) |constraint| switch (constraint.kind) {
             .eq_const, .bind, .eq_slot => {},
-            .in_range => {},
+            .in_range => |c| if (!rangeLimitsSupported(c.lower, c.upper)) return false,
             else => return false,
         };
         return true;
@@ -3028,7 +3035,7 @@ pub const Compiler = struct {
         if (set.constraints.items.len != 1) return null;
         switch (set.constraints.items[0].kind) {
             .in_range => |c| {
-                if (c.place != 0) return null;
+                if (c.place != 0 or !rangeLimitsSupported(c.lower, c.upper)) return null;
                 return .{ .lower = c.lower, .upper = c.upper };
             },
             else => return null,
@@ -3111,7 +3118,8 @@ pub const Compiler = struct {
                 const constant = try self.makeConstantU16(module_id, global, region);
                 return .{ .kind = @intFromEnum(RangeLimitKind.global), .arg = constant };
             },
-            .local, .solve => return error.UnsupportedPattern,
+            // Rejected by repeatRangeLimitSupported.
+            .local, .solve => unreachable,
             .expr => |id| {
                 if (self.constPatternNode(ast, id)) {
                     const constant = try self.rangeBoundConstant(module_id, ast, id, region);
@@ -5425,7 +5433,8 @@ pub const Compiler = struct {
                     try self.emitMatchBound(reg, is_upper, RangeLimitKind.const_elem, constant, fallible, region);
                 }
             },
-            .local, .solve => return error.UnsupportedPattern,
+            // Rejected by rangeLimitsSupported.
+            .local, .solve => unreachable,
             .expr => |id| {
                 if (self.constPatternNode(ast, id)) {
                     const constant = try self.rangeBoundConstant(module_id, ast, id, region);
