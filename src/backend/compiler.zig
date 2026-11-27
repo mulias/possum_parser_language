@@ -968,10 +968,10 @@ pub const Compiler = struct {
         // object_search repeat, a claim_members merge, or an object merge
         // needs it.
         object_claim: ClaimRegs,
-        width: u32,
+        width: u8,
     };
 
-    fn windowLayout(self: *Compiler, ast: *const Ast, places: []const Ast.PlaceDef, constraints: []const Ast.Constraint) error{UnsupportedPattern}!WindowLayout {
+    fn windowLayout(self: *Compiler, ast: *const Ast, places: []const Ast.PlaceDef, constraints: []const Ast.Constraint) error{ UnsupportedPattern, PatternTooLarge }!WindowLayout {
         var search_groups: u32 = 0;
         var repeat_block: u32 = 0;
         var span_block: u32 = 0;
@@ -1025,6 +1025,9 @@ pub const Compiler = struct {
         const repeat = search_claims + search_block;
         const span = repeat + repeat_block;
         const object_claim = span + span_block;
+        const width = object_claim + object_claim_block;
+        const last_reg = object_claim + 4;
+        if (width > 255 or last_reg > 255) return error.PatternTooLarge;
         return .{
             .dead = @intCast(dead),
             .search_claims = @intCast(search_claims),
@@ -1038,9 +1041,9 @@ pub const Compiler = struct {
                 .key = @intCast(object_claim + 1),
                 .val = @intCast(object_claim + 2),
                 .cursor = @intCast(object_claim + 3),
-                .target = @intCast(object_claim + 4),
+                .target = @intCast(last_reg),
             },
-            .width = object_claim + object_claim_block,
+            .width = @intCast(width),
         };
     }
 
@@ -3153,7 +3156,13 @@ pub const Compiler = struct {
     ) Error!void {
         const allocator = self.vm.allocator;
         // Match scratch is addressed relative to the per-match window.
-        const layout = self.windowLayout(ast, places, constraints) catch return self.rejectUnstepable(module_id, constraints, region);
+        const layout = self.windowLayout(ast, places, constraints) catch |err| switch (err) {
+            error.UnsupportedPattern => return self.rejectUnstepable(module_id, constraints, region),
+            error.PatternTooLarge => {
+                try self.printError(module_id, region, "Pattern too large to compile.", .{});
+                return Error.MaxFunctionLocals;
+            },
+        };
         const dead_reg = layout.dead;
 
         const materialized = try allocator.alloc(bool, places.len);
@@ -3228,14 +3237,9 @@ pub const Compiler = struct {
         // arm's skip path jumps past the whole match, so no window is open
         // there; success and failure both converge on the MatchWindowExit
         // emitted after the steps.
-        const width = layout.width;
-        if (width > 255) {
-            try self.printError(module_id, region, "Pattern too large to compile.", .{});
-            return Error.MaxFunctionLocals;
-        }
         const enter_idx = try self.ir().push(allocator, .{ .w_enter = .{
             .op = .MatchWindowEnter,
-            .width = @intCast(width),
+            .width = layout.width,
             .target = Ir.unpatched_jump,
         } }, region);
 
