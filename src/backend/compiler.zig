@@ -1958,11 +1958,7 @@ pub const Compiler = struct {
 
     fn writeGoalCountDestructure(self: *Compiler, module_id: Module.Id, ast: *const Ast, set_id: Ast.SetId, region: Region) Error!void {
         const set = &ast.constraint_sets.items[set_id];
-        if (self.constraintsStepable(ast, set.constraints.items)) {
-            try self.writeMatchSteps(module_id, ast, set.places.items, set.constraints.items, .input, region);
-            return;
-        }
-        return self.rejectUnstepable(module_id, set.constraints.items, region);
+        try self.writeMatchSteps(module_id, ast, set.places.items, set.constraints.items, .input, region);
     }
 
     // A typed solve_merge whose parts are all values — yet with no
@@ -2024,17 +2020,7 @@ pub const Compiler = struct {
         // rendering.
         const region = arm.region;
 
-        if (self.armStepable(ast, arm)) {
-            try self.writeMatchSteps(module_id, ast, match.places.items, arm.constraints.items, .input, region);
-        } else {
-            return self.rejectUnstepable(module_id, arm.constraints.items, region);
-        }
-    }
-
-    // Whether every constraint and place lowers to an inline step op.
-    // Everything else is error.UnsupportedPattern.
-    fn armStepable(self: *Compiler, ast: *const Ast, arm: *const Ast.MatchArm) bool {
-        return self.constraintsStepable(ast, arm.constraints.items);
+        try self.writeMatchSteps(module_id, ast, match.places.items, arm.constraints.items, .input, region);
     }
 
     // Whether every constraint in a set lowers to inline steps. Serves both
