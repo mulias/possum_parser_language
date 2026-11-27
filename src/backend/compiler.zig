@@ -2042,49 +2042,45 @@ pub const Compiler = struct {
     // same scrutinee-rooted shape), so it recurses through searchable
     // structural values.
     fn constraintsStepable(self: *Compiler, ast: *const Ast, constraints: []const Ast.Constraint) bool {
-        for (constraints) |constraint| switch (constraint.kind) {
-            .is_type => {},
-            .len_eq, .len_min, .keys_exact, .keys_min => {},
-            .has_key, .str_prefix, .str_suffix, .bind, .eq_slot, .eq_global => {},
-            .eq_const => {},
-            .eval_eq => {},
-            .in_range => {},
-            .negated => |c| {
-                if (!self.negatedStepable(ast, c.part)) return false;
-            },
+        for (constraints) |constraint| {
+            if (!self.constraintStepable(ast, constraints, constraint)) return false;
+        }
+        return true;
+    }
+
+    // Whether one constraint of a set lowers to inline steps. Takes the
+    // whole set because a claim_members shares the claim register block
+    // with its siblings (singleClaimer).
+    fn constraintStepable(self: *Compiler, ast: *const Ast, constraints: []const Ast.Constraint, constraint: Ast.Constraint) bool {
+        return switch (constraint.kind) {
+            .is_type => true,
+            .len_eq, .len_min, .keys_exact, .keys_min => true,
+            .has_key, .str_prefix, .str_suffix, .bind, .eq_slot, .eq_global => true,
+            .eq_const => true,
+            .eval_eq => true,
+            .in_range => true,
+            .negated => |c| self.negatedStepable(ast, c.part),
             // A template lowers either to the static prefix/suffix/slice
             // layout (path A) or to the cursor-chomp path (path B).
-            .match_template => |c| {
-                if (self.templateStepable(ast, c.segments.items) == null) return false;
-            },
+            .match_template => |c| self.templateStepable(ast, c.segments.items) != null,
             // A search pair steps when its key sub-pattern is a shallow
             // leaf (bind, ignore, or bound-local probe) and its value is
             // either a shallow leaf or a structural sub-pattern matched in
             // a nested window. A bound key probes its member directly; an
             // unbound key scans; either way the value's window is the same.
-            .search_key => |c| {
-                if (!self.searchSetStepable(ast, c.key, true)) return false;
-                if (self.searchSetStepable(ast, c.value, false)) continue;
-                if (!self.searchValueStructuralStepable(ast, c.value)) return false;
-            },
-            .solve_merge => |c| {
-                if (self.classifyNumMergeStep(ast, c.ty, c.parts.items) == null and
-                    self.classifyBoolMergeStep(ast, c.ty, c.parts.items) == null and
-                    !self.mergeNegatedNonNumber(ast, c.ty, c.parts.items) and
-                    !self.arrayMergeStepable(ast, c.ty, c.parts.items, c.solvable_index) and
-                    !self.objectMergeStepable(ast, c.ty, c.parts.items, c.solvable_index) and
-                    !self.mergeEvalStepable(ast, c.ty, c.parts.items, c.solvable_index) and
-                    !self.stringMergeCursorStepable(ast, c.ty, c.parts.items)) return false;
-            },
-            .solve_repeat => |c| {
-                if (self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index) == null) return false;
-            },
-            .claim_members => |c| {
-                if (!self.claimMembersStepable(ast, constraints, c)) return false;
-            },
-            else => return false,
+            .search_key => |c| self.searchSetStepable(ast, c.key, true) and
+                (self.searchSetStepable(ast, c.value, false) or self.searchValueStructuralStepable(ast, c.value)),
+            .solve_merge => |c| self.classifyNumMergeStep(ast, c.ty, c.parts.items) != null or
+                self.classifyBoolMergeStep(ast, c.ty, c.parts.items) != null or
+                self.mergeNegatedNonNumber(ast, c.ty, c.parts.items) or
+                self.arrayMergeStepable(ast, c.ty, c.parts.items, c.solvable_index) or
+                self.objectMergeStepable(ast, c.ty, c.parts.items, c.solvable_index) or
+                self.mergeEvalStepable(ast, c.ty, c.parts.items, c.solvable_index) or
+                self.stringMergeCursorStepable(ast, c.ty, c.parts.items),
+            .solve_repeat => |c| self.repeatShape(ast, c.pattern, c.count_factors.items, c.solvable_index) != null,
+            .claim_members => |c| self.claimMembersStepable(ast, constraints, c),
+            .local => false,
         };
-        return true;
     }
 
     // Whether an object-merge repeat part lowers to inline claim steps. The
@@ -3389,6 +3385,7 @@ pub const Compiler = struct {
         };
 
         for (constraints) |constraint| {
+            if (!self.constraintStepable(ast, constraints, constraint)) return self.rejectUnstepable(module_id, constraints, region);
             const step_region = constraint.region;
             switch (constraint.kind) {
                 .is_type => |c| {
