@@ -174,3 +174,17 @@ compile-time error that the operand can't be negated, for all four cases.
   
   [MergeTypeConflict]
   [1]
+
+
+Object repeats that claim members share one claim register block per match
+window, so a claim_members can't sit beside another claimer (a second
+claim_members, an object search repeat, or an object merge) in the same
+window. This is a register layout limit. Expected: [1, 1] and [1, 0].
+
+  $ possum -p 'json -> [{"a": 1, ...({_: _} * N)}, ({_: 2} * M)] $ [N, M]' -i '[{"a":1,"b":2},{"c":2}]'
+  [UnsupportedPattern]
+  [1]
+
+  $ possum -p 'json -> [{"a": 1, ...({_: _} * N)}, {"b": 2, ...({_: _} * M)}] $ [N, M]' -i '[{"a":1,"b":2},{"b":2}]'
+  [UnsupportedPattern]
+  [1]
