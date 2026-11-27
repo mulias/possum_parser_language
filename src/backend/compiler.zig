@@ -2055,7 +2055,7 @@ pub const Compiler = struct {
             // member, whose own steps reject an unsupported value. A bound
             // key probes its member directly; an unbound key scans; either
             // way the value's window is the same.
-            .search_key => |c| self.searchKeyStepable(ast, c.key),
+            .search_key => |c| searchKeyStepable(ast, c.key),
             .solve_merge => |c| classifyNumMergeStep(ast, c.ty, c.parts.items) != null or
                 self.classifyBoolMergeStep(ast, c.ty, c.parts.items) != null or
                 self.mergeNegatedNonNumber(ast, c.ty, c.parts.items) or
@@ -2424,27 +2424,14 @@ pub const Compiler = struct {
     // may bind, be ignored, probe a known member by a bound local or module
     // global (the eval bridge pushes it for MatchClaimKey), evaluate a call
     // to its key ({X("a"): 1}, pushed the same way), or be a computed
-    // sub-pattern ({"%(0 + N)": 1}) the scan matches against each candidate
-    // key in a child window when the whole key set steps. Const keys don't
+    // sub-pattern ({"%(0 + N)": 1}, or a decomposed string merge like
+    // {"a" + B: 1}) the scan matches against each candidate key in a child
+    // window, which rejects an unsupported constraint. Const keys don't
     // arise — a literal key is a has_key place.
-    fn searchKeyStepable(self: *Compiler, ast: *const Ast, set_id: Ast.SetId) bool {
+    fn searchKeyStepable(ast: *const Ast, set_id: Ast.SetId) bool {
         const set = &ast.constraint_sets.items[set_id];
-        // A multi-place key set — a decomposed string merge like
-        // {"a" + B: 1}, whose slice place carries the bind — steps as a
-        // child window like any other computed key.
-        if (set.places.items.len != 1)
-            return self.constraintsStepable(ast, set.constraints.items);
-        if (set.constraints.items.len == 0) return true;
-        // A key sub-pattern that isn't a shallow leaf — a computed key like
-        // "%(0 + N)" — steps as its own child window: the scan matches each
-        // candidate member key against it, solving any binds.
-        if (set.constraints.items.len > 1)
-            return self.constraintsStepable(ast, set.constraints.items);
-        return switch (set.constraints.items[0].kind) {
-            .bind, .eq_slot, .eq_global, .eval_eq => true,
-            .eq_const => false,
-            else => self.constraintsStepable(ast, set.constraints.items),
-        };
+        if (set.places.items.len != 1 or set.constraints.items.len != 1) return true;
+        return set.constraints.items[0].kind != .eq_const;
     }
 
     const NumMergeStep = struct {
